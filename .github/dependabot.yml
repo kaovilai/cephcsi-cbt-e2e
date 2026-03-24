@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      k8s:
+        patterns:
+          - "k8s.io/*"
+      csi:
+        patterns:
+          - "github.com/kubernetes-csi/*"
+      ginkgo:
+        patterns:
+          - "github.com/onsi/*"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
