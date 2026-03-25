@@ -4,6 +4,7 @@ package cbt
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/api"
 	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/iterator"
@@ -55,12 +56,15 @@ type collectingEmitter struct {
 	result *MetadataResult
 }
 
-func (e *collectingEmitter) SnapshotMetadataIteratorRecord(_ int, metadata iterator.IteratorMetadata) error {
+func (e *collectingEmitter) SnapshotMetadataIteratorRecord(recordNum int, metadata iterator.IteratorMetadata) error {
+	log.Printf("DEBUG emitter Record #%d: BlockMetadataType=%v VolumeCapacityBytes=%d numBlocks=%d",
+		recordNum, metadata.BlockMetadataType, metadata.VolumeCapacityBytes, len(metadata.BlockMetadata))
 	if len(e.result.Blocks) == 0 {
 		e.result.BlockMetadataType = metadata.BlockMetadataType
 	}
 	e.result.VolumeCapacityBytes = metadata.VolumeCapacityBytes
-	for _, bm := range metadata.BlockMetadata {
+	for i, bm := range metadata.BlockMetadata {
+		log.Printf("DEBUG emitter Record #%d block[%d]: offset=%d size=%d", recordNum, i, bm.ByteOffset, bm.SizeBytes)
 		e.result.Blocks = append(e.result.Blocks, BlockMetadata{
 			ByteOffset: bm.ByteOffset,
 			SizeBytes:  bm.SizeBytes,
@@ -69,7 +73,9 @@ func (e *collectingEmitter) SnapshotMetadataIteratorRecord(_ int, metadata itera
 	return nil
 }
 
-func (e *collectingEmitter) SnapshotMetadataIteratorDone(_ int) error {
+func (e *collectingEmitter) SnapshotMetadataIteratorDone(recordNum int) error {
+	log.Printf("DEBUG emitter Done: recordNum=%d totalBlocks=%d volCapacity=%d",
+		recordNum, len(e.result.Blocks), e.result.VolumeCapacityBytes)
 	return nil
 }
 
@@ -87,10 +93,14 @@ func (c *Client) GetAllocatedBlocks(ctx context.Context, snapshotName string) (*
 		SAName:       c.saName,
 	}
 
+	log.Printf("DEBUG GetAllocatedBlocks: calling iterator.GetSnapshotMetadata(namespace=%s, snapshot=%s, saNamespace=%s, saName=%s)",
+		c.namespace, snapshotName, c.saNamespace, c.saName)
 	if err := iterator.GetSnapshotMetadata(ctx, args); err != nil {
 		return nil, fmt.Errorf("GetMetadataAllocated for %s: %w", snapshotName, err)
 	}
 
+	log.Printf("DEBUG GetAllocatedBlocks: result blocks=%d volCapacity=%d metadataType=%v",
+		len(result.Blocks), result.VolumeCapacityBytes, result.BlockMetadataType)
 	return result, nil
 }
 
