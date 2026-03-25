@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"strconv"
 	"strings"
 	"testing"
@@ -109,11 +110,26 @@ var _ = BeforeSuite(func() {
 	By("Checking SnapshotMetadataService CRD exists")
 	// The SnapshotMetadataService CRD stays at v1alpha1 even for beta (out-of-tree API).
 	// It is NOT graduating to v1beta1 with the k8s beta milestone.
-	_, err = smsClient.CbtV1alpha1().SnapshotMetadataServices().List(ctx, metav1.ListOptions{Limit: 1})
+	smsList, err := smsClient.CbtV1alpha1().SnapshotMetadataServices().List(ctx, metav1.ListOptions{Limit: 1})
 	Expect(err).NotTo(HaveOccurred(),
 		"SnapshotMetadataService CRD (cbt.storage.k8s.io/v1alpha1) not found. "+
 			"Ensure external-snapshot-metadata is deployed. "+
 			"The CRD remains v1alpha1 for both alpha (k8s 1.33) and beta (k8s 1.36+).")
+
+	By("Checking snapshot-metadata gRPC endpoint is reachable (in-cluster DNS)")
+	if len(smsList.Items) > 0 {
+		smsAddr := smsList.Items[0].Spec.Address
+		host, _, splitErr := net.SplitHostPort(smsAddr)
+		if splitErr != nil {
+			host = smsAddr
+		}
+		_, resolveErr := net.LookupHost(host)
+		Expect(resolveErr).NotTo(HaveOccurred(),
+			fmt.Sprintf("Cannot resolve snapshot-metadata service address %q. "+
+				"This test must run inside the cluster where in-cluster DNS works. "+
+				"Use ./run-in-cluster.sh to run tests from a pod.", smsAddr))
+		log.Printf("Snapshot-metadata endpoint %s is resolvable", smsAddr)
+	}
 
 	By("Checking CephCSI RBD provisioner pods running")
 	// ODF 4.18+ uses a different naming convention for CSI provisioner pods.

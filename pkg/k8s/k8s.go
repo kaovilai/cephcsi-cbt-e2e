@@ -243,6 +243,29 @@ func WaitForSnapshotDeleted(ctx context.Context, snapClient snapclient.Interface
 	})
 }
 
+// GetSnapshotContentName returns the bound VolumeSnapshotContent name for a VolumeSnapshot.
+func GetSnapshotContentName(ctx context.Context, snapClient snapclient.Interface, namespace, name string) (string, error) {
+	vs, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get VolumeSnapshot %s/%s: %w", namespace, name, err)
+	}
+	if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
+		return "", fmt.Errorf("VolumeSnapshot %s/%s not bound", namespace, name)
+	}
+	return *vs.Status.BoundVolumeSnapshotContentName, nil
+}
+
+// WaitForSnapshotContentDeleted waits until a VolumeSnapshotContent is fully removed.
+func WaitForSnapshotContentDeleted(ctx context.Context, snapClient snapclient.Interface, name string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		_, err := snapClient.SnapshotV1().VolumeSnapshotContents().Get(ctx, name, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, nil
+	})
+}
+
 // GetSnapshotHandle returns the CSI snapshot handle from a VolumeSnapshot.
 func GetSnapshotHandle(ctx context.Context, snapClient snapclient.Interface, namespace, name string) (string, error) {
 	vs, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})

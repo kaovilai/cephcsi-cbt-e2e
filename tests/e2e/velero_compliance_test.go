@@ -132,7 +132,14 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			len(result.Blocks), result.TotalChangedBytes())
 	})
 
-	It("should support delta via handle after VolumeSnapshot object is deleted", func() {
+	// Velero retention Case 1: no snapshot retention (delete previous snapshot after backup).
+	// Ceph RBD requires both snapshots to exist in the clone chain for `rbd snap diff`
+	// to compute a delta. When the parent snapshot is fully deleted (VolumeSnapshot +
+	// VolumeSnapshotContent + underlying RBD snapshot), delta computation must fail.
+	// This locks in that Velero's Case 1 retention strategy does NOT work with CephCSI
+	// and users must use Case 2 (retain previous snapshot).
+	// Ref: https://github.com/Lyndon-Li/velero/blob/block-data-mover-design/design/block-data-mover/block-data-mover.md#volume-snapshot-retention
+	It("should fail delta when parent snapshot is deleted (Case 1 no-retention does not work with Ceph)", func() {
 		By("Creating separate PVC and pod for deletion test")
 		delPVC := "velero-del-pvc"
 		delPod := "velero-del-pod"
@@ -158,7 +165,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, delPod, 2*time.Minute)).To(Succeed())
 
-		By("Writing block 0 (0x11) and creating snapshot")
+		By("Writing block 0 (0x11) and creating first snapshot (parent)")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, delPod, 0, 0x11)).To(Succeed())
 
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, delSnap1, testNamespace, delPVC, snapshotClass)
@@ -168,9 +175,14 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 
 		deletedHandle, err := k8sutil.GetSnapshotHandle(ctx, snapClient, testNamespace, delSnap1)
 		Expect(err).NotTo(HaveOccurred())
-		GinkgoWriter.Printf("deletedHandle: %s\n", deletedHandle)
+		GinkgoWriter.Printf("Parent snapshot handle (will be deleted): %s\n", deletedHandle)
 
-		By("Writing block 1 (0x22), deleting pod, and creating second snapshot")
+		// Record the VolumeSnapshotContent name so we can verify it's fully deleted
+		vscName, err := k8sutil.GetSnapshotContentName(ctx, snapClient, testNamespace, delSnap1)
+		Expect(err).NotTo(HaveOccurred())
+		GinkgoWriter.Printf("Parent VolumeSnapshotContent: %s\n", vscName)
+
+		By("Writing block 1 (0x22), deleting pod, and creating second snapshot (target)")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, delPod, 1, 0x22)).To(Succeed())
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, delPod)).To(Succeed())
 
@@ -179,19 +191,20 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, delSnap2, 3*time.Minute)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Deleting VolumeSnapshot object for snap1")
+		By("Deleting parent VolumeSnapshot (simulating Case 1: no retention after backup)")
 		Expect(k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, delSnap1)).To(Succeed())
 		Expect(k8sutil.WaitForSnapshotDeleted(ctx, snapClient, testNamespace, delSnap1, 3*time.Minute)).To(Succeed())
 
-		By("Attempting GetChangedBlocksByID with deleted snapshot handle")
-		result, err := cbtClient.GetChangedBlocksByID(ctx, deletedHandle, delSnap2)
-		if err != nil {
-			GinkgoWriter.Printf("CephCSI requires snapshot retention (Type 1): %v\n", err)
-		} else {
-			Expect(result.Blocks).NotTo(BeEmpty())
-			GinkgoWriter.Printf("CephCSI supports handle after deletion (Type 2): %d blocks\n",
-				len(result.Blocks))
-		}
+		By("Waiting for VolumeSnapshotContent to be fully deleted (confirms RBD snapshot cleanup)")
+		Expect(k8sutil.WaitForSnapshotContentDeleted(ctx, snapClient, vscName, 5*time.Minute)).To(Succeed(),
+			"VolumeSnapshotContent %s should be deleted along with the underlying RBD snapshot", vscName)
+
+		By("Attempting delta with deleted parent handle — must fail for Ceph RBD")
+		_, err = cbtClient.GetChangedBlocksByID(ctx, deletedHandle, delSnap2)
+		Expect(err).To(HaveOccurred(),
+			"Ceph RBD requires both snapshots in the clone chain for delta computation; "+
+				"Case 1 (no-retention) must not work — Velero users must use Case 2 (retain previous snapshot)")
+		GinkgoWriter.Printf("Confirmed: Case 1 fails with Ceph as expected: %v\n", err)
 
 		By("Cleaning up deletion test resources")
 		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, delSnap2)
