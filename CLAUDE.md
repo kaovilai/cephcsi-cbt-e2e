@@ -64,8 +64,25 @@ config/     # StorageClass and VolumeSnapshotClass YAML manifests
 - **CBT (Changed Block Tracking)**: Reports which blocks were allocated or changed between snapshots at the block-device level via `rbd snap diff`.
 - **GetMetadataAllocated**: All allocated blocks in a single snapshot.
 - **GetMetadataDelta**: Blocks changed between two snapshots (requires both snapshots in the RBD clone chain).
-- **Flattening**: CephCSI may flatten snapshots (collapse clone chain), which breaks delta computation. The "Combined solution" stores diffs in omap before flattening as a fallback.
-- **250-snapshot limit**: CephCSI enforces a per-image snapshot cap with priority-based eviction.
+- **Flattening**: CephCSI flattens intermediate clone images (collapses clone chain) based on two triggers:
+  - **Clone depth**: `softMaxCloneDepth` (default 4) triggers async flatten; `hardMaxCloneDepth` (default 8) blocks until flattened.
+  - **Snapshot count**: `maxSnapshotsOnImage` (default 450) triggers flattening down to `minSnapshotsOnImage` (default 250).
+  Only intermediate clones are flattened (not application-mapped volumes) to avoid I/O performance impact.
+- **Combined solution** (CephCSI design for CBT + flattening coexistence):
+  1. **ROX restored PVCs**: Implemented like CephFS shallow volumes on the original RBD snapshot, preventing 3+ clone depth and avoiding flattening.
+  2. **Counter-based deletion**: VolumeSnapshots use counter-based deletion flow based on restored/ROX PVCs.
+  3. **Flattening prevention**: Flattening logic during VolumeSnapshot creation moved earlier (similar to Snapshot→Restore PVC check) to avoid flattening in chains like `PVC→Snap→Restore→Snap` and `PVC→Clone→Snap`.
+  4. **Priority-based flattening** (ensures latest 250 VolumeSnapshots are NOT flattened):
+     - Priority 1 (flatten first): Deleted VolumeSnapshots (no VolumeSnapshot presence in cluster)
+     - Priority 2: PVC-PVC clones
+     - Priority 3 (flatten last): Alive VolumeSnapshots
+  5. **Stored diffs in omap** (extends CBT beyond 250 VolumeSnapshots):
+     - When a VolumeSnapshot is flattened, store diff between current and next snapshot in omap as a doubly-linked list.
+     - Store full diff for the oldest snapshot (no previous to diff against).
+     - On snapshot deletion: update the diff and links in the next snapshot.
+     - `GetMetadata(snap-x)`: If not flattened, use `rbd snap diff`; else traverse from snap-x to oldest and merge stored diffs.
+     - `GetMetadataDelta(snap-x, snap-y)`: If both not flattened, use `rbd snap diff`; else traverse snap-y→snap-x merging stored diffs (or hybrid: `rbd snap diff` to oldest alive snap + merge stored diffs to target).
+  **Implementation status**: This is a design proposal. The stored diffs mechanism may not yet be implemented in CephCSI — needs verification against CephCSI source code.
 - **SnapshotMetadataService CRD**: Stays at `v1alpha1` (out-of-tree API), does not graduate with the K8s beta milestone.
 
 ## ODF Version Compatibility
