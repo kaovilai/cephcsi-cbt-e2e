@@ -90,42 +90,22 @@ The test suite handles multiple ODF versions for pod/label discovery:
 - ODF 4.18+: label `app.kubernetes.io/name=csi-rbdplugin,app.kubernetes.io/component=ctrlplugin`
 - ODF 4.21+: fallback to pod name pattern matching (`rbd` + `ctrlplugin`)
 
-## OpenShift Cluster Setup (csi-driver-host-path)
+## OpenShift Cluster Setup (ODF + CephCSI CBT)
 
-See `openshift-instruction.txt` for the full walkthrough. Summary of required steps on an OCP 4.20+ cluster:
+See [`ocp-setup/README.md`](ocp-setup/README.md) for the full walkthrough. The setup scripts automate:
 
-1. **Enable DevPreviewNoUpgrade** (makes cluster non-upgradable):
-   ```
-   oc patch featuregate cluster --type=merge -p '{"spec":{"featureSet":"DevPreviewNoUpgrade"}}'
-   ```
-   This creates the `snapshotmetadataservices.cbt.storage.k8s.io` CRD.
+1. `step0-preflight.sh` — Validate cluster prerequisites
+2. `step1-featuregate.sh` — Enable DevPreviewNoUpgrade (creates SnapshotMetadataService CRD)
+3. `step2-install-odf.sh` — Install ODF operator
+4. `step3-create-storagecluster.sh` — Create StorageCluster
+5. `step4-cbt-sidecar.sh` — Configure CBT sidecar (SMS CR, SCC patches, deployment patches)
+6. `step5-verify.sh` — Verify setup
+7. `step6-run-e2e.sh` — Run e2e tests
 
-2. **Create ClusterRoles**: `external-snapshot-metadata-client-runner` (for client tools) and `external-snapshot-metadata-runner` (for the sidecar).
-
-3. **Create Service and SnapshotMetadataService**:
-   - Service `csi-snapshot-metadata` in `openshift-cluster-csi-drivers` with annotation `service.beta.openshift.io/serving-cert-secret-name: csi-snapshot-metadata-certs` to auto-generate TLS certs.
-   - Extract the TLS cert from the generated secret and embed it in the `SnapshotMetadataService` CR's `caCert` field.
-   - The `audience` field must match the token audience used by the gRPC client.
-
-4. **Create CSIDriver, StorageClass, VolumeSnapshotClass** for `hostpath.csi.k8s.io`.
-
-5. **Create ServiceAccount and ClusterRoleBindings** binding `csi-hostpathplugin-sa` to OpenShift CSI roles (attacher, provisioner, resizer, snapshotter, snapshot-metadata).
-
-6. **Deploy CSI driver StatefulSet** (`csi-hostpathplugin`) in `openshift-cluster-csi-drivers` with the `csi-snapshot-metadata` sidecar container mounting the TLS cert secret. The hostpath plugin must be started with `--enable-snapshot-metadata`.
-
-7. **Test with snapshot-metadata-lister**:
-   ```
-   # Allocated blocks for a snapshot
-   oc exec -n testns -c tools snapshot-metadata-tools -- /tools/snapshot-metadata-lister -n testns -s test-snapshot1
-   # Delta between two snapshots
-   oc exec -n testns -c tools snapshot-metadata-tools -- /tools/snapshot-metadata-lister -n testns -p test-snapshot1 -s test-snapshot2
-   ```
-
-Key images used:
-- CSI hostpath plugin: `registry.k8s.io/sig-storage/hostpathplugin:v1.17.0`
-- Snapshot metadata sidecar: `quay.io/openshift/origin-csi-external-snapshot-metadata:latest` (also available in OCP release payload as `csi-external-snapshot-metadata`)
+For a getting-started overview of Kubernetes CBT (with csi-driver-host-path), see [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo).
 
 References:
 - [KEP-3314: CSI Changed Block Tracking](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md)
 - [external-snapshot-metadata deployment](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/deploy/README.md)
 - [SnapshotMetadataService API types](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/client/apis/snapshotmetadataservice/v1alpha1/types.go)
+- [CBT sidecar setup for ODF](https://access.redhat.com/articles/7130698)

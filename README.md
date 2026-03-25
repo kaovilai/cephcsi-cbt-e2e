@@ -4,6 +4,8 @@ End-to-end tests for validating Ceph RBD **Changed Block Tracking (CBT)** via th
 
 This suite verifies that incremental block-level backups can accurately track changed blocks between snapshots, supporting efficient backup workflows (e.g., [Velero Block Data Mover](https://github.com/vmware-tanzu/velero/pull/9528)) that only transfer changed data.
 
+For a getting-started overview of Kubernetes CBT (using csi-driver-host-path), see [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo).
+
 ## Prerequisites
 
 | Component | Minimum Version |
@@ -140,6 +142,6 @@ Ceph RBD computes deltas using `rbd snap diff`, which requires both snapshots to
 
 ReadOnlyMany PVCs created from snapshots do not trigger RBD flattening, preserving the snapshot chain for CBT. This is important for backup workflows that expose snapshot data for reading.
 
-### Flattening Fallback
+### Flattening Impact on CBT
 
-When a snapshot is flattened (clone chain broken), `rbd snap diff` fails. The CephCSI Combined solution stores diffs in Ceph omap as a fallback. If both methods fail, the test suite validates graceful degradation to `GetMetadataAllocated` (full backup).
+When a snapshot's intermediate RBD image is flattened (clone chain broken), `rbd snap diff` across images fails and `GetMetadataDelta` cannot compute deltas. There is a [design proposal](CLAUDE.md#key-domain-concepts) ("Combined solution") to store diffs in Ceph omap before flattening as a fallback, but this is **not yet implemented** in CephCSI. The `stored_diffs_test.go` validates this behavior by force-flattening intermediate images via `rbd flatten` and confirming that delta computation fails without stored diffs.
