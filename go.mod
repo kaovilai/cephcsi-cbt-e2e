@@ -1,6 +1,6 @@
 module github.com/cephcsi-cbt-e2e
 
-go 1.25.0
+go 1.26.1
 
 require (
 	github.com/kubernetes-csi/external-snapshot-metadata v0.2.0
