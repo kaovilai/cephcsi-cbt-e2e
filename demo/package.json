@@ -1,0 +1,17 @@
+{
+  "name": "cephcsi-cbt-e2e-presentation",
+  "version": "1.0.0",
+  "description": "CephCSI CBT E2E Test Suite - Slidev presentation",
+  "scripts": {
+    "dev": "slidev",
+    "build": "slidev build",
+    "export": "slidev export"
+  },
+  "dependencies": {
+    "@slidev/cli": "^52.14.1",
+    "@slidev/theme-default": "latest"
+  },
+  "devDependencies": {
+    "playwright-chromium": "^1.56.1"
+  }
+}
