@@ -15,6 +15,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -195,6 +196,9 @@ var _ = BeforeSuite(func() {
 	_, err = clientset.CoreV1().ServiceAccounts(testNamespace).Create(ctx, &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: cbtSAName},
 	}, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		err = nil
+	}
 	Expect(err).NotTo(HaveOccurred(), "failed to create CBT client ServiceAccount")
 
 	By("Creating ClusterRoleBinding for CBT client ServiceAccount")
@@ -211,6 +215,9 @@ var _ = BeforeSuite(func() {
 			Namespace: testNamespace,
 		}},
 	}, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		err = nil
+	}
 	Expect(err).NotTo(HaveOccurred(), "failed to create CBT client ClusterRoleBinding")
 
 	By("Initializing CBT client")

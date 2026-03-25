@@ -35,6 +35,14 @@ var _ = Describe("Error Handling", func() {
 		snap1Name := "err-cross-snap1"
 		snap2Name := "err-cross-snap2"
 
+		// Clean up any leftovers from a previous failed run
+		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snap2Name)
+		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snap1Name)
+		_ = k8sutil.DeletePod(ctx, clientset, testNamespace, pod2Name)
+		_ = k8sutil.DeletePod(ctx, clientset, testNamespace, pod1Name)
+		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvc2Name)
+		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvc1Name)
+
 		By("Creating two independent PVCs with snapshots")
 		_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
 			Name: pvc1Name, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
@@ -190,6 +198,11 @@ var _ = Describe("Error Handling", func() {
 		pvcName := "err-large-pvc"
 		podName := "err-large-pod"
 		snapName := "err-large-snap"
+
+		// Clean up any leftovers from a previous failed run
+		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snapName)
+		_ = k8sutil.DeletePod(ctx, clientset, testNamespace, podName)
+		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvcName)
 
 		By("Creating a larger PVC (5Gi)")
 		_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{

@@ -62,10 +62,16 @@ check_prereqs() {
 }
 
 get_sidecar_image() {
-    log "Getting sidecar image from cluster release payload..."
-    local release_image
-    release_image=$(oc get clusterversion version -o jsonpath='{.status.desired.image}')
-    SIDECAR_IMAGE=$(oc adm release info "$release_image" --image-for=csi-external-snapshot-metadata)
+    # Use upstream image matching go.mod client library version (v0.2.0).
+    # The OCP release payload ships v0.1.0-based sidecar which has an API
+    # mismatch with the v0.2.0 client (base_snapshot_name vs base_snapshot_id).
+    # See: https://github.com/kaovilai/cephcsi-cbt-e2e/issues/9
+    SIDECAR_IMAGE="registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0"
+    # Commented out: OCP release payload image (v0.1.0 API)
+    # log "Getting sidecar image from cluster release payload..."
+    # local release_image
+    # release_image=$(oc get clusterversion version -o jsonpath='{.status.desired.image}')
+    # SIDECAR_IMAGE=$(oc adm release info "$release_image" --image-for=csi-external-snapshot-metadata)
     log "Sidecar image: $SIDECAR_IMAGE"
 }
 
