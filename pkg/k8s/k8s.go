@@ -284,7 +284,11 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 		opts.Image = "registry.access.redhat.com/ubi9/ubi-minimal:latest"
 	}
 	if opts.MountPath == "" {
-		opts.MountPath = "/mnt/data"
+		if opts.VolumeMode == corev1.PersistentVolumeBlock {
+			opts.MountPath = "/dev/xvda"
+		} else {
+			opts.MountPath = "/mnt/data"
+		}
 	}
 	if opts.Command == nil {
 		opts.Command = []string{"sleep", "3600"}

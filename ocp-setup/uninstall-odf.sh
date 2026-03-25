@@ -148,7 +148,7 @@ echo ""
 echo "--- Phase 4: Delete StorageCluster ---"
 if oc get storagecluster -n "$NAMESPACE" ocs-storagecluster &>/dev/null; then
     echo "  Deleting StorageCluster..."
-    oc delete storagecluster -n "$NAMESPACE" --all --wait=true --timeout=10m || {
+    oc delete storagecluster -n "$NAMESPACE" --all --wait=true --timeout=20m || {
         echo "  StorageCluster deletion timed out. Attempting finalizer removal..."
         for sc in $(oc get storagecluster -n "$NAMESPACE" -o name 2>/dev/null); do
             oc patch -n "$NAMESPACE" "$sc" --type=merge -p '{"metadata":{"finalizers":null}}'
@@ -193,6 +193,13 @@ done
 # --- Phase 6: Remove stuck finalizers ---
 echo ""
 echo "--- Phase 6: Remove stuck finalizers from known resources ---"
+
+# Allow NooBaa deletion before removing finalizers (prevents stuck NooBaa deletion)
+if oc get noobaa noobaa -n "$NAMESPACE" &>/dev/null 2>&1; then
+    echo "  Setting NooBaa cleanupPolicy.allowNooBaaDeletion=true..."
+    oc patch noobaa noobaa -n "$NAMESPACE" --type=merge \
+        -p '{"spec":{"cleanupPolicy":{"allowNooBaaDeletion":true}}}' 2>/dev/null || true
+fi
 
 # Resources commonly stuck with finalizers during uninstall
 FINALIZER_TARGETS=(
@@ -276,14 +283,27 @@ else
 fi
 echo "  Done."
 
-# --- Phase 10: Delete the namespace ---
+# --- Phase 10: Patch StorageClient finalizer (ODF 4.19.0-7) ---
+# The storageclient resource may lack a namespace in its YAML, so it can survive
+# project deletion and block reinstallation (doc step 15).
+# Must run BEFORE namespace deletion to prevent blocking.
 echo ""
-echo "--- Phase 10: Delete namespace ---"
+echo "--- Phase 10: Patch StorageClient finalizer ---"
+for sc in $(oc get storageclient -o name 2>/dev/null); do
+    echo "  Removing finalizers from $sc..."
+    oc patch "$sc" --type=merge -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
+    oc delete "$sc" --wait=false 2>/dev/null || true
+done
+echo "  Done."
+
+# --- Phase 11: Delete the namespace ---
+echo ""
+echo "--- Phase 11: Delete namespace ---"
 if [ "$KEEP_NAMESPACE" = "true" ]; then
     echo "  Skipping namespace deletion (--keep-namespace)."
 elif oc get ns "$NAMESPACE" &>/dev/null; then
     echo "  Deleting namespace '$NAMESPACE'..."
-    # Use || true to make namespace deletion failure non-fatal (phases 11-18 must still run)
+    # Use || true to make namespace deletion failure non-fatal (phases 12-18 must still run)
     oc delete project "$NAMESPACE" --wait=true --timeout=5m || {
         echo "  Namespace deletion timed out. Checking for remaining resources..."
         # Enumerate all remaining resources
@@ -303,7 +323,7 @@ elif oc get ns "$NAMESPACE" &>/dev/null; then
         oc delete project "$NAMESPACE" --wait=true --timeout=2m || {
             echo "  WARNING: Namespace still stuck. Continuing with cleanup..."
             echo "  You may need manual intervention: oc get namespace $NAMESPACE -o yaml"
-            true  # Ensure we continue to phases 11-18
+            true  # Ensure we continue to phases 12-18
         }
     }
     if oc get ns "$NAMESPACE" &>/dev/null; then
@@ -314,18 +334,6 @@ elif oc get ns "$NAMESPACE" &>/dev/null; then
 else
     echo "  Namespace '$NAMESPACE' already deleted."
 fi
-
-# --- Phase 11: Patch StorageClient finalizer (ODF 4.19.0-7) ---
-# The storageclient resource may lack a namespace in its YAML, so it can survive
-# project deletion and block reinstallation (doc step 15).
-echo ""
-echo "--- Phase 11: Patch StorageClient finalizer ---"
-for sc in $(oc get storageclient -o name 2>/dev/null); do
-    echo "  Removing finalizers from $sc..."
-    oc patch "$sc" --type=merge -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
-    oc delete "$sc" --wait=false 2>/dev/null || true
-done
-echo "  Done."
 
 # --- Phase 12: Delete StorageClasses ---
 echo ""

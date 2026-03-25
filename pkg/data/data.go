@@ -27,12 +27,13 @@ const (
 func WriteKnownPattern(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName string, offset int64, sizeBytes int64, pattern byte) error {
 
-	// Use dd to write a known pattern at the specified offset
-	// Create a pattern using printf and pipe to dd
+	// Use dd to write a known pattern at the specified offset.
+	// conv=fsync ensures data is flushed to the block device before dd returns,
+	// which is critical for RBD snapshots to capture the written data.
 	cmd := []string{
 		"sh", "-c",
 		fmt.Sprintf(
-			"dd if=/dev/zero bs=1 count=%d 2>/dev/null | tr '\\0' '\\x%02x' | dd of=%s bs=1 seek=%d conv=notrunc 2>/dev/null",
+			"dd if=/dev/zero bs=1 count=%d 2>/dev/null | tr '\\0' '\\x%02x' | dd of=%s bs=1 seek=%d conv=notrunc,fsync 2>/dev/null",
 			sizeBytes, pattern, DefaultDevicePath, offset,
 		),
 	}
