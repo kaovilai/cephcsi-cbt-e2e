@@ -1,0 +1,26 @@
+FROM registry.access.redhat.com/ubi9/ubi:latest AS builder
+
+# Install Go
+RUN dnf install -y golang && dnf clean all
+
+# Install Ceph development libraries from the CentOS Storage SIG
+RUN dnf install -y \
+    https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    dnf install -y centos-release-ceph-squid && \
+    dnf install -y librbd-devel librados-devel && \
+    dnf clean all
+
+WORKDIR /build
+COPY go.mod .
+RUN go mod download
+COPY main.go .
+RUN CGO_ENABLED=1 go build -o /repro .
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+RUN microdnf install -y \
+    https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    microdnf install -y centos-release-ceph-squid && \
+    microdnf install -y librbd1 librados2 && \
+    microdnf clean all
+COPY --from=builder /repro /usr/local/bin/repro
+ENTRYPOINT ["/usr/local/bin/repro"]
