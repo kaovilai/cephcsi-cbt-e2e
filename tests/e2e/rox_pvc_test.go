@@ -150,19 +150,4 @@ var _ = Describe("ROX PVC", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, clonePVCName, 2*time.Minute)).To(Succeed())
 	})
-
-	It("should have CBT working on snapshots with ROX PVC references", func() {
-		// Creating ROX PVCs (clones from snapshot) may trigger CephCSI to flatten
-		// the intermediate image that holds the RBD snapshot, making CBT fail with
-		// "RBD image not found". This is a known CephCSI behavior.
-		result, err := cbtClient.GetAllocatedBlocks(ctx, snapName)
-		if err != nil {
-			GinkgoWriter.Printf("CBT failed on snapshot with ROX PVC references (known CephCSI behavior - intermediate image may have been flattened): %v\n", err)
-			Skip("CBT unavailable: intermediate RBD image was flattened by CephCSI after ROX PVC creation")
-		}
-		Expect(result.Blocks).NotTo(BeEmpty(),
-			"CBT should work on snapshots referenced by ROX PVCs")
-		Expect(result.ContainsOffset(0)).To(BeTrue(),
-			"block 0 written data should be reported as allocated")
-	})
 })

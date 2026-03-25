@@ -218,6 +218,18 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, restorePVC)
 	})
 
+	It("should report accurate metadata matching all written data", func() {
+		result, err := cbtClient.GetAllocatedBlocks(ctx, snap3Name)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Verifying all five written blocks are reported as allocated")
+		for i := 0; i < 5; i++ {
+			offset := int64(i) * data.DefaultBlockSize
+			Expect(result.ContainsOffset(offset)).To(BeTrue(),
+				fmt.Sprintf("block %d (offset %d) was written but not reported as allocated", i, offset))
+		}
+	})
+
 	It("should support backup workflow with ROX PVCs as read source", func() {
 		By("Creating ROX PVC from latest snapshot for read access")
 		roxPVC := "backup-wf-rox-pvc"

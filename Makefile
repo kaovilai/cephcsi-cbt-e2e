@@ -24,7 +24,7 @@ COMMON_FLAGS = \
 	--cephcsi-namespace=$(CEPHCSI_NAMESPACE) \
 	--test-namespace=$(TEST_NAMESPACE)
 
-.PHONY: build e2e e2e-fast e2e-basic e2e-rox e2e-rox-deletion e2e-flattening e2e-priority e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-clean
+.PHONY: build e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-clean
 
 build:
 	go build ./...
@@ -35,11 +35,7 @@ e2e:
 
 # Skip slow tests (priority flattening + stored diffs)
 e2e-fast:
-	$(GINKGO) -v --timeout=2h --label-filter='!slow && !stored-diffs' ./tests/e2e/... -- $(COMMON_FLAGS)
-
-# Category A: Basic CBT
-e2e-basic:
-	$(GINKGO) -v --timeout=30m --focus='Basic CBT' ./tests/e2e/... -- $(COMMON_FLAGS)
+	$(GINKGO) -v --timeout=2h --label-filter='!stored-diffs' ./tests/e2e/... -- $(COMMON_FLAGS)
 
 # Category B: ROX PVC
 e2e-rox:
@@ -53,11 +49,7 @@ e2e-rox-deletion:
 e2e-flattening:
 	$(GINKGO) -v --timeout=30m --focus='Flattening Prevention' ./tests/e2e/... -- $(COMMON_FLAGS)
 
-# Category E: Priority Flattening (slow)
-e2e-priority:
-	$(GINKGO) -v --timeout=3h --label-filter='slow' ./tests/e2e/... -- $(COMMON_FLAGS)
-
-# Category F: Stored Diffs
+# Category E: Stored Diffs
 e2e-stored-diffs:
 	$(GINKGO) -v --timeout=1h --label-filter='stored-diffs' ./tests/e2e/... -- $(COMMON_FLAGS)
 

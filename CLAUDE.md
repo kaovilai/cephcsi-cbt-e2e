@@ -14,12 +14,10 @@ Requires a live Kubernetes 1.33+ cluster with CephCSI, ODF/Rook, and the externa
 make build              # Compile all packages
 make lint               # golangci-lint run ./...
 make e2e                # Full suite (5h timeout)
-make e2e-fast           # Skip slow + stored-diffs tests (2h timeout)
-make e2e-basic          # Basic CBT tests only (30m)
+make e2e-fast           # Skip stored-diffs tests (2h timeout)
 make e2e-rox            # ReadOnlyMany PVC tests (30m)
 make e2e-rox-deletion   # Counter-based deletion tests (30m)
 make e2e-flattening     # Flattening prevention tests (30m)
-make e2e-priority       # Priority flattening - slow (3h)
 make e2e-stored-diffs   # Stored diffs fallback (1h)
 make e2e-errors         # Error handling tests (30m)
 make e2e-backup         # Backup workflow tests (1h)
@@ -27,7 +25,7 @@ make e2e-backup         # Backup workflow tests (1h)
 
 Override cluster defaults via environment variables:
 ```bash
-STORAGE_CLASS=my-sc SNAPSHOT_CLASS=my-snapclass CEPHCSI_NAMESPACE=rook-ceph make e2e-basic
+STORAGE_CLASS=my-sc SNAPSHOT_CLASS=my-snapclass CEPHCSI_NAMESPACE=rook-ceph make e2e-backup
 ```
 
 Run a single test by description:
@@ -68,21 +66,21 @@ config/     # StorageClass and VolumeSnapshotClass YAML manifests
   - **Clone depth**: `softMaxCloneDepth` (default 4) triggers async flatten; `hardMaxCloneDepth` (default 8) blocks until flattened.
   - **Snapshot count**: `maxSnapshotsOnImage` (default 450) triggers flattening down to `minSnapshotsOnImage` (default 250).
   Only intermediate clones are flattened (not application-mapped volumes) to avoid I/O performance impact.
-- **Combined solution** (CephCSI design for CBT + flattening coexistence):
-  1. **ROX restored PVCs**: Implemented like CephFS shallow volumes on the original RBD snapshot, preventing 3+ clone depth and avoiding flattening.
-  2. **Counter-based deletion**: VolumeSnapshots use counter-based deletion flow based on restored/ROX PVCs.
-  3. **Flattening prevention**: Flattening logic during VolumeSnapshot creation moved earlier (similar to Snapshot→Restore PVC check) to avoid flattening in chains like `PVC→Snap→Restore→Snap` and `PVC→Clone→Snap`.
-  4. **Priority-based flattening** (ensures latest 250 VolumeSnapshots are NOT flattened):
-     - Priority 1 (flatten first): Deleted VolumeSnapshots (no VolumeSnapshot presence in cluster)
-     - Priority 2: PVC-PVC clones
-     - Priority 3 (flatten last): Alive VolumeSnapshots
-  5. **Stored diffs in omap** (extends CBT beyond 250 VolumeSnapshots):
-     - When a VolumeSnapshot is flattened, store diff between current and next snapshot in omap as a doubly-linked list.
-     - Store full diff for the oldest snapshot (no previous to diff against).
-     - On snapshot deletion: update the diff and links in the next snapshot.
-     - `GetMetadata(snap-x)`: If not flattened, use `rbd snap diff`; else traverse from snap-x to oldest and merge stored diffs.
-     - `GetMetadataDelta(snap-x, snap-y)`: If both not flattened, use `rbd snap diff`; else traverse snap-y→snap-x merging stored diffs (or hybrid: `rbd snap diff` to oldest alive snap + merge stored diffs to target).
-  **Implementation status**: This is a design proposal. The stored diffs mechanism may not yet be implemented in CephCSI — needs verification against CephCSI source code.
+- **Combined solution** (design proposal for CBT + flattening coexistence — **NOT YET IMPLEMENTED** in ceph-csi as of March 2026):
+  1. **ROX restored PVCs**: Proposed as RBD shallow volumes (like CephFS [PR #3651](https://github.com/ceph/ceph-csi/pull/3651)), preventing 3+ clone depth. CephFS has this; RBD does not.
+  2. **Counter-based deletion**: Proposed for RBD VolumeSnapshots. CephFS has reference tracking ([PR #2893](https://github.com/ceph/ceph-csi/pull/2893)); RBD uses trash-based deletion instead.
+  3. **Flattening prevention**: Partially implemented — [PR #2900](https://github.com/ceph/ceph-csi/pull/2900) moved flattening to flatten parent/datasource images before volume creation (not the resulting PVC). Addresses [Issue #2190](https://github.com/ceph/ceph-csi/issues/2190).
+  4. **Priority-based flattening** (proposed: flatten deleted snapshots first, then clones, then alive snapshots): Not implemented. Current behavior is threshold-based only (`minSnapshotsOnImage`/`maxSnapshotsOnImage`).
+  5. **Stored diffs in omap** (proposed: store diffs as doubly-linked list when flattening, to extend CBT beyond 250 snapshots): Not implemented. No PRs, issues, or design docs exist for this in ceph/ceph-csi.
+
+  **Current CBT implementation** ([PR #5347](https://github.com/ceph/ceph-csi/pull/5347), merged July 2025): Uses `rbd DiffIterateByID` directly. Requires intact clone chains — if an intermediate image is flattened, GetMetadataDelta will fail with no fallback. See also: [Issue #5346](https://github.com/ceph/ceph-csi/issues/5346), [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md).
+
+  **Key references**:
+  - [Design: rbd-snap-clone.md](https://github.com/ceph/ceph-csi/blob/devel/docs/design/proposals/rbd-snap-clone.md) — snap-clone architecture, depth/snapshot limits
+  - [PR #1160](https://github.com/ceph/ceph-csi/pull/1160) — original snapshot and clone from snapshot implementation
+  - [PR #1678](https://github.com/ceph/ceph-csi/pull/1678) — added `minSnapshotsOnImage` flag
+  - [Issue #1800](https://github.com/ceph/ceph-csi/issues/1800) — request to support snapshots without flattening (open)
+  - [Velero CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
 - **SnapshotMetadataService CRD**: Stays at `v1alpha1` (out-of-tree API), does not graduate with the K8s beta milestone.
 
 ## ODF Version Compatibility

@@ -155,6 +155,110 @@ func (r *Inspector) GetSnapshotCount(ctx context.Context, imageName string) (int
 	return len(snapshots), nil
 }
 
+// FlattenImage flattens an RBD image, removing its parent reference.
+// This is destructive: the clone chain is permanently broken.
+func (r *Inspector) FlattenImage(ctx context.Context, imageName string) error {
+	_, err := r.execInToolbox(ctx, []string{
+		"rbd", "flatten", fmt.Sprintf("%s/%s", r.pool, imageName),
+	})
+	if err != nil {
+		return fmt.Errorf("rbd flatten failed for %s: %w", imageName, err)
+	}
+	return nil
+}
+
+// RBDSnapshot holds snapshot info from rbd snap ls.
+type RBDSnapshot struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Size      int64  `json:"size"`
+	Protected string `json:"protected"`
+}
+
+// ListSnapshots returns the snapshots for an RBD image.
+func (r *Inspector) ListSnapshots(ctx context.Context, imageName string) ([]RBDSnapshot, error) {
+	output, err := r.execInToolbox(ctx, []string{
+		"rbd", "snap", "ls", fmt.Sprintf("%s/%s", r.pool, imageName), "--format", "json",
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "No such file") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("rbd snap ls failed: %w", err)
+	}
+
+	if output == "" || output == "[]" {
+		return nil, nil
+	}
+
+	var snapshots []RBDSnapshot
+	if err := json.Unmarshal([]byte(output), &snapshots); err != nil {
+		return nil, fmt.Errorf("failed to parse rbd snap ls: %w", err)
+	}
+
+	return snapshots, nil
+}
+
+// GetChildren returns child image names cloned from a specific snapshot.
+// Uses rbd children which outputs "pool/image" per line.
+func (r *Inspector) GetChildren(ctx context.Context, imageName, snapName string) ([]string, error) {
+	output, err := r.execInToolbox(ctx, []string{
+		"rbd", "children", fmt.Sprintf("%s/%s@%s", r.pool, imageName, snapName),
+	})
+	if err != nil {
+		// No children is not an error
+		if strings.Contains(err.Error(), "No such file") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("rbd children failed: %w", err)
+	}
+
+	if output == "" {
+		return nil, nil
+	}
+
+	var children []string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Extract image name from "pool/image" format
+		parts := strings.SplitN(line, "/", 2)
+		if len(parts) == 2 {
+			children = append(children, parts[1])
+		} else {
+			children = append(children, line)
+		}
+	}
+
+	return children, nil
+}
+
+// ListImages returns all RBD image names in the pool.
+func (r *Inspector) ListImages(ctx context.Context) ([]string, error) {
+	output, err := r.execInToolbox(ctx, []string{
+		"rbd", "ls", r.pool,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("rbd ls failed: %w", err)
+	}
+
+	if output == "" {
+		return nil, nil
+	}
+
+	var images []string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			images = append(images, line)
+		}
+	}
+
+	return images, nil
+}
+
 // GetOmapData retrieves omap key-value data for an RBD image.
 func (r *Inspector) GetOmapData(ctx context.Context, imageName, key string) (string, error) {
 	// Use rados getomapval to read a specific key
