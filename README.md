@@ -28,28 +28,25 @@ Additionally:
 
 ```
 cephcsi-cbt-e2e/
-├── config/
-│   ├── storageclass-rbd.yaml          # RBD StorageClass
-│   └── snapshotclass-rbd.yaml         # VolumeSnapshotClass
+├── cmd/
+│   ├── cbt-check/              # CLI to call GetMetadataAllocated on an existing VolumeSnapshot
+│   └── go-ceph-repro/          # Standalone go-ceph DiffIterateByID reproducer (needs CGo)
+├── config/                     # StorageClass and VolumeSnapshotClass YAML manifests
+├── demo/                       # Slidev presentation (GitHub Pages deployment)
+├── ocp-setup/                  # OpenShift cluster setup scripts for ODF + CBT sidecar
 ├── pkg/
-│   ├── cbt/cbt.go                     # CBT client (GetMetadataAllocated/Delta)
-│   ├── k8s/k8s.go                     # Kubernetes resource helpers (PVC, Snapshot, Pod)
-│   ├── rbd/rbd.go                     # RBD inspection (image state, omap, clone depth)
-│   └── data/data.go                   # Block-level data writing and verification
-├── tests/e2e/
-│   ├── e2e_suite_test.go              # Suite setup and precondition checks
-│   ├── basic_cbt_test.go              # Category A: Basic CBT operations
-│   ├── rox_pvc_test.go                # Category B: ReadOnlyMany PVC from snapshots
-│   ├── counter_deletion_test.go       # Category C: Counter-based RBD snapshot deletion
-│   ├── flattening_prevention_test.go  # Category D: Flattening prevention
-│   ├── priority_flattening_test.go    # Category E: Priority flattening (slow)
-│   ├── stored_diffs_test.go           # Category F: Stored diffs fallback (slow)
-│   ├── error_handling_test.go         # Category G: Error handling
-│   └── backup_workflow_test.go        # Category H: Backup workflow simulation
-├── velero-feedback.md                 # Design accommodations for Velero PR #9528
+│   ├── cbt/                    # gRPC client wrapping external-snapshot-metadata iterator API
+│   ├── data/                   # Block device data operations: writes, hashes, verification
+│   ├── k8s/                    # Kubernetes resource lifecycle helpers (PVC, Pod, Snapshot, Namespace)
+│   └── rbd/                    # Ceph RBD introspection via toolbox pod exec
+├── tests/e2e/                  # Ginkgo v2 BDD test suite (Ordered test containers)
+├── debug-cbt.sh                # Quick CBT debugging script
+├── deploy-sidecar.sh           # Deploy CBT sidecar alongside CephCSI RBD controller
+├── run-in-cluster.sh           # Run tests from inside the cluster (cross-compile + oc cp + oc exec)
 ├── Makefile
-├── go.mod
-└── go.sum
+├── velero-feedback.md          # Design accommodations for Velero PR #9528
+├── velero-coverage.md          # Velero CBT coverage tracking
+└── k8s-coverage.md             # Kubernetes upstream coverage tracking
 ```
 
 ## Usage
@@ -67,45 +64,68 @@ All make targets accept the following overrides:
 
 ### Running Tests
 
+> **Note:** The local `make e2e-*` targets cannot reach the in-cluster gRPC service
+> (`csi-snapshot-metadata.openshift-storage.svc`). Use `cluster-*` targets or
+> `./run-in-cluster.sh` to run tests from inside the cluster.
+
 ```bash
 # Build
 make build
 
-# Full suite (all categories)
-make e2e
-
-# Fast suite (skips slow tests)
-make e2e-fast
-
-# Individual categories
-make e2e-basic          # Category A: Basic CBT
-make e2e-rox            # Category B: ROX PVC
-make e2e-rox-deletion   # Category C: Counter-based Deletion
-make e2e-flattening     # Category D: Flattening Prevention
-make e2e-priority       # Category E: Priority Flattening (slow)
-make e2e-stored-diffs   # Category F: Stored Diffs (slow)
-make e2e-errors         # Category G: Error Handling
-make e2e-backup         # Category H: Backup Workflow
-
 # Lint
 make lint
+make lint-fix
+
+# Full suite (all categories, 5h timeout)
+make e2e
+
+# Fast suite (skips stored-diffs tests, 2h timeout)
+make e2e-fast
 ```
 
-With custom configuration:
+#### Individual Test Categories
 
 ```bash
-make e2e-basic \
+make e2e-rox            # ROX PVC (30m)
+make e2e-rox-deletion   # Counter-based Deletion (30m)
+make e2e-flattening     # Flattening Prevention (30m)
+make e2e-stored-diffs   # Stored Diffs fallback (1h, slow)
+make e2e-errors         # Error Handling (30m)
+make e2e-backup         # Backup Workflow (1h)
+make e2e-compliance     # Velero Compliance, Block Metadata Properties, Error Compliance, Volume Resize (1h)
+make e2e-resize         # Volume Resize (30m)
+```
+
+#### In-Cluster Execution
+
+```bash
+# Run full suite inside the cluster
+make cluster-e2e
+
+# Run compliance tests inside the cluster
+make cluster-compliance
+
+# Run specific tests
+./run-in-cluster.sh -ginkgo.focus='Basic CBT'
+
+# Clean up runner pod
+make cluster-clean
+```
+
+#### Custom Configuration
+
+```bash
+make e2e-backup \
   STORAGE_CLASS=my-rbd-sc \
   SNAPSHOT_CLASS=my-snap-sc \
   CEPHCSI_NAMESPACE=ceph-csi
 ```
 
-With an explicit kubeconfig:
+#### Running a Single Test
 
 ```bash
 GINKGO="go run github.com/onsi/ginkgo/v2/ginkgo" \
-  $GINKGO -v ./tests/e2e/... -- \
-  --kubeconfig=/path/to/kubeconfig \
+  $GINKGO -v --focus='should return allocated blocks' ./tests/e2e/... -- \
   --storage-class=ocs-storagecluster-ceph-rbd \
   --snapshot-class=ocs-storagecluster-rbdplugin-snapclass
 ```
@@ -114,14 +134,30 @@ GINKGO="go run github.com/onsi/ginkgo/v2/ginkgo" \
 
 | Category | Description |
 |----------|-------------|
-| **A - Basic CBT** | `GetMetadataAllocated` and `GetMetadataDelta` correctness, block-level accuracy verification |
-| **B - ROX PVC** | ReadOnlyMany PVC binding from snapshots, verifying no RBD flattening occurs |
-| **C - Counter-based Deletion** | Counter-based RBD snapshot deletion behavior |
-| **D - Flattening Prevention** | Snapshot chain preservation, conditions that trigger flattening |
-| **E - Priority Flattening** | Priority-based flattening eviction at the 250-snapshot limit (slow) |
-| **F - Stored Diffs** | Omap-stored diffs as fallback when snapshots are flattened (slow) |
-| **G - Error Handling** | Graceful handling of flattened snapshots, nonexistent snapshots |
-| **H - Backup Workflow** | Simulated end-to-end backup workflow with snapshot retention |
+| **ROX PVC** | ReadOnlyMany PVC binding from snapshots, verifying no RBD flattening occurs |
+| **Counter-based Deletion** | Counter-based RBD snapshot deletion behavior |
+| **Flattening Prevention** | Snapshot chain preservation, conditions that trigger flattening |
+| **Stored Diffs** | Omap-stored diffs as fallback when snapshots are flattened (slow) |
+| **Error Handling** | Graceful handling of flattened snapshots, nonexistent snapshots |
+| **Backup Workflow** | Simulated end-to-end backup workflow with snapshot retention |
+| **Velero Compliance** | Validates CBT behavior matches Velero integration requirements |
+| **Block Metadata Properties** | Validates metadata block size, alignment, and structural properties |
+| **Volume Resize** | CBT behavior across volume resize operations |
+| **Volume Mode Rebind** | Filesystem data helpers and volume mode rebind scenarios |
+
+## OpenShift Cluster Setup
+
+See [`ocp-setup/README.md`](ocp-setup/README.md) for the full ODF + CBT sidecar setup walkthrough. The scripts must be run with **bash** (not zsh) from the `ocp-setup/` directory:
+
+```bash
+cd ocp-setup
+bash step0-preflight.sh    # Validate cluster prerequisites
+bash step2-install-odf.sh  # Install ODF operator
+bash step3-create-storagecluster.sh
+bash step4-cbt-sidecar.sh  # Configure CBT sidecar
+bash step5-verify.sh       # Verify setup
+bash step6-run-e2e.sh      # Run e2e tests
+```
 
 ## Key Concepts
 
@@ -144,4 +180,13 @@ ReadOnlyMany PVCs created from snapshots do not trigger RBD flattening, preservi
 
 ### Flattening Impact on CBT
 
-When a snapshot's intermediate RBD image is flattened (clone chain broken), `rbd snap diff` across images fails and `GetMetadataDelta` cannot compute deltas. There is a [design proposal](CLAUDE.md#key-domain-concepts) ("Combined solution") to store diffs in Ceph omap before flattening as a fallback, but this is **not yet implemented** in CephCSI. The `stored_diffs_test.go` validates this behavior by force-flattening intermediate images via `rbd flatten` and confirming that delta computation fails without stored diffs.
+When a snapshot's intermediate RBD image is flattened (clone chain broken), `rbd snap diff` across images fails and `GetMetadataDelta` cannot compute deltas. There is a [design proposal](CLAUDE.md#key-domain-concepts) ("Combined solution") to store diffs in Ceph omap before flattening as a fallback, but this is **not yet implemented** in CephCSI.
+
+## References
+
+- [KEP-3314: CSI Changed Block Tracking](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md)
+- [CephCSI CBT PR #5347](https://github.com/ceph/ceph-csi/pull/5347)
+- [external-snapshot-metadata deployment](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/deploy/README.md)
+- [SnapshotMetadataService API types](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/client/apis/snapshotmetadataservice/v1alpha1/types.go)
+- [CBT sidecar setup for ODF](https://access.redhat.com/articles/7130698)
+- [Velero CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
