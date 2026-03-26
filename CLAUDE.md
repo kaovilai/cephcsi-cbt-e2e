@@ -13,6 +13,7 @@ Requires a live Kubernetes 1.33+ cluster with CephCSI, ODF/Rook, and the externa
 ```bash
 make build              # Compile all packages
 make lint               # golangci-lint run ./...
+make lint-fix           # golangci-lint run --fix ./...
 make e2e                # Full suite (5h timeout)
 make e2e-fast           # Skip stored-diffs tests (2h timeout)
 make e2e-rox            # ReadOnlyMany PVC tests (30m)
@@ -21,6 +22,16 @@ make e2e-flattening     # Flattening prevention tests (30m)
 make e2e-stored-diffs   # Stored diffs fallback (1h)
 make e2e-errors         # Error handling tests (30m)
 make e2e-backup         # Backup workflow tests (1h)
+make e2e-compliance     # Velero/block metadata/error compliance + volume resize (1h)
+make e2e-resize         # Volume resize tests (30m)
+```
+
+In-cluster execution (tests must run inside the cluster to reach the gRPC service):
+```bash
+make cluster-e2e            # Full suite in-cluster
+make cluster-compliance     # Compliance tests in-cluster
+./run-in-cluster.sh -ginkgo.focus='Basic CBT'  # Specific tests
+make cluster-clean          # Remove runner pod
 ```
 
 Override cluster defaults via environment variables:
@@ -36,17 +47,18 @@ go run github.com/onsi/ginkgo/v2/ginkgo -v --focus='should return allocated bloc
 ## Architecture
 
 ```
+cmd/
+├── cbt-check/      # CLI to call GetMetadataAllocated on an existing VolumeSnapshot
+└── go-ceph-repro/  # Standalone go-ceph DiffIterateByID reproducer (needs CGo)
 pkg/
 ├── cbt/    # gRPC client wrapping external-snapshot-metadata iterator API
-│           # GetAllocatedBlocks, GetChangedBlocks, GetChangedBlocksByID
+├── data/   # Block device data operations: writes, hashes, verification
 ├── k8s/    # Kubernetes resource lifecycle helpers (PVC, Pod, Snapshot, Namespace)
-│           # Pod exec, toolbox pod discovery, wait utilities
-├── data/   # Block device data operations: known-pattern writes (dd),
-│           # SHA256 hash reads, block-level verification against CBT metadata
 └── rbd/    # Ceph RBD introspection via toolbox pod exec
-            # Image info, parent/clone chain, omap metadata, Ceph version checks
 tests/e2e/  # Ginkgo v2 BDD test suite (Ordered test containers)
 config/     # StorageClass and VolumeSnapshotClass YAML manifests
+demo/       # Slidev presentation (GitHub Pages deployment)
+ocp-setup/  # OpenShift cluster setup scripts for ODF + CBT sidecar
 ```
 
 ## Test Patterns
