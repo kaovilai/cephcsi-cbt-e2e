@@ -29,7 +29,7 @@ COMMON_FLAGS = \
 build:
 	go build ./...
 
-# Full suite (~17m on OCP 4.21)
+# Full suite (~20m on OCP 4.21)
 e2e:
 	$(GINKGO) -v --timeout=5h ./tests/e2e/... -- $(COMMON_FLAGS)
 
@@ -73,7 +73,7 @@ e2e-resize:
 cluster-compliance:
 	./run-in-cluster.sh -ginkgo.focus='Velero Compliance|Block Metadata Properties|Error Compliance|Volume Resize' -ginkgo.timeout=1h
 
-# Full suite in-cluster (~17m observed on OCP 4.21)
+# Full suite in-cluster (~20m observed on OCP 4.21)
 cluster-e2e:
 	./run-in-cluster.sh -ginkgo.timeout=5h
 
