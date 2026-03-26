@@ -5,29 +5,35 @@ class: text-center
 highlighter: shiki
 lineNumbers: true
 info: |
-  ## CephCSI CBT E2E Test Suite
-  Validating Changed Block Tracking for Ceph RBD
+  ## CephCSI CBT Validation for Velero
+  Ceph RBD behavior coverage for incremental backup enablement
 drawings:
   persist: false
 transition: slide-left
-title: CephCSI CBT E2E Test Suite
+title: CephCSI CBT Validation for Velero
 mdc: true
 ---
 
-# CephCSI CBT E2E Test Suite
+# CephCSI CBT Validation for Velero
 
-Validating Changed Block Tracking for Ceph RBD
+Ceph RBD behavior coverage for incremental backup enablement
 
-<div class="pt-12">
+<div class="pt-8 text-sm opacity-60">
+
+For CBT intro & getting started, see [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo)
+
+</div>
+
+<div class="pt-4">
   <span @click="$slidev.nav.next" class="px-2 py-1 rounded cursor-pointer" hover="bg-white bg-opacity-10">
     Press Space to begin <carbon:arrow-right class="inline"/>
   </span>
 </div>
 
 <!--
-- E2E test suite for Ceph RBD Changed Block Tracking via Kubernetes CSI external-snapshot-metadata API
-- Tests validate incremental backup capabilities needed by Velero and similar backup tools
-- Requires live K8s 1.33+ cluster with CephCSI, ODF/Rook, and external-snapshot-metadata sidecar
+- This deck focuses on Ceph-specific CBT behaviors validated for Velero enablement
+- CBT intro (KEP-3314, APIs, demo) is covered in the k8s-cbt-s3mover-demo presentation
+- Goal: document what works, what doesn't, and what Velero needs to know about Ceph RBD
 -->
 
 
@@ -35,96 +41,33 @@ Validating Changed Block Tracking for Ceph RBD
 transition: slide-left
 ---
 
-# What is CBT?
+# Why Ceph-Specific Validation?
 
-Changed Block Tracking (**KEP-3314**) identifies **only the blocks** that changed between snapshots.
-
-<div class="grid grid-cols-2 gap-8 mt-4">
-<div>
+CBT (KEP-3314) defines a generic API, but **each CSI driver has unique behaviors**.
 
 <v-clicks>
 
-- **K8s 1.33** -- Alpha (no feature gate)
-- **OCP 4.20** -- DevPreviewNoUpgrade
-- **K8s 1.36** -- Proposed Beta target
+- CephCSI uses an **intermediate image + snapshot** architecture (not direct snapshots)
+- Clone chains and flattening create **Ceph-specific failure modes** for `GetMetadataDelta`
+- Velero's Block Data Mover needs to know which **retention strategies** work with Ceph
+- Volume mode conversion (FS to Block) has **Ceph-specific preconditions**
 
 </v-clicks>
 
 <v-click>
-<div class="mt-4 p-2 bg-yellow-900 bg-opacity-20 rounded text-sm">
+<div class="mt-6 p-3 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-CBT is supported only for **block volumes**, not file volumes
+**This test suite validates Ceph RBD behaviors** that Velero must handle correctly for incremental backups on ODF/Rook clusters.
 
 </div>
 </v-click>
-
-</div>
-<div>
-
-<v-click>
-
-```mermaid {scale:0.55}
-graph TB
-    PVC[PVC: Block Device]
-    S1[Snapshot 1]
-    S2[Snapshot 2]
-    CBT[CBT: rbd diff]
-    Delta[Delta Only]
-
-    PVC -->|Create| S1
-    PVC -->|Write more| S2
-    S1 -->|Compare| CBT
-    S2 -->|Compare| CBT
-    CBT -->|Changed blocks| Delta
-
-    style CBT fill:#f96,stroke:#333
-    style Delta fill:#9f6,stroke:#333
-```
-
-</v-click>
-
-</div>
-</div>
 
 <!--
-- KEP-3314 introduces CBT as alpha in K8s 1.33+
-- Ceph RBD has had `rbd diff` for years -- CBT standardizes access via CSI
-- Block volumes only -- this is critical for test design
+- Generic CBT tests (hostpath driver) don't exercise clone chains or flattening
+- Ceph's snap-clone architecture means each VolumeSnapshot creates a new RBD image
+- Velero can't treat Ceph like a simple snapshot-in-place driver
 -->
 
----
-transition: slide-left
----
-
-# Two Key APIs
-
-<div class="grid grid-cols-2 gap-8 mt-8">
-
-<v-click>
-<div class="p-4 border border-blue-500 rounded bg-blue-50 dark:bg-blue-900/20">
-  <h3 class="text-blue-600 dark:text-blue-400 font-bold">GetMetadataAllocated</h3>
-  <p class="mt-2">All allocated blocks in a single snapshot</p>
-  <div class="mt-4 text-sm font-mono">Use case: Initial full backup</div>
-  <div class="mt-2 text-sm font-mono">Backs: rbd snap diff &lt;image&gt;@&lt;snap&gt;</div>
-</div>
-</v-click>
-
-<v-click>
-<div class="p-4 border border-green-500 rounded bg-green-50 dark:bg-green-900/20">
-  <h3 class="text-green-600 dark:text-green-400 font-bold">GetMetadataDelta</h3>
-  <p class="mt-2">Blocks changed between two snapshots</p>
-  <div class="mt-4 text-sm font-mono">Use case: Incremental backup</div>
-  <div class="mt-2 text-sm font-mono">Backs: rbd diff --from-snap</div>
-</div>
-</v-click>
-
-</div>
-
-<!--
-- GetMetadataAllocated: sparse region detection, skip unallocated blocks
-- GetMetadataDelta: only transfer what changed since last backup
-- Both backed by rbd DiffIterateByID in CephCSI (PR #5347)
--->
 
 ---
 transition: slide-left
@@ -132,14 +75,14 @@ transition: slide-left
 
 # CephCSI Snap-Clone Architecture
 
-How CephCSI creates VolumeSnapshots internally:
+Each VolumeSnapshot creates an **intermediate RBD image** -- not a direct snapshot on the source:
 
 <v-clicks>
 
 1. **Temp snapshot** on source PVC's RBD image
 2. **Clone** to new intermediate image (format 2, deep-flatten)
 3. **Delete** temp snapshot
-4. **Create** real snapshot on intermediate image
+4. **Snapshot** on intermediate image = VolumeSnapshot
 
 </v-clicks>
 
@@ -162,179 +105,68 @@ graph LR
 <v-click>
 <div class="mt-2 p-2 bg-yellow-900 bg-opacity-20 rounded text-sm">
 
-Source PVC accumulates **zero** direct RBD snapshots. Each VolumeSnapshot gets its own intermediate image.
+Source PVC accumulates **zero** direct RBD snapshots. Each VolumeSnapshot gets its own intermediate image. This means `GetMetadataDelta` must traverse **across images** via parent chain.
 
 </div>
 </v-click>
 
 <!--
-- This architecture means the 250/450 snapshot limits apply per-image
+- This architecture is critical to understand before looking at test results
 - Intermediate images are what get flattened, not application volumes
-- Understanding this is essential for designing CBT tests
+- rbd diff --from-snap needs the parent chain intact to compute deltas
 -->
+
 
 ---
 transition: slide-left
 ---
 
-# The Flattening Problem
-
-CephCSI flattens intermediate images to manage clone chains:
-
-<div class="grid grid-cols-2 gap-6 mt-4">
-<div>
-
-<v-clicks>
-
-- **Clone depth**: soft=4, hard=8
-- **Snapshot count**: max=450, min=250
-- Only intermediate clones flattened
-- **Flattening breaks clone chain**
-
-</v-clicks>
-
-</div>
-<div>
-
-<v-click>
-
-```mermaid {scale:0.5}
-graph TD
-    A[Source] -->|parent| B[Intermediate]
-    B -->|has snap| S[VolumeSnapshot]
-    B -.->|rbd flatten| B2[Flattened Image]
-    B2 -->|has snap| S
-    B2 -.->|no parent!| X[Chain Broken]
-
-    style X fill:#f66,stroke:#333
-    style B2 fill:#f96,stroke:#333
-```
-
-</v-click>
-
-</div>
-</div>
-
-<v-click>
-<div class="mt-2 p-2 bg-red-900 bg-opacity-20 rounded text-sm">
-
-After flattening: `GetMetadataDelta` **fails** -- `rbd diff` needs intact clone chain. No fallback exists today.
-
-</div>
-</v-click>
-
-<!--
-- Flattening collapses the clone chain -- rbd diff can't traverse across flattened images
-- "Combined solution" (stored diffs in omap) is a design proposal, NOT implemented
-- This is why the stored_diffs_test.go force-flattens and verifies failure
--->
-
----
-transition: slide-left
----
-
-# Test Suite Architecture
-
-```
-pkg/
-  cbt/    -- gRPC client: GetAllocatedBlocks, GetChangedBlocks
-  k8s/    -- K8s resource lifecycle (PVC, Pod, Snapshot, Namespace)
-  data/   -- Block device writes (dd), SHA256 hash reads
-  rbd/    -- Ceph RBD introspection via toolbox pod exec
-tests/e2e/  -- Ginkgo v2 BDD test suite (Ordered containers)
-```
-
-<v-click>
-
-<div class="grid grid-cols-2 gap-4 mt-4 text-sm">
-<div>
-
-**Test Infrastructure**
-- Ginkgo v2 with `Ordered` containers
-- BeforeAll/AfterAll for resource lifecycle
-- Gomega matchers (dot-imported)
-- BeforeSuite validates cluster preconditions
-
-</div>
-<div>
-
-**Cluster Requirements**
-- K8s 1.33+ with CBT CRD
-- ODF 4.18+ with CephCSI
-- external-snapshot-metadata sidecar
-- Ceph toolbox pod for RBD inspection
-- **Must run in-cluster** (gRPC uses cluster DNS)
-- BeforeSuite validates DNS, fails fast → `run-in-cluster.sh`
-
-</div>
-</div>
-
-</v-click>
-
-<!--
-- pkg/ provides reusable helpers for all test files
-- Tests use Ordered containers: setup -> assertions -> cleanup
-- BeforeSuite checks K8s version, CRDs, CephCSI pods, sidecar, Ceph version
--->
-
----
-transition: slide-left
----
-
-# Test Categories
+# Validated Coverage Overview
 
 <div class="text-sm">
 
-| Category | What It Tests | Key Assertion |
+| Area | Velero Relevance | Status |
 |---|---|---|
-| **Basic CBT** | GetAllocatedBlocks, GetChangedBlocks | Block offsets match written data |
-| **ROX PVC** | ReadOnlyMany from snapshots | No RBD flattening occurs |
-| **Counter Deletion** | Snapshot deletion behavior | Counter-based RBD cleanup |
-| **Flattening Prevention** | Snap->Restore->Snap chains | `IsImageFlattened() == false` |
-| **Stored Diffs** | Force-flatten via `rbd flatten` | Delta fails without stored diffs |
-| **Error Handling** | Invalid/deleted snapshots | Graceful error responses |
-| **Backup Workflow** | End-to-end backup simulation | Snapshot retention works |
-| **Velero Compliance** | Handle-based delta, retention cases | Case 1 fails, Case 2 works |
-| **Volume Mode Rebind** | FS→Block→rebind→FS workflow | Files retained after rebind |
+| **GetMetadataAllocated** | Full backup: sparse block detection | Works |
+| **GetMetadataDelta** | Incremental backup: changed blocks | Works (with caveats) |
+| **Snapshot retention (Case 2)** | Keep previous snap for delta | Required for Ceph |
+| **Snapshot retention (Case 1)** | Delete previous snap after backup | Fails on Ceph |
+| **FS-to-Block volume mode** | Block Data Mover reads FS volumes as block | Works (KEP-3141) |
+| **Rebind Block-to-FS** | Restore FS volume after block backup | Works |
+| **Flattening prevention** | Shallow chains stay intact | Works (depth < soft limit) |
+| **Post-flatten delta** | Delta after clone chain broken | Fails (no fallback) |
+| **Volume resize + CBT** | CBT after PVC expansion | Works |
+| **Error handling** | Invalid/deleted snapshot refs | Graceful errors |
 
 </div>
 
-<v-click>
-
-```bash
-make e2e          # Full suite (5h)
-make e2e-fast     # Skip stored-diffs (2h)
-make e2e-flattening  # Just flattening tests (30m)
-```
-
-</v-click>
-
 <!--
-- Each category tests a different aspect of CBT + CephCSI interaction
-- Stored diffs test is the most interesting: manually breaks clone chain
-- make targets allow running individual categories
+- Green: works today, Velero can rely on it
+- Case 1 retention is a hard constraint -- Velero must retain previous snapshot
+- Post-flatten delta failure is expected -- no stored diffs mechanism exists
 -->
+
 
 ---
 transition: slide-left
 ---
 
-# Velero Retention: Case 1 vs Case 2
+# Snapshot Retention: Critical for Velero
 
-How should backup tools handle previous snapshots when computing deltas?
+Ceph RBD **requires** retaining the previous snapshot for `GetMetadataDelta`.
 
 <div class="grid grid-cols-2 gap-6 mt-4">
 <div>
 
 <v-click>
 <div class="p-3 border border-red-500 rounded bg-red-50 dark:bg-red-900/20">
-  <h3 class="text-red-600 dark:text-red-400 font-bold">Case 1: No Retention</h3>
-  <p class="mt-2 text-sm">Delete previous snapshot after backup</p>
+  <h3 class="text-red-600 dark:text-red-400 font-bold">Case 1: Delete Previous</h3>
+  <p class="mt-2 text-sm">Delete old snapshot after backup completes</p>
   <div class="mt-2 text-sm">
 
-  - `rbd snap diff` needs **both** snapshots in clone chain
-  - Deleting the previous snapshot breaks the chain
-  - **Fails** with `"no snap source in omap"`
+  - `rbd diff` needs **both** snapshots in clone chain
+  - Deleting breaks the chain
+  - **Fails**: `"no snap source in omap"`
 
   </div>
 </div>
@@ -346,7 +178,7 @@ How should backup tools handle previous snapshots when computing deltas?
 <v-click>
 <div class="p-3 border border-green-500 rounded bg-green-50 dark:bg-green-900/20">
   <h3 class="text-green-600 dark:text-green-400 font-bold">Case 2: Retain Previous</h3>
-  <p class="mt-2 text-sm">Keep previous snapshot for delta computation</p>
+  <p class="mt-2 text-sm">Keep previous snapshot until next backup</p>
   <div class="mt-2 text-sm">
 
   - Both snapshots remain in clone chain
@@ -363,8 +195,7 @@ How should backup tools handle previous snapshots when computing deltas?
 <v-click>
 <div class="mt-3 p-2 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-Test: `velero_compliance_test.go` -- negative test asserts Case 1 fails, positive test confirms Case 2 works.
-Ref: [Velero Block Data Mover Design](https://github.com/Lyndon-Li/velero/blob/block-data-mover-design/design/block-data-mover/block-data-mover.md#volume-snapshot-retention)
+Ref: [Velero Block Data Mover Design -- Volume Snapshot Retention](https://github.com/Lyndon-Li/velero/blob/block-data-mover-design/design/block-data-mover/block-data-mover.md#volume-snapshot-retention)
 
 </div>
 </v-click>
@@ -372,25 +203,26 @@ Ref: [Velero Block Data Mover Design](https://github.com/Lyndon-Li/velero/blob/b
 <!--
 - Velero design doc defines Case 1 and Case 2 retention strategies
 - Ceph RBD requires Case 2 because rbd diff traverses parent chain
-- Negative test proves Case 1 is incompatible with Ceph
+- Test: velero_compliance_test.go -- negative test asserts Case 1 fails
 -->
+
 
 ---
 transition: slide-left
 ---
 
-# Volume Mode Rebind Test
+# Volume Mode Conversion Workflow
 
-Velero's Block Data Mover always uses **Block-mode PVCs** for backup, even for Filesystem sources.
+Velero's Block Data Mover uses **Block PVCs** for backup, even for Filesystem sources.
 
 <v-clicks>
 
 1. Create **Filesystem** PVC, mount it, write files
 2. Snapshot the Filesystem PVC
-3. Restore snapshot as **Block** PVC (KEP-3141 annotation on VolumeSnapshotContent)
+3. Restore snapshot as **Block** PVC (KEP-3141 annotation)
 4. Read CBT metadata from Block PVC
 5. **Rebind** the PV back to Filesystem mode
-6. Mount rebound PV and verify original files are intact
+6. Mount rebound PV -- verify original files intact
 
 </v-clicks>
 
@@ -402,7 +234,7 @@ graph LR
     SNAP -->|restore as Block| BLK[Block PVC]
     BLK -->|CBT read| CBT[GetMetadataAllocated]
     BLK -->|rebind PV| FS2[FS PVC again]
-    FS2 -->|mount| VERIFY[Files retained ✓]
+    FS2 -->|mount| VERIFY[Files retained]
 
     style BLK fill:#f96,stroke:#333
     style VERIFY fill:#9f6,stroke:#333
@@ -413,59 +245,82 @@ graph LR
 <v-click>
 <div class="mt-2 p-2 bg-yellow-900 bg-opacity-20 rounded text-sm">
 
-Test: `volume_mode_rebind_test.go` -- validates the full FS→Block→rebind→FS workflow with data integrity checks.
+Validated: CephCSI preserves filesystem data through the Block detour. KEP-3141 annotation on VolumeSnapshotContent enables the mode switch.
 
 </div>
 </v-click>
 
 <!--
 - KEP-3141 allows volume mode conversion via annotation on VolumeSnapshotContent
-- This is how Velero would do incremental backups of filesystem volumes via CBT
+- This is how Velero does incremental backups of filesystem volumes via CBT
 - Rebind proves the underlying data survives the Block detour
 -->
+
 
 ---
 transition: slide-left
 ---
 
-# Stored Diffs Test: Force-Flatten
+# Flattening: The Clone Chain Risk
 
-The most interesting test -- simulates what happens when flattening breaks CBT:
+CephCSI flattens intermediate images to manage clone depth and snapshot counts.
+
+<div class="grid grid-cols-2 gap-6 mt-4">
+<div>
 
 <v-clicks>
 
-1. Create PVC, write data, create 3 snapshots
-2. Find intermediate RBD images via source image's children
-3. Verify parent chains intact (`IsImageFlattened() == false`)
-4. **Force-flatten** all intermediates via `rbd flatten`
-5. Verify `IsImageFlattened() == true`
-6. Assert: `GetMetadataAllocated` may still work
-7. Assert: `GetMetadataDelta` **fails** (no chain, no stored diffs)
-8. Verify omap has no diff keys (manual flatten bypasses CephCSI)
+- **Clone depth**: soft=4 (async), hard=8 (blocking)
+- **Snapshot count**: max=450, min=250
+- Only intermediate clones flattened
+- **Flattening severs the parent chain**
 
 </v-clicks>
 
-<v-click>
-<div class="mt-2 p-2 bg-blue-900 bg-opacity-20 rounded text-sm">
+</div>
+<div>
 
-This proves WHY stored diffs are needed: without them, flattening permanently breaks incremental backups.
+<v-click>
+
+```mermaid {scale:0.5}
+graph TD
+    A[Source] -->|parent| B[Intermediate]
+    B -->|has snap| S[VolumeSnapshot]
+    B -.->|rbd flatten| B2[Flattened]
+    B2 -->|has snap| S
+    B2 -.->|no parent!| X[Chain Broken]
+
+    style X fill:#f66,stroke:#333
+    style B2 fill:#f96,stroke:#333
+```
+
+</v-click>
+
+</div>
+</div>
+
+<v-click>
+<div class="mt-2 p-2 bg-red-900 bg-opacity-20 rounded text-sm">
+
+After flattening: `GetMetadataDelta` **fails** -- `rbd diff` needs intact clone chain. No fallback exists today. `GetMetadataAllocated` may still work (snapshot-local diff).
 
 </div>
 </v-click>
 
 <!--
-- Manual rbd flatten bypasses CephCSI entirely
-- CephCSI never stores diffs in omap because it wasn't involved
-- This test documents the gap that the Combined solution design would fill
+- Flattening is threshold-based, not priority-based
+- No mechanism to prefer flattening deleted snapshots over alive ones
+- This is the fundamental tension between CBT and CephCSI's clone management
 -->
+
 
 ---
 transition: slide-left
 ---
 
-# Flattening Prevention Tests
+# Flattening Prevention: What Works Today
 
-Verify CephCSI does NOT flatten when clone depth is shallow:
+Validated: CephCSI does **not** flatten when clone depth is below soft limit.
 
 <div class="grid grid-cols-2 gap-6 mt-4">
 <div>
@@ -474,11 +329,11 @@ Verify CephCSI does NOT flatten when clone depth is shallow:
 
 <v-clicks>
 
-- Create PVC, write data, snapshot
+- Snapshot a PVC
 - Restore PVC from snapshot
-- Write more data, snapshot restored PVC
-- Assert: restored PVC image NOT flattened
-- Assert: CBT works across the chain
+- Snapshot the restored PVC
+- Intermediate images: **NOT flattened**
+- `GetMetadataDelta`: **works**
 
 </v-clicks>
 
@@ -489,140 +344,229 @@ Verify CephCSI does NOT flatten when clone depth is shallow:
 
 <v-clicks>
 
-- Create PVC, write data
-- Clone PVC (PVC-PVC clone)
-- Write to clone, snapshot clone
-- Assert: clone image NOT flattened
-- Assert: CBT works on clone's snapshot
+- Clone a PVC (PVC-to-PVC)
+- Write to clone
+- Snapshot the clone
+- Clone image: **NOT flattened**
+- `GetMetadataDelta`: **works**
 
 </v-clicks>
 
 </div>
-</div>
-
-<!--
-- These test chains where clone depth is 1, well below soft limit of 4
-- Ensures CephCSI doesn't over-flatten in common backup workflows
-- Important for Velero: restore -> re-snapshot is a normal pattern
--->
-
----
-transition: slide-left
----
-
-# Combined Solution (Design Proposal)
-
-A design for CBT + flattening coexistence -- **not yet implemented**:
-
-<div class="text-sm">
-
-<v-clicks>
-
-1. **ROX shallow volumes** -- Prevent 3+ clone depth (CephFS has this; RBD does not)
-2. **Counter-based deletion** -- Reference tracking for snapshots (CephFS only today)
-3. **Flattening prevention** -- Move flatten logic earlier ([PR #2900](https://github.com/ceph/ceph-csi/pull/2900), partial)
-4. **Priority-based flattening** -- Flatten deleted snaps first, clones next, alive snaps last
-5. **Stored diffs in omap** -- Doubly-linked list of diffs before flattening
-
-</v-clicks>
-
 </div>
 
 <v-click>
-<div class="mt-4 p-3 bg-red-900 bg-opacity-20 rounded text-sm">
+<div class="mt-3 p-2 bg-green-900 bg-opacity-20 rounded text-sm">
 
-**Current reality**: CephCSI CBT ([PR #5347](https://github.com/ceph/ceph-csi/pull/5347)) uses `rbd DiffIterateByID` directly. If an intermediate image is flattened, GetMetadataDelta fails with **no fallback**.
+For typical Velero workflows (backup -> restore -> re-backup), clone depth stays at 1-2. Flattening is not triggered. CBT remains functional.
 
 </div>
 </v-click>
 
 <!--
-- Combined solution is a design document, not code
-- Stored diffs in omap would allow CBT beyond 250 snapshots
-- Priority flattening would preserve alive snapshot chains
-- Today: flattening = broken CBT, full backup required
+- Clone depth 1-2 is well below soft limit of 4
+- Velero's normal backup-restore cycle doesn't accumulate deep chains
+- Risk only emerges with many consecutive restore-from-snapshot cycles
 -->
+
 
 ---
 transition: slide-left
 ---
 
-# ODF Version Compatibility
+# Post-Flatten Behavior (Stored Diffs Gap)
 
-The test suite handles multiple ODF versions for pod/label discovery:
+What happens when flattening **does** break the chain?
 
 <v-clicks>
 
-- **ODF < 4.18**: label `app=csi-rbdplugin-provisioner`
-- **ODF 4.18+**: label `app.kubernetes.io/name=csi-rbdplugin,app.kubernetes.io/component=ctrlplugin`
-- **ODF 4.21+**: fallback to pod name pattern matching (`rbd` + `ctrlplugin`)
+1. Create PVC, write data, create 3 snapshots
+2. Verify parent chains intact via RBD toolbox
+3. **Force-flatten** all intermediate images (`rbd flatten`)
+4. `GetMetadataAllocated` -- still works (snapshot-local)
+5. `GetMetadataDelta` -- **fails** (no parent chain)
+6. Verify omap: **no stored diffs** (CephCSI doesn't store them)
 
 </v-clicks>
 
 <v-click>
+<div class="mt-4 p-3 bg-yellow-900 bg-opacity-20 rounded text-sm">
 
-```go
-// pkg/k8s/k8s.go - Auto-discovery logic
-pods, err := FindCephCSIPods(ctx, clientset, namespace)
-// Tries each label selector, falls back to name matching
-```
+**Gap**: No "stored diffs in omap" mechanism exists. When flattening occurs, incremental backup capability is **permanently lost** for that snapshot pair. Velero must fall back to full backup.
 
+Design proposals exist (priority-based flattening, stored diffs) but none are implemented in CephCSI.
+
+</div>
 </v-click>
+
+<!--
+- This test manually triggers flatten to document the gap
+- CephCSI PR #5347 uses rbd DiffIterateByID directly -- no fallback
+- Velero should detect delta failure and fall back to full backup gracefully
+-->
+
+
+---
+transition: slide-left
+---
+
+# Volume Resize + CBT
+
+Validated: CBT works correctly after PVC expansion.
+
+<v-clicks>
+
+- Create PVC (1Gi), write data, snapshot
+- Expand PVC to 2Gi
+- Write data to expanded region
+- Snapshot expanded PVC
+- `GetMetadataAllocated` on new snapshot: reports blocks in expanded region
+- `GetMetadataDelta` between pre/post-resize: reports only new blocks
+
+</v-clicks>
+
+<v-click>
+<div class="mt-4 p-2 bg-green-900 bg-opacity-20 rounded text-sm">
+
+Velero can handle PVC resizes between backup cycles -- CBT correctly tracks blocks across size changes.
+
+</div>
+</v-click>
+
+<!--
+- Volume resize doesn't break clone chains
+- rbd diff handles images of different sizes correctly
+- Important for real-world scenarios where PVCs grow over time
+-->
+
+
+---
+transition: slide-left
+---
+
+# Error Handling Validation
+
+How CephCSI CBT responds to invalid requests:
+
+<div class="text-sm mt-4">
+
+<v-clicks>
+
+| Scenario | Expected Behavior | Validated |
+|---|---|---|
+| Deleted VolumeSnapshot | Error with snapshot not found | Yes |
+| Non-existent snapshot name | Error, no crash | Yes |
+| Delta with unrelated snapshots | Error (not in same chain) | Yes |
+| Delta with same snapshot twice | Error or empty result | Yes |
+| Snapshot from different PVC | Error (different images) | Yes |
+
+</v-clicks>
+
+</div>
 
 <v-click>
 <div class="mt-4 p-2 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-Setup automated via `ocp-setup/` scripts (featuregate, ODF install, StorageCluster, CBT sidecar)
+Velero needs graceful error handling from the driver to decide when to fall back to full backup vs. reporting a real failure.
 
 </div>
 </v-click>
 
 <!--
-- CephCSI pod labels changed across ODF versions
-- Test suite auto-detects using fallback chain
-- ocp-setup/ directory has step-by-step scripts for cluster setup
+- Error handling is important for Velero's retry/fallback logic
+- CephCSI returns descriptive errors, not panics
+- These tests ensure the sidecar + driver handle edge cases correctly
 -->
+
 
 ---
 transition: slide-left
 ---
 
-# Key CephCSI References
+# Summary: What Velero Needs to Know
 
-<div class="grid grid-cols-2 gap-4 text-sm">
+<div class="grid grid-cols-2 gap-6 mt-4 text-sm">
 <div>
 
-**CBT Implementation**
-- [PR #5347](https://github.com/ceph/ceph-csi/pull/5347) -- CBT RPCs (merged Jul 2025)
-- [Issue #5346](https://github.com/ceph/ceph-csi/issues/5346) -- CBT feature request
-- [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md) -- Spec
-
-**Flattening**
-- [PR #2900](https://github.com/ceph/ceph-csi/pull/2900) -- Flatten before create
-- [PR #1678](https://github.com/ceph/ceph-csi/pull/1678) -- minSnapshotsOnImage
-- [Design: rbd-snap-clone.md](https://github.com/ceph/ceph-csi/blob/devel/docs/design/proposals/rbd-snap-clone.md)
+**Works Today**
+- `GetMetadataAllocated` for full backup
+- `GetMetadataDelta` for incremental (with retention)
+- FS-to-Block conversion (KEP-3141)
+- Block-to-FS rebind after backup
+- Volume resize between backups
+- Shallow clone chains (typical workflows)
+- Graceful error responses
 
 </div>
 <div>
 
-**CephFS (reference for RBD proposals)**
-- [PR #3651](https://github.com/ceph/ceph-csi/pull/3651) -- ROX shallow volumes
-- [PR #2893](https://github.com/ceph/ceph-csi/pull/2893) -- Reference tracker
+**Constraints & Gaps**
+- **Must retain** previous snapshot (Case 2)
+- Delta **fails** after flattening (no fallback)
+- No stored diffs mechanism
+- No priority-based flattening
+- No ROX shallow volumes for RBD
+- Clone depth > 4 triggers flatten risk
+- 450+ snapshots per image trigger flatten
 
-**Related**
+</div>
+</div>
+
+<v-click>
+<div class="mt-4 p-3 bg-blue-900 bg-opacity-20 rounded text-sm">
+
+**Velero implementation guidance**: Use Case 2 retention. Detect `GetMetadataDelta` failures and fall back to full backup. Normal backup-restore cycles stay within safe clone depth.
+
+</div>
+</v-click>
+
+<!--
+- Velero can rely on CBT for Ceph today with Case 2 retention
+- Flattening risk is low for typical workflows but must be handled
+- Future CephCSI improvements (stored diffs, priority flatten) would remove constraints
+-->
+
+
+---
+transition: slide-left
+---
+
+# Key References
+
+<div class="grid grid-cols-2 gap-4 text-sm">
+<div>
+
+**CephCSI CBT**
+- [PR #5347](https://github.com/ceph/ceph-csi/pull/5347) -- CBT RPCs (merged Jul 2025)
+- [Issue #5346](https://github.com/ceph/ceph-csi/issues/5346) -- CBT feature request
+- [Design: rbd-snap-clone.md](https://github.com/ceph/ceph-csi/blob/devel/docs/design/proposals/rbd-snap-clone.md)
+
+**Flattening**
+- [PR #2900](https://github.com/ceph/ceph-csi/pull/2900) -- Flatten before create
+- [PR #1678](https://github.com/ceph/ceph-csi/pull/1678) -- minSnapshotsOnImage
 - [Issue #1800](https://github.com/ceph/ceph-csi/issues/1800) -- No-flatten request
-- [Velero CBT Plan](https://hackmd.io/@velero/r1U1EVKdgl)
-- [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo) -- Getting started
+
+</div>
+<div>
+
+**Velero**
+- [Block Data Mover Design](https://github.com/Lyndon-Li/velero/blob/block-data-mover-design/design/block-data-mover/block-data-mover.md)
+- [Velero CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
+
+**Setup & Getting Started**
+- [CBT sidecar for ODF](https://access.redhat.com/articles/7130698)
+- [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo) -- CBT intro & demo
+- [This test suite](https://github.com/kaovilai/cephcsi-cbt-e2e)
 
 </div>
 </div>
 
 <!--
 - PR #5347 is the core CBT implementation using rbd DiffIterateByID
-- rbd-snap-clone.md explains the snap-clone architecture and depth limits
-- CephFS PRs show what RBD proposals would look like when implemented
-- k8s-cbt-s3mover-demo is a simpler getting-started project
+- Block Data Mover design doc defines retention strategies
+- k8s-cbt-s3mover-demo covers CBT basics and getting started
 -->
+
 
 ---
 layout: center
@@ -634,12 +578,12 @@ class: text-center
 Questions?
 
 <div class="pt-12 text-sm opacity-50">
-  <p>CephCSI CBT E2E Test Suite</p>
+  <p>CephCSI CBT Validation for Velero</p>
   <p>github.com/kaovilai/cephcsi-cbt-e2e</p>
 </div>
 
 <!--
 - Repo: github.com/kaovilai/cephcsi-cbt-e2e
-- Getting started: github.com/kaovilai/k8s-cbt-s3mover-demo
-- CBT sidecar setup for ODF: access.redhat.com/articles/7130698
+- CBT intro: github.com/kaovilai/k8s-cbt-s3mover-demo
+- CBT sidecar setup: access.redhat.com/articles/7130698
 -->
