@@ -117,14 +117,20 @@ All 5 failures share the same root cause: the external-snapshot-metadata sidecar
 
 ## Failure Analysis
 
-**Root Cause**: All 5 failures are caused by the same sidecar bug in `external-snapshot-metadata`. When `GetMetadataDelta` receives a CSI snapshot handle (e.g., `0001-0011-openshift-storage-...-<snapID>`) as the base snapshot identifier, the sidecar incorrectly tries to look it up as a VolumeSnapshot name:
+**Root Cause**: All 5 failures hit the same error in `GetMetadataDelta`. The flow is:
+
+1. The client library (`iterator.Args`) resolves `PrevSnapshotName` → CSI snapshot handle via VolumeSnapshotContent
+2. The resolved handle (e.g., `0001-0011-openshift-storage-...-<snapID>`) is sent as `BaseSnapshotId` in the gRPC request
+3. The sidecar (ODF's `ose-csi-external-snapshot-metadata-rhel9`) returns an error treating the handle as a VolumeSnapshot name:
 
 ```
 failed to get VolumeSnapshot 'cbt-e2e-test/<handle>': volumesnapshots.snapshot.storage.k8s.io "<handle>" not found
 ```
 
-The sidecar should resolve the handle to the corresponding VolumeSnapshot via its VolumeSnapshotContent, but instead does a direct name-based lookup which fails.
+The upstream sidecar code (v0.2.0) correctly passes `BaseSnapshotId` as a handle to the CSI driver without looking it up as a VolumeSnapshot. The error format (`"failed to get VolumeSnapshot"`, code `Unavailable`) matches the sidecar's own `snapshot.go:67`, not CephCSI. The ODF-shipped sidecar image (`registry.redhat.io/openshift4/ose-csi-external-snapshot-metadata-rhel9`) may differ from upstream — it appears to be doing a VolumeSnapshot name lookup on the base handle that upstream does not.
 
-**Impact**: `GetMetadataAllocated` (single snapshot, name-based) works perfectly. Only `GetMetadataDelta` with handle-based base snapshot identification (`GetChangedBlocksByID`) is broken. This blocks Velero's incremental backup workflow which relies on handle-based delta computation.
+**Affected tests**: Both name-based (`GetChangedBlocks` with `PrevSnapshotName`) and handle-based (`GetChangedBlocksByID` with `PrevSnapshotID`) delta calls fail identically, because the client library resolves names to handles before sending the request.
 
-**Workaround**: Tests using name-based `GetMetadataDelta` (e.g., `GetChangedBlocks(ctx, snap1Name, snap2Name)`) would work if CephCSI supported it, but CephCSI's snap-clone architecture means snapshots from the same PVC live on different intermediate images, so name-based delta also fails for a different reason ("different volume" error).
+**Impact**: `GetMetadataAllocated` (single snapshot) works perfectly. All `GetMetadataDelta` calls fail. This blocks incremental backup workflows entirely.
+
+**Not affected**: `GetMetadataAllocated`, snapshot creation, ROX PVC creation, flattening checks, volume mode rebind — all work correctly.
