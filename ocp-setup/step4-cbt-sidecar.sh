@@ -252,6 +252,66 @@ else
 fi
 
 # Wait for rollout - scale down and back up to ensure fresh pods use the updated SCC
+# --- 4j: Override sidecar image to upstream v0.2.0 ---
+# ODF <= 4.21 ships an older sidecar image that uses BaseSnapshotName (name-based lookup)
+# instead of BaseSnapshotId (handle passthrough). This breaks GetMetadataDelta because the
+# sidecar tries to look up the CSI snapshot handle as a VolumeSnapshot name.
+# Fix: https://github.com/red-hat-storage/ceph-csi-operator/commit/454e9130
+# Expected in ODF 4.22+. Until then, override via driver-level ImageSet.
+echo ""
+echo "--- 4j: Overriding sidecar image to upstream v0.2.0 (ODF <= 4.21 workaround) ---"
+
+# Detect ODF version from the installed CSV
+ODF_VERSION=$(oc get csv -n "$NAMESPACE" -o jsonpath='{.items[?(@.metadata.name)].metadata.name}' 2>/dev/null | \
+  tr ' ' '\n' | grep -E '^(odf-operator|ocs-operator)\.' | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+ODF_MAJOR=${ODF_VERSION%%.*}
+ODF_MINOR=${ODF_VERSION##*.}
+echo "Detected ODF version: ${ODF_VERSION:-unknown} (major=${ODF_MAJOR:-?}, minor=${ODF_MINOR:-?})"
+
+# Only override on ODF <= 4.21 (fix expected in ODF 4.22+)
+if [ -n "$ODF_MAJOR" ] && [ -n "$ODF_MINOR" ] && [ "$ODF_MAJOR" -eq 4 ] && [ "$ODF_MINOR" -ge 22 ]; then
+    echo "ODF >= 4.22 detected. Sidecar image override not needed — skipping."
+else
+    if [ -z "$ODF_VERSION" ]; then
+        echo "WARNING: Could not detect ODF version. Applying override as a precaution."
+    else
+        echo "ODF $ODF_VERSION <= 4.21. Applying sidecar image override."
+    fi
+
+UPSTREAM_SIDECAR="registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0"
+
+# Create override ConfigMap from the ODF image set, replacing only snapshot-metadata
+CURRENT_IMAGESET=$(oc get operatorconfigs.csi.ceph.io ceph-csi-operator-config -n "$NAMESPACE" \
+  -o jsonpath='{.spec.driverSpecDefaults.imageSet.name}' 2>/dev/null || echo "csi-images-v4.21")
+
+if oc get configmap "$CURRENT_IMAGESET" -n "$NAMESPACE" &>/dev/null; then
+    oc get configmap "$CURRENT_IMAGESET" -n "$NAMESPACE" -o json | \
+      jq --arg img "$UPSTREAM_SIDECAR" \
+        '.data["snapshot-metadata"] = $img |
+         .metadata.name = "csi-images-override" |
+         del(.metadata.labels["olm.managed"], .metadata.ownerReferences,
+             .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)' | \
+      oc apply -f -
+else
+    # Fallback: create minimal ConfigMap with just the override
+    oc apply -f - <<IMGEOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: csi-images-override
+  namespace: ${NAMESPACE}
+data:
+  snapshot-metadata: "${UPSTREAM_SIDECAR}"
+IMGEOF
+fi
+
+# Point the RBD driver to our override ImageSet (higher priority than operatorConfig)
+oc patch drivers.csi.ceph.io "${CSI_DRIVER_NAME}" -n "$NAMESPACE" --type=merge \
+  -p '{"spec":{"imageSet":{"name":"csi-images-override"}}}'
+echo "RBD driver ImageSet overridden to use upstream sidecar: $UPSTREAM_SIDECAR"
+
+fi  # end ODF version check
+
 echo ""
 echo "Waiting for deployment rollout..."
 oc scale deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" --replicas=0

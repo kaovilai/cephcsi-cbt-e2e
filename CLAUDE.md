@@ -102,6 +102,30 @@ The test suite handles multiple ODF versions for pod/label discovery:
 - ODF 4.18+: label `app.kubernetes.io/name=csi-rbdplugin,app.kubernetes.io/component=ctrlplugin`
 - ODF 4.21+: fallback to pod name pattern matching (`rbd` + `ctrlplugin`)
 
+### ODF <= 4.21 Sidecar Image Workaround
+
+ODF <= 4.21 ships an older `external-snapshot-metadata` sidecar image (`ose-csi-external-snapshot-metadata-rhel9`) that uses `BaseSnapshotName` (name-based VolumeSnapshot lookup) instead of `BaseSnapshotId` (CSI handle passthrough) in `GetMetadataDelta`. This breaks all delta/incremental CBT operations because the sidecar tries to look up the CSI snapshot handle as a VolumeSnapshot name, which fails with "not found".
+
+**Fix**: [red-hat-storage/ceph-csi-operator commit 454e9130](https://github.com/red-hat-storage/ceph-csi-operator/commit/454e9130a39057b5a9ca98785df605ada195d62e) — expected in ODF 4.22+.
+
+**Workaround** (automated in `step4-cbt-sidecar.sh` step 4j): Override the sidecar image to upstream `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` via a driver-level ImageSet ConfigMap:
+
+```bash
+# The csi-images-v4.21 ConfigMap is managed by ocs-client-operator (olm.managed: true).
+# Instead of patching it (would be reverted), create an override ConfigMap and set it
+# on the RBD Driver CR (higher priority than operatorConfig.driverSpecDefaults.imageSet):
+oc get configmap csi-images-v4.21 -n openshift-storage -o json | \
+  jq '.data["snapshot-metadata"] = "registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0" |
+      .metadata.name = "csi-images-override" |
+      del(.metadata.labels["olm.managed"], .metadata.ownerReferences,
+          .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)' | \
+  oc apply -f -
+oc patch drivers.csi.ceph.io openshift-storage.rbd.csi.ceph.com -n openshift-storage \
+  --type=merge -p '{"spec":{"imageSet":{"name":"csi-images-override"}}}'
+```
+
+The driver-level `imageSet` takes priority over `operatorConfig.driverSpecDefaults.imageSet`. The `ceph-csi-controller-manager` must be scaled down (step 4g) to prevent reconciliation reverting the deployment.
+
 ## OpenShift Cluster Setup (ODF + CephCSI CBT)
 
 See [`ocp-setup/README.md`](ocp-setup/README.md) for the full walkthrough. The setup scripts use `BASH_SOURCE` and must be run with **bash** from the `ocp-setup/` directory:
