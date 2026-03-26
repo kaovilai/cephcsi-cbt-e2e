@@ -149,6 +149,54 @@ func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.
 	return nil
 }
 
+// WriteFile writes content to a file on a Filesystem-mode PVC mounted at /mnt/data.
+func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
+	namespace, podName, filename, content string) error {
+
+	path := fmt.Sprintf("/mnt/data/%s", filename)
+	cmd := []string{
+		"sh", "-c",
+		fmt.Sprintf("printf '%%s' '%s' > %s && sync", content, path),
+	}
+
+	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
+	if err != nil {
+		return fmt.Errorf("failed to write file %s: %s: %w", path, stderr, err)
+	}
+	return nil
+}
+
+// ReadFile reads a file from a Filesystem-mode PVC mounted at /mnt/data.
+func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
+	namespace, podName, filename string) (string, error) {
+
+	path := fmt.Sprintf("/mnt/data/%s", filename)
+	cmd := []string{"cat", path}
+
+	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %s: %w", path, stderr, err)
+	}
+	return stdout, nil
+}
+
+// ReadFileHash returns the SHA256 hash of a file on a Filesystem-mode PVC.
+func ReadFileHash(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
+	namespace, podName, filename string) (string, error) {
+
+	path := fmt.Sprintf("/mnt/data/%s", filename)
+	cmd := []string{
+		"sh", "-c",
+		fmt.Sprintf("sha256sum %s | cut -d' ' -f1", path),
+	}
+
+	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash file %s: %s: %w", path, stderr, err)
+	}
+	return strings.TrimSpace(stdout), nil
+}
+
 // zeroBlockHash returns the SHA256 hash of a block of all zeros.
 func zeroBlockHash(size int64) string {
 	h := sha256.New()

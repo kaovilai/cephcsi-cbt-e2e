@@ -402,6 +402,95 @@ func WaitForPodDeleted(ctx context.Context, clientset kubernetes.Interface, name
 	}
 }
 
+// RebindPVWithVolumeMode creates a new PV with a different VolumeMode pointing to
+// the same CSI volume handle as an existing PV, then creates a PVC bound to it.
+// This simulates Velero's rebinding workflow for volume mode conversion during restore.
+func RebindPVWithVolumeMode(ctx context.Context, clientset kubernetes.Interface,
+	sourcePVName, newPVName, newPVCName, namespace string,
+	targetMode corev1.PersistentVolumeMode, accessModes []corev1.PersistentVolumeAccessMode) error {
+
+	// Get the source PV to copy CSI volume info
+	sourcePV, err := clientset.CoreV1().PersistentVolumes().Get(ctx, sourcePVName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get source PV %s: %w", sourcePVName, err)
+	}
+	if sourcePV.Spec.CSI == nil {
+		return fmt.Errorf("source PV %s is not a CSI volume", sourcePVName)
+	}
+
+	capacity := sourcePV.Spec.Capacity
+	if len(accessModes) == 0 {
+		accessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+	}
+
+	// Create new PV with same volume handle but different VolumeMode
+	newPV := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: newPVName,
+		},
+		Spec: corev1.PersistentVolumeSpec{
+			Capacity:   capacity,
+			VolumeMode: &targetMode,
+			AccessModes: accessModes,
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+			StorageClassName:              sourcePV.Spec.StorageClassName,
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver:           sourcePV.Spec.CSI.Driver,
+					VolumeHandle:     sourcePV.Spec.CSI.VolumeHandle,
+					VolumeAttributes: sourcePV.Spec.CSI.VolumeAttributes,
+					NodeStageSecretRef:   sourcePV.Spec.CSI.NodeStageSecretRef,
+					NodePublishSecretRef: sourcePV.Spec.CSI.NodePublishSecretRef,
+				},
+			},
+			// Pre-bind to the target PVC
+			ClaimRef: &corev1.ObjectReference{
+				Kind:      "PersistentVolumeClaim",
+				Namespace: namespace,
+				Name:      newPVCName,
+			},
+		},
+	}
+
+	_, err = clientset.CoreV1().PersistentVolumes().Create(ctx, newPV, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create rebound PV %s: %w", newPVName, err)
+	}
+
+	// Create PVC that binds to the new PV
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      newPVCName,
+			Namespace: namespace,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: accessModes,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: capacity,
+			},
+			VolumeMode: &targetMode,
+			VolumeName: newPVName,
+			StorageClassName: &sourcePV.Spec.StorageClassName,
+		},
+	}
+
+	_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, pvc, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create rebound PVC %s: %w", newPVCName, err)
+	}
+
+	return nil
+}
+
+// DeletePV deletes a PersistentVolume, ignoring NotFound.
+func DeletePV(ctx context.Context, clientset kubernetes.Interface, name string) error {
+	err := clientset.CoreV1().PersistentVolumes().Delete(ctx, name, metav1.DeleteOptions{})
+	if errors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 // ExecInPod executes a command in a pod and returns stdout/stderr.
 func ExecInPod(ctx context.Context, clientset kubernetes.Interface, config *rest.Config, namespace, podName, container string, command []string) (string, string, error) {
 	if container == "" {

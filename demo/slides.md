@@ -263,6 +263,8 @@ tests/e2e/  -- Ginkgo v2 BDD test suite (Ordered containers)
 - ODF 4.18+ with CephCSI
 - external-snapshot-metadata sidecar
 - Ceph toolbox pod for RBD inspection
+- **Must run in-cluster** (gRPC uses cluster DNS)
+- BeforeSuite validates DNS, fails fast → `run-in-cluster.sh`
 
 </div>
 </div>
@@ -292,6 +294,8 @@ transition: slide-left
 | **Stored Diffs** | Force-flatten via `rbd flatten` | Delta fails without stored diffs |
 | **Error Handling** | Invalid/deleted snapshots | Graceful error responses |
 | **Backup Workflow** | End-to-end backup simulation | Snapshot retention works |
+| **Velero Compliance** | Handle-based delta, retention cases | Case 1 fails, Case 2 works |
+| **Volume Mode Rebind** | FS→Block→rebind→FS workflow | Files retained after rebind |
 
 </div>
 
@@ -309,6 +313,115 @@ make e2e-flattening  # Just flattening tests (30m)
 - Each category tests a different aspect of CBT + CephCSI interaction
 - Stored diffs test is the most interesting: manually breaks clone chain
 - make targets allow running individual categories
+-->
+
+---
+transition: slide-left
+---
+
+# Velero Retention: Case 1 vs Case 2
+
+How should backup tools handle previous snapshots when computing deltas?
+
+<div class="grid grid-cols-2 gap-6 mt-4">
+<div>
+
+<v-click>
+<div class="p-3 border border-red-500 rounded bg-red-50 dark:bg-red-900/20">
+  <h3 class="text-red-600 dark:text-red-400 font-bold">Case 1: No Retention</h3>
+  <p class="mt-2 text-sm">Delete previous snapshot after backup</p>
+  <div class="mt-2 text-sm">
+
+  - `rbd snap diff` needs **both** snapshots in clone chain
+  - Deleting the previous snapshot breaks the chain
+  - **Fails** with `"no snap source in omap"`
+
+  </div>
+</div>
+</v-click>
+
+</div>
+<div>
+
+<v-click>
+<div class="p-3 border border-green-500 rounded bg-green-50 dark:bg-green-900/20">
+  <h3 class="text-green-600 dark:text-green-400 font-bold">Case 2: Retain Previous</h3>
+  <p class="mt-2 text-sm">Keep previous snapshot for delta computation</p>
+  <div class="mt-2 text-sm">
+
+  - Both snapshots remain in clone chain
+  - `GetMetadataDelta` succeeds
+  - **Required** for Ceph RBD
+
+  </div>
+</div>
+</v-click>
+
+</div>
+</div>
+
+<v-click>
+<div class="mt-3 p-2 bg-blue-900 bg-opacity-20 rounded text-sm">
+
+Test: `velero_compliance_test.go` -- negative test asserts Case 1 fails, positive test confirms Case 2 works.
+Ref: [Velero Block Data Mover Design](https://github.com/Lyndon-Li/velero/blob/block-data-mover-design/design/block-data-mover/block-data-mover.md#volume-snapshot-retention)
+
+</div>
+</v-click>
+
+<!--
+- Velero design doc defines Case 1 and Case 2 retention strategies
+- Ceph RBD requires Case 2 because rbd diff traverses parent chain
+- Negative test proves Case 1 is incompatible with Ceph
+-->
+
+---
+transition: slide-left
+---
+
+# Volume Mode Rebind Test
+
+Velero's Block Data Mover always uses **Block-mode PVCs** for backup, even for Filesystem sources.
+
+<v-clicks>
+
+1. Create **Filesystem** PVC, mount it, write files
+2. Snapshot the Filesystem PVC
+3. Restore snapshot as **Block** PVC (KEP-3141 annotation on VolumeSnapshotContent)
+4. Read CBT metadata from Block PVC
+5. **Rebind** the PV back to Filesystem mode
+6. Mount rebound PV and verify original files are intact
+
+</v-clicks>
+
+<v-click>
+
+```mermaid {scale:0.5}
+graph LR
+    FS[FS PVC] -->|snapshot| SNAP[VolumeSnapshot]
+    SNAP -->|restore as Block| BLK[Block PVC]
+    BLK -->|CBT read| CBT[GetMetadataAllocated]
+    BLK -->|rebind PV| FS2[FS PVC again]
+    FS2 -->|mount| VERIFY[Files retained ✓]
+
+    style BLK fill:#f96,stroke:#333
+    style VERIFY fill:#9f6,stroke:#333
+```
+
+</v-click>
+
+<v-click>
+<div class="mt-2 p-2 bg-yellow-900 bg-opacity-20 rounded text-sm">
+
+Test: `volume_mode_rebind_test.go` -- validates the full FS→Block→rebind→FS workflow with data integrity checks.
+
+</div>
+</v-click>
+
+<!--
+- KEP-3141 allows volume mode conversion via annotation on VolumeSnapshotContent
+- This is how Velero would do incremental backups of filesystem volumes via CBT
+- Rebind proves the underlying data survives the Block detour
 -->
 
 ---

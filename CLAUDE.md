@@ -92,15 +92,19 @@ The test suite handles multiple ODF versions for pod/label discovery:
 
 ## OpenShift Cluster Setup (ODF + CephCSI CBT)
 
-See [`ocp-setup/README.md`](ocp-setup/README.md) for the full walkthrough. The setup scripts automate:
+See [`ocp-setup/README.md`](ocp-setup/README.md) for the full walkthrough. The setup scripts use `BASH_SOURCE` and must be run with **bash** from the `ocp-setup/` directory:
 
-1. `step0-preflight.sh` — Validate cluster prerequisites
-2. `step1-featuregate.sh` — Enable DevPreviewNoUpgrade (creates SnapshotMetadataService CRD)
-3. `step2-install-odf.sh` — Install ODF operator
-4. `step3-create-storagecluster.sh` — Create StorageCluster
-5. `step4-cbt-sidecar.sh` — Configure CBT sidecar (SMS CR, SCC patches, deployment patches)
-6. `step5-verify.sh` — Verify setup
-7. `step6-run-e2e.sh` — Run e2e tests
+```bash
+cd ocp-setup
+bash step0-preflight.sh    # Validate cluster prerequisites
+bash step2-install-odf.sh  # Install ODF operator (step1 is optional if CRD was auto-installed)
+bash step3-create-storagecluster.sh  # Create StorageCluster
+bash step4-cbt-sidecar.sh  # Configure CBT sidecar (SMS CR, SCC patches, deployment patches)
+bash step5-verify.sh       # Verify setup
+bash step6-run-e2e.sh      # Run e2e tests
+```
+
+Do NOT use `zsh -c 'source ...'` — the scripts use `BASH_SOURCE` which is bash-specific.
 
 For a getting-started overview of Kubernetes CBT (with csi-driver-host-path), see [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo).
 
