@@ -1,7 +1,7 @@
 #!/bin/bash
 # Step 4: Configure CBT snapshot-metadata sidecar for CephCSI RBD
-# Reference: https://access.redhat.com/articles/7130698
-# Also references: deploy-snapshot-metadata-sidecar.md in this repo
+# Reference: https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md
+# Also references: https://access.redhat.com/articles/7130698
 # Requires: ODF installed with RBD (step 3)
 set -euo pipefail
 
@@ -147,119 +147,45 @@ spec:
 EOF
 echo "SnapshotMetadataService CR created."
 
-# --- 4f: Wait for operator to auto-inject sidecar ---
+# --- 4f: Add TLS volume to Driver CR ---
+# Per official docs: volume and mount names must be "tls-key" (operator filters by this name),
+# mount path must be /tmp/certificates.
+# Ref: https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md#5-add-tls-volume-mount-to-rbd-driver-cr
 echo ""
-echo "--- 4f: Waiting for operator to auto-inject sidecar container ---"
-# Restart the operator pod to trigger reconciliation with the new SnapshotMetadataService CR
-echo "Restarting ceph-csi-controller-manager pod to trigger reconciliation..."
-oc delete pod -n "$NAMESPACE" -l app.kubernetes.io/name=ceph-csi-operator --ignore-not-found 2>/dev/null || true
-oc delete pod -n "$NAMESPACE" -l control-plane=controller-manager --field-selector metadata.name!=ocs-client-operator-controller-manager --ignore-not-found 2>/dev/null || true
-# Also try direct pod deletion by deployment label
-OPERATOR_POD=$(oc get pods -n "$NAMESPACE" -o name 2>/dev/null | grep ceph-csi-controller-manager | head -1)
-if [ -n "$OPERATOR_POD" ]; then
-    oc delete "$OPERATOR_POD" -n "$NAMESPACE" 2>/dev/null || true
-fi
-sleep 20
-for i in $(seq 1 24); do
-    CONTAINERS=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" \
-      -o jsonpath='{.spec.template.spec.containers[*].name}')
-    if echo "$CONTAINERS" | grep -q "csi-snapshot-metadata"; then
-        echo "Operator has injected the csi-snapshot-metadata container."
-        break
-    fi
-    echo "  Waiting for sidecar injection... ($i/24)"
-    sleep 10
-done
-
-if ! echo "$CONTAINERS" | grep -q "csi-snapshot-metadata"; then
-    echo "ERROR: Sidecar not injected after 4 minutes. Check operator logs:"
-    echo "  oc logs deployment/ceph-csi-controller-manager -n $NAMESPACE --tail=20"
-    exit 1
-fi
-
-# --- 4g: Scale down operators to prevent reconciliation ---
-# WARNING: This disables the ceph-csi and ocs-client operators, preventing automatic
-# updates and self-healing. The operators would revert our SCC and TLS volume mount
-# patches on next reconcile.
-echo ""
-echo "--- 4g: Scaling down operators ---"
-echo "WARNING: Scaling operators to 0 replicas to prevent reconciliation."
-echo "  Re-enable with:"
-echo "  oc scale deployment ceph-csi-controller-manager -n $NAMESPACE --replicas=1"
-echo "  oc scale deployment ocs-client-operator-controller-manager -n $NAMESPACE --replicas=1"
-oc scale deployment ceph-csi-controller-manager -n "$NAMESPACE" --replicas=0
-oc scale deployment ocs-client-operator-controller-manager -n "$NAMESPACE" --replicas=0
-echo "Operators scaled down."
-
-# --- 4h: Patch SCC to allow secret volumes ---
-# Done after operator scale-down to prevent the ocs-client-operator from reverting it
-echo ""
-echo "--- 4h: Patching SCC to allow secret volumes ---"
-VOLUMES=$(oc get scc ceph-csi-op-scc -o jsonpath='{.volumes}' 2>/dev/null || echo "")
-if echo "$VOLUMES" | grep -q '"secret"'; then
-    echo "SCC already allows secret volumes."
-else
-    oc patch scc ceph-csi-op-scc --type=json \
-      -p '[{"op":"add","path":"/volumes/-","value":"secret"}]'
-    echo "SCC patched to allow secret volumes."
-fi
-
-# --- 4i: Patch deployment to add TLS cert volume mount ---
-echo ""
-echo "--- 4i: Patching deployment to add TLS volume mount ---"
-
-# Find the sidecar container index
-SIDECAR_IDX=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" -o json | \
-  jq '[.spec.template.spec.containers | to_entries[] | select(.value.name == "csi-snapshot-metadata") | .key][0]')
-
-if [ -z "$SIDECAR_IDX" ] || [ "$SIDECAR_IDX" = "null" ]; then
-    echo "ERROR: csi-snapshot-metadata container not found in deployment."
-    echo "Available containers: $(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[*].name}')"
-    exit 1
-fi
-
-echo "Sidecar container index: $SIDECAR_IDX"
-
-# Check if volume already exists
-EXISTING_VOL=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" -o json | \
-  jq '.spec.template.spec.volumes[]? | select(.name == "csi-snapshot-metadata-server-certs")' 2>/dev/null || echo "")
-
-if [ -n "$EXISTING_VOL" ]; then
-    echo "TLS volume already exists in deployment."
-else
-    oc patch deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" --type=json -p "[
-      {
-        \"op\": \"add\",
-        \"path\": \"/spec/template/spec/volumes/-\",
-        \"value\": {
-          \"name\": \"csi-snapshot-metadata-server-certs\",
-          \"secret\": {
-            \"secretName\": \"csi-snapshot-metadata-certs\"
+echo "--- 4f: Adding TLS volume to Driver CR (spec.controllerPlugin.volumes) ---"
+oc patch drivers.csi.ceph.io "${CSI_DRIVER_NAME}" -n "$NAMESPACE" --type=merge -p "$(cat <<PATCHEOF
+{
+  "spec": {
+    "controllerPlugin": {
+      "volumes": [
+        {
+          "mount": {
+            "mountPath": "/tmp/certificates",
+            "name": "tls-key"
+          },
+          "volume": {
+            "name": "tls-key",
+            "secret": {
+              "secretName": "csi-snapshot-metadata-certs"
+            }
           }
         }
-      },
-      {
-        \"op\": \"add\",
-        \"path\": \"/spec/template/spec/containers/${SIDECAR_IDX}/volumeMounts/-\",
-        \"value\": {
-          \"name\": \"csi-snapshot-metadata-server-certs\",
-          \"mountPath\": \"/tmp/certificates\",
-          \"readOnly\": true
-        }
-      }
-    ]"
-    echo "Deployment patched with TLS volume mount."
-fi
+      ]
+    }
+  }
+}
+PATCHEOF
+)"
+echo "Driver CR patched with TLS volume."
 
-# Wait for rollout - scale down and back up to ensure fresh pods use the updated SCC
-# --- 4j: Override sidecar image to upstream v0.2.0 ---
+# --- 4g: Override sidecar image to upstream v0.2.0 (ODF <= 4.21 only) ---
 # ODF <= 4.21 ships an older sidecar image that uses BaseSnapshotName (name-based lookup)
 # instead of BaseSnapshotId (handle passthrough). This breaks GetMetadataDelta because the
 # sidecar tries to look up the CSI snapshot handle as a VolumeSnapshot name.
 # Fix: https://github.com/red-hat-storage/ceph-csi-operator/commit/454e9130
 # Expected in ODF 4.22+. Until then, override via driver-level ImageSet.
 echo ""
-echo "--- 4j: Overriding sidecar image to upstream v0.2.0 (ODF <= 4.21 workaround) ---"
+echo "--- 4g: Checking if sidecar image override is needed ---"
 
 # Detect ODF version from the installed CSV
 ODF_VERSION=$(oc get csv -n "$NAMESPACE" -o jsonpath='{.items[?(@.metadata.name)].metadata.name}' 2>/dev/null | \
@@ -278,23 +204,23 @@ else
         echo "ODF $ODF_VERSION <= 4.21. Applying sidecar image override."
     fi
 
-UPSTREAM_SIDECAR="registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0"
+    UPSTREAM_SIDECAR="registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0"
 
-# Create override ConfigMap from the ODF image set, replacing only snapshot-metadata
-CURRENT_IMAGESET=$(oc get operatorconfigs.csi.ceph.io ceph-csi-operator-config -n "$NAMESPACE" \
-  -o jsonpath='{.spec.driverSpecDefaults.imageSet.name}' 2>/dev/null || echo "csi-images-v4.21")
+    # Create override ConfigMap from the ODF image set, replacing only snapshot-metadata
+    CURRENT_IMAGESET=$(oc get operatorconfigs.csi.ceph.io ceph-csi-operator-config -n "$NAMESPACE" \
+      -o jsonpath='{.spec.driverSpecDefaults.imageSet.name}' 2>/dev/null || echo "csi-images-v4.21")
 
-if oc get configmap "$CURRENT_IMAGESET" -n "$NAMESPACE" &>/dev/null; then
-    oc get configmap "$CURRENT_IMAGESET" -n "$NAMESPACE" -o json | \
-      jq --arg img "$UPSTREAM_SIDECAR" \
-        '.data["snapshot-metadata"] = $img |
-         .metadata.name = "csi-images-override" |
-         del(.metadata.labels["olm.managed"], .metadata.ownerReferences,
-             .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)' | \
-      oc apply -f -
-else
-    # Fallback: create minimal ConfigMap with just the override
-    oc apply -f - <<IMGEOF
+    if oc get configmap "$CURRENT_IMAGESET" -n "$NAMESPACE" &>/dev/null; then
+        oc get configmap "$CURRENT_IMAGESET" -n "$NAMESPACE" -o json | \
+          jq --arg img "$UPSTREAM_SIDECAR" \
+            '.data["snapshot-metadata"] = $img |
+             .metadata.name = "csi-images-override" |
+             del(.metadata.labels["olm.managed"], .metadata.ownerReferences,
+                 .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)' | \
+          oc apply -f -
+    else
+        # Fallback: create minimal ConfigMap with just the override
+        oc apply -f - <<IMGEOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -303,20 +229,73 @@ metadata:
 data:
   snapshot-metadata: "${UPSTREAM_SIDECAR}"
 IMGEOF
+    fi
+
+    # Point the RBD driver to our override ImageSet (higher priority than operatorConfig)
+    oc patch drivers.csi.ceph.io "${CSI_DRIVER_NAME}" -n "$NAMESPACE" --type=merge \
+      -p '{"spec":{"imageSet":{"name":"csi-images-override"}}}'
+    echo "RBD driver ImageSet overridden to use upstream sidecar: $UPSTREAM_SIDECAR"
 fi
 
-# Point the RBD driver to our override ImageSet (higher priority than operatorConfig)
-oc patch drivers.csi.ceph.io "${CSI_DRIVER_NAME}" -n "$NAMESPACE" --type=merge \
-  -p '{"spec":{"imageSet":{"name":"csi-images-override"}}}'
-echo "RBD driver ImageSet overridden to use upstream sidecar: $UPSTREAM_SIDECAR"
+# --- 4h: Patch SCC to allow secret volumes (OpenShift-specific) ---
+# The ceph-csi-op-scc managed by ocs-client-operator may not include "secret" in allowed
+# volume types. We need it for the TLS cert volume mount.
+# Scale down ocs-client-operator to prevent it from reverting the SCC patch.
+echo ""
+echo "--- 4h: Patching SCC to allow secret volumes ---"
+VOLUMES=$(oc get scc ceph-csi-op-scc -o jsonpath='{.volumes}' 2>/dev/null || echo "")
+if echo "$VOLUMES" | grep -q '"secret"'; then
+    echo "SCC already allows secret volumes."
+else
+    echo "Scaling down ocs-client-operator to prevent SCC revert..."
+    oc scale deployment ocs-client-operator-controller-manager -n "$NAMESPACE" --replicas=0
+    oc patch scc ceph-csi-op-scc --type=json \
+      -p '[{"op":"add","path":"/volumes/-","value":"secret"}]'
+    echo "SCC patched to allow secret volumes."
+    echo "WARNING: ocs-client-operator scaled to 0 to protect SCC patch."
+    echo "  Re-enable with: oc scale deployment ocs-client-operator-controller-manager -n $NAMESPACE --replicas=1"
+fi
 
-fi  # end ODF version check
+# --- 4i: Restart operator to reconcile Driver CR changes ---
+# The ceph-csi-operator reconciles the Driver CR into the deployment.
+# Restarting it picks up the TLS volume, sidecar injection, and ImageSet changes.
+echo ""
+echo "--- 4i: Restarting ceph-csi-controller-manager to reconcile ---"
+OPERATOR_POD=$(oc get pods -n "$NAMESPACE" -o name 2>/dev/null | grep ceph-csi-controller-manager | head -1)
+if [ -n "$OPERATOR_POD" ]; then
+    oc delete "$OPERATOR_POD" -n "$NAMESPACE" 2>/dev/null || true
+fi
+sleep 10
 
+echo "Waiting for operator to reconcile deployment..."
+for i in $(seq 1 36); do
+    CONTAINERS=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" \
+      -o jsonpath='{.spec.template.spec.containers[*].name}')
+    VOLS=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" \
+      -o jsonpath='{.spec.template.spec.volumes[*].name}')
+    HAS_SIDECAR=false
+    HAS_TLS_VOL=false
+    echo "$CONTAINERS" | grep -q "csi-snapshot-metadata" && HAS_SIDECAR=true
+    echo "$VOLS" | grep -q "tls-key" && HAS_TLS_VOL=true
+
+    if $HAS_SIDECAR && $HAS_TLS_VOL; then
+        echo "Operator has reconciled: sidecar injected, TLS volume mounted."
+        break
+    fi
+    echo "  Waiting... sidecar=$HAS_SIDECAR tls-vol=$HAS_TLS_VOL ($i/36)"
+    sleep 10
+done
+
+if ! $HAS_SIDECAR || ! $HAS_TLS_VOL; then
+    echo "ERROR: Operator did not fully reconcile after 6 minutes."
+    echo "  sidecar=$HAS_SIDECAR tls-vol=$HAS_TLS_VOL"
+    echo "  Check operator logs: oc logs deployment/ceph-csi-controller-manager -n $NAMESPACE --tail=30"
+    exit 1
+fi
+
+# Wait for rollout to complete
 echo ""
 echo "Waiting for deployment rollout..."
-oc scale deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" --replicas=0
-sleep 5
-oc scale deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" --replicas=2
 oc rollout status deployment/"${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" --timeout=300s
 
 echo ""

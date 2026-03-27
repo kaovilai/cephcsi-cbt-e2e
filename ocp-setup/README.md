@@ -94,7 +94,7 @@ Individual step scripts (each is idempotent where possible):
 | `step1-featuregate.sh` | Enable CustomNoUpgrade with ExternalSnapshotMetadata | ~30 min (node rollout) |
 | `step2-install-odf.sh` | Install ODF operator via CLI | ~5 min |
 | `step3-create-storagecluster.sh` | Create ODF StorageCluster on worker nodes | ~15 min |
-| `step4-cbt-sidecar.sh` | Configure CBT sidecar (RBAC, Service, TLS, SMS CR, deployment patch). **Note: scales down ceph-csi and ocs-client operators to 0 replicas** — see below | ~5 min |
+| `step4-cbt-sidecar.sh` | Configure CBT sidecar (RBAC, Service, TLS, SMS CR, Driver CR patch). See [ceph-csi-operator docs](https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md). **Note: may scale down ocs-client-operator** — see below | ~5 min |
 | `step5-verify.sh` | Verify all prerequisites for e2e tests | instant |
 | `step6-run-e2e.sh` | Run CBT e2e test suite | 30 min - 5h |
 | `uninstall-odf.sh` | Uninstall ODF and clean up all resources | ~10 min |
@@ -135,10 +135,11 @@ ODF_PROFILE=lean ./setup-all.sh
 
 ## Important: Operator Scale-Down
 
-Step 4 scales both `ceph-csi-controller-manager` and `ocs-client-operator-controller-manager` deployments to 0 replicas. This is necessary to prevent the operators from reverting the SCC and TLS volume mount patches, but it also **disables automatic updates and self-healing**. To re-enable:
+Step 4 configures the CBT sidecar via the Driver CR following the [official ceph-csi-operator docs](https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md). The `ceph-csi-controller-manager` stays running to reconcile Driver CR changes.
+
+However, on OpenShift the `ocs-client-operator` manages the `ceph-csi-op-scc` SecurityContextConstraints and may not include `secret` in allowed volume types. Step 4 patches the SCC and scales `ocs-client-operator-controller-manager` to 0 replicas to prevent the SCC patch from being reverted. To re-enable:
 
 ```bash
-oc scale deployment ceph-csi-controller-manager -n openshift-storage --replicas=1
 oc scale deployment ocs-client-operator-controller-manager -n openshift-storage --replicas=1
 ```
 

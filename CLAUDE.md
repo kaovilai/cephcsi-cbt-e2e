@@ -108,23 +108,7 @@ ODF <= 4.21 ships an older `external-snapshot-metadata` sidecar image (`ose-csi-
 
 **Fix**: [red-hat-storage/ceph-csi-operator commit 454e9130](https://github.com/red-hat-storage/ceph-csi-operator/commit/454e9130a39057b5a9ca98785df605ada195d62e) — expected in ODF 4.22+.
 
-**Workaround** (automated in `step4-cbt-sidecar.sh` step 4j): Override the sidecar image to upstream `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` via a driver-level ImageSet ConfigMap:
-
-```bash
-# The csi-images-v4.21 ConfigMap is managed by ocs-client-operator (olm.managed: true).
-# Instead of patching it (would be reverted), create an override ConfigMap and set it
-# on the RBD Driver CR (higher priority than operatorConfig.driverSpecDefaults.imageSet):
-oc get configmap csi-images-v4.21 -n openshift-storage -o json | \
-  jq '.data["snapshot-metadata"] = "registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0" |
-      .metadata.name = "csi-images-override" |
-      del(.metadata.labels["olm.managed"], .metadata.ownerReferences,
-          .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)' | \
-  oc apply -f -
-oc patch drivers.csi.ceph.io openshift-storage.rbd.csi.ceph.com -n openshift-storage \
-  --type=merge -p '{"spec":{"imageSet":{"name":"csi-images-override"}}}'
-```
-
-The driver-level `imageSet` takes priority over `operatorConfig.driverSpecDefaults.imageSet`. The `ceph-csi-controller-manager` must be scaled down (step 4g) to prevent reconciliation reverting the deployment.
+**Workaround** (automated in `step4-cbt-sidecar.sh` step 4g): Override the sidecar image to upstream `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` via a driver-level ImageSet ConfigMap on the Driver CR. The ceph-csi-operator reconciles both the ImageSet and TLS volume from the Driver CR — no need to scale it down. See the [official setup docs](https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md).
 
 ## OpenShift Cluster Setup (ODF + CephCSI CBT)
 
@@ -135,7 +119,7 @@ cd ocp-setup
 bash step0-preflight.sh    # Validate cluster prerequisites
 bash step2-install-odf.sh  # Install ODF operator (step1 is optional if CRD was auto-installed)
 bash step3-create-storagecluster.sh  # Create StorageCluster
-bash step4-cbt-sidecar.sh  # Configure CBT sidecar (SMS CR, SCC patches, deployment patches)
+bash step4-cbt-sidecar.sh  # Configure CBT sidecar (SMS CR, Driver CR patches)
 bash step5-verify.sh       # Verify setup
 bash step6-run-e2e.sh      # Run e2e tests
 ```
