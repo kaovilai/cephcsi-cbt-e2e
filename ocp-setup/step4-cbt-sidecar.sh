@@ -151,6 +151,13 @@ echo "SnapshotMetadataService CR created."
 # Per official docs: volume and mount names must be "tls-key" (operator filters by this name),
 # mount path must be /tmp/certificates.
 # Ref: https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md#5-add-tls-volume-mount-to-rbd-driver-cr
+#
+# NOTE: The official docs show a "secret" volume type, but we use "projected" instead.
+# The ocs-client-operator hardcodes the ceph-csi-op-scc SCC with only configMap, emptyDir,
+# hostPath, and projected volume types — no "secret". Using a projected volume sourcing from
+# the secret avoids the SCC issue entirely: no SCC patch needed, no operator scale-down.
+# The ceph-csi-operator passes the volume through to the deployment as-is (see
+# internal/controller/driver_controller.go), so projected works identically to secret.
 echo ""
 echo "--- 4f: Adding TLS volume to Driver CR (spec.controllerPlugin.volumes) ---"
 oc patch drivers.csi.ceph.io "${CSI_DRIVER_NAME}" -n "$NAMESPACE" --type=merge -p "$(cat <<PATCHEOF
@@ -165,8 +172,14 @@ oc patch drivers.csi.ceph.io "${CSI_DRIVER_NAME}" -n "$NAMESPACE" --type=merge -
           },
           "volume": {
             "name": "tls-key",
-            "secret": {
-              "secretName": "csi-snapshot-metadata-certs"
+            "projected": {
+              "sources": [
+                {
+                  "secret": {
+                    "name": "csi-snapshot-metadata-certs"
+                  }
+                }
+              ]
             }
           }
         }
@@ -176,7 +189,7 @@ oc patch drivers.csi.ceph.io "${CSI_DRIVER_NAME}" -n "$NAMESPACE" --type=merge -
 }
 PATCHEOF
 )"
-echo "Driver CR patched with TLS volume."
+echo "Driver CR patched with TLS volume (projected)."
 
 # --- 4g: Override sidecar image to upstream v0.2.0 (ODF <= 4.21 only) ---
 # ODF <= 4.21 ships an older sidecar image that uses BaseSnapshotName (name-based lookup)
@@ -237,30 +250,11 @@ IMGEOF
     echo "RBD driver ImageSet overridden to use upstream sidecar: $UPSTREAM_SIDECAR"
 fi
 
-# --- 4h: Patch SCC to allow secret volumes (OpenShift-specific) ---
-# The ceph-csi-op-scc managed by ocs-client-operator may not include "secret" in allowed
-# volume types. We need it for the TLS cert volume mount.
-# Scale down ocs-client-operator to prevent it from reverting the SCC patch.
-echo ""
-echo "--- 4h: Patching SCC to allow secret volumes ---"
-VOLUMES=$(oc get scc ceph-csi-op-scc -o jsonpath='{.volumes}' 2>/dev/null || echo "")
-if echo "$VOLUMES" | grep -q '"secret"'; then
-    echo "SCC already allows secret volumes."
-else
-    echo "Scaling down ocs-client-operator to prevent SCC revert..."
-    oc scale deployment ocs-client-operator-controller-manager -n "$NAMESPACE" --replicas=0
-    oc patch scc ceph-csi-op-scc --type=json \
-      -p '[{"op":"add","path":"/volumes/-","value":"secret"}]'
-    echo "SCC patched to allow secret volumes."
-    echo "WARNING: ocs-client-operator scaled to 0 to protect SCC patch."
-    echo "  Re-enable with: oc scale deployment ocs-client-operator-controller-manager -n $NAMESPACE --replicas=1"
-fi
-
-# --- 4i: Restart operator to reconcile Driver CR changes ---
+# --- 4h: Restart operator to reconcile Driver CR changes ---
 # The ceph-csi-operator reconciles the Driver CR into the deployment.
 # Restarting it picks up the TLS volume, sidecar injection, and ImageSet changes.
 echo ""
-echo "--- 4i: Restarting ceph-csi-controller-manager to reconcile ---"
+echo "--- 4h: Restarting ceph-csi-controller-manager to reconcile ---"
 OPERATOR_POD=$(oc get pods -n "$NAMESPACE" -o name 2>/dev/null | grep ceph-csi-controller-manager | head -1)
 if [ -n "$OPERATOR_POD" ]; then
     oc delete "$OPERATOR_POD" -n "$NAMESPACE" 2>/dev/null || true

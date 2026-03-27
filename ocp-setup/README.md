@@ -94,7 +94,7 @@ Individual step scripts (each is idempotent where possible):
 | `step1-featuregate.sh` | Enable CustomNoUpgrade with ExternalSnapshotMetadata | ~30 min (node rollout) |
 | `step2-install-odf.sh` | Install ODF operator via CLI | ~5 min |
 | `step3-create-storagecluster.sh` | Create ODF StorageCluster on worker nodes | ~15 min |
-| `step4-cbt-sidecar.sh` | Configure CBT sidecar (RBAC, Service, TLS, SMS CR, Driver CR patch). See [ceph-csi-operator docs](https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md). **Note: may scale down ocs-client-operator** — see below | ~5 min |
+| `step4-cbt-sidecar.sh` | Configure CBT sidecar (RBAC, Service, TLS, SMS CR, Driver CR patch). See [ceph-csi-operator docs](https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md) | ~5 min |
 | `step5-verify.sh` | Verify all prerequisites for e2e tests | instant |
 | `step6-run-e2e.sh` | Run CBT e2e test suite | 30 min - 5h |
 | `uninstall-odf.sh` | Uninstall ODF and clean up all resources | ~10 min |
@@ -133,15 +133,12 @@ Override with:
 ODF_PROFILE=lean ./setup-all.sh
 ```
 
-## Important: Operator Scale-Down
+## Operator Compatibility
 
-Step 4 configures the CBT sidecar via the Driver CR following the [official ceph-csi-operator docs](https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md). The `ceph-csi-controller-manager` stays running to reconcile Driver CR changes.
+Step 4 configures the CBT sidecar via the Driver CR following the [official ceph-csi-operator docs](https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md). Both operators stay running:
 
-However, on OpenShift the `ocs-client-operator` manages the `ceph-csi-op-scc` SecurityContextConstraints and may not include `secret` in allowed volume types. Step 4 patches the SCC and scales `ocs-client-operator-controller-manager` to 0 replicas to prevent the SCC patch from being reverted. To re-enable:
-
-```bash
-oc scale deployment ocs-client-operator-controller-manager -n openshift-storage --replicas=1
-```
+- **ceph-csi-controller-manager**: Reconciles Driver CR changes (TLS volume, ImageSet, sidecar injection) into the deployment.
+- **ocs-client-operator**: Manages the `ceph-csi-op-scc` SCC. The TLS volume uses a `projected` volume type (sourcing from the secret) instead of a `secret` volume type, because the SCC only allows `configMap`, `emptyDir`, `hostPath`, and `projected`. No SCC patch or operator scale-down is needed.
 
 ## Cluster Info
 
