@@ -154,8 +154,10 @@ echo "SnapshotMetadataService CR created."
 #
 # NOTE: The official docs show a "secret" volume type, but we use "projected" instead.
 # The ocs-client-operator hardcodes the ceph-csi-op-scc SCC with only configMap, emptyDir,
-# hostPath, and projected volume types — no "secret". Using a projected volume sourcing from
-# the secret avoids the SCC issue entirely: no SCC patch needed, no operator scale-down.
+# hostPath, and projected volume types — no "secret":
+# https://github.com/red-hat-storage/ocs-client-operator/blob/6237b4c7d94bcc3f7f495806239b0730fa466fb0/pkg/templates/csi.go#L51-L55
+# Using a projected volume sourcing from the secret avoids the SCC issue entirely:
+# no SCC patch needed, no operator scale-down.
 # The ceph-csi-operator passes the volume through to the deployment as-is (see
 # internal/controller/driver_controller.go), so projected works identically to secret.
 echo ""
