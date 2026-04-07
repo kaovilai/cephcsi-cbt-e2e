@@ -7,7 +7,7 @@ require (
 	github.com/kubernetes-csi/external-snapshot-metadata/client v0.1.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0
 	github.com/onsi/ginkgo/v2 v2.28.1
-	github.com/onsi/gomega v1.39.0
+	github.com/onsi/gomega v1.39.1
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v0.35.3
