@@ -108,13 +108,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), "VolumeSnapshot CRDs not installed (external-snapshotter required)")
 
 	By("Checking SnapshotMetadataService CRD exists")
-	// The SnapshotMetadataService CRD stays at v1alpha1 even for beta (out-of-tree API).
-	// It is NOT graduating to v1beta1 with the k8s beta milestone.
-	smsList, err := smsClient.CbtV1alpha1().SnapshotMetadataServices().List(ctx, metav1.ListOptions{Limit: 1})
+	// The SnapshotMetadataService CRD graduated to v1beta1 in external-snapshot-metadata v1.0.0.
+	smsList, err := smsClient.CbtV1beta1().SnapshotMetadataServices().List(ctx, metav1.ListOptions{Limit: 1})
 	Expect(err).NotTo(HaveOccurred(),
-		"SnapshotMetadataService CRD (cbt.storage.k8s.io/v1alpha1) not found. "+
-			"Ensure external-snapshot-metadata is deployed. "+
-			"The CRD remains v1alpha1 for both alpha (k8s 1.33) and beta (k8s 1.36+).")
+		"SnapshotMetadataService CRD (cbt.storage.k8s.io/v1beta1) not found. "+
+			"Ensure external-snapshot-metadata is deployed.")
 
 	By("Checking snapshot-metadata gRPC endpoint is reachable (in-cluster DNS)")
 	if len(smsList.Items) > 0 {
