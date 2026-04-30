@@ -12,7 +12,7 @@ For a getting-started overview of Kubernetes CBT (using csi-driver-host-path), s
 |-----------|----------------|
 | Kubernetes | v1.33 (alpha), v1.36 (beta target per KEP-3314) |
 | CSI spec | v1.10.0 (SnapshotMetadata service) |
-| external-snapshot-metadata | v0.2.0 |
+| external-snapshot-metadata | v1.0.0 (SnapshotMetadataService CRD v1beta1) |
 | external-snapshotter | v8.0.0 |
 | Ceph | v17.0 (Quincy) |
 | Go | 1.24+ |
@@ -20,7 +20,7 @@ For a getting-started overview of Kubernetes CBT (using csi-driver-host-path), s
 Additionally:
 
 - **VolumeSnapshot CRD** must be installed (external-snapshotter)
-- **SnapshotMetadataService CRD** must be installed (`cbt.storage.k8s.io/v1alpha1`)
+- **SnapshotMetadataService CRD** must be installed (`cbt.storage.k8s.io/v1beta1`)
 - **external-snapshot-metadata sidecar** must be deployed in the CephCSI provisioner pod
 - CephCSI RBD provisioner pods must be running (tested with ODF 4.18+)
 
@@ -182,11 +182,39 @@ ReadOnlyMany PVCs created from snapshots do not trigger RBD flattening, preservi
 
 When a snapshot's intermediate RBD image is flattened (clone chain broken), `rbd snap diff` across images fails and `GetMetadataDelta` cannot compute deltas. There is a [design proposal](CLAUDE.md#key-domain-concepts) ("Combined solution") to store diffs in Ceph omap before flattening as a fallback, but this is **not yet implemented** in CephCSI.
 
+## Velero CBT Integration Status (as of 2026-04-30)
+
+Velero's block data mover is being built incrementally. Current state of the PR chain:
+
+| Step | PR/Issue | Status | Description |
+|------|----------|--------|-------------|
+| Design doc | [PR #9528](https://github.com/velero-io/velero/pull/9528) | **Merged** | Block data mover design |
+| CBT interfaces | [PR #9716](https://github.com/velero-io/velero/pull/9716) | **Merged** | `cbtservice.Service` and bitmap interfaces |
+| Unified repo extension | [PR #9724](https://github.com/velero-io/velero/pull/9724) | **Merged** | Block uploader support in unified repository |
+| CBT bitmap impl | [PR #9736](https://github.com/velero-io/velero/pull/9736) | **Open** (approved by kaovilai) | RoaringBitmap-based block tracking |
+| gRPC client | [Issue #9710](https://github.com/velero-io/velero/issues/9710) | **No PR yet** | `cbtservice.Service` impl talking to external-snapshot-metadata sidecar |
+| Service-to-bitmap | [Issue #9715](https://github.com/velero-io/velero/issues/9715) | **No PR yet** | Glue between gRPC client and bitmap |
+| Block data mover | [Issue #9556](https://github.com/velero-io/velero/issues/9556) | **No PR yet** | End-to-end incremental backup using bitmap |
+
+**What this test suite validates today:** The CSI-level CBT layer (gRPC calls directly to the external-snapshot-metadata sidecar via CephCSI). This covers the same protocol that Velero's gRPC client (issue #9710) will use.
+
+**Next contribution opportunity:** Implement the `cbtservice.Service` gRPC client (issue #9710). Our `pkg/cbt/` already wraps the same external-snapshot-metadata iterator API — the Velero implementation would be structurally similar.
+
+### Upstream Dependency Versions
+
+| Dependency | This repo | Latest upstream |
+|---|---|---|
+| external-snapshot-metadata | v1.0.0 | v1.0.0 |
+| external-snapshot-metadata/client | v1.0.0 | v1.0.0 |
+| external-snapshotter client/v8 | v8.4.0 | v8.4.0 |
+| k8s.io/{api,apimachinery,client-go} | v0.35.4 | v0.35.4 (v0.36.0 available) |
+| CephCSI CBT | [PR #5347](https://github.com/ceph/ceph-csi/pull/5347) merged (devel) | Latest release: v3.16.2 |
+
 ## References
 
 - [KEP-3314: CSI Changed Block Tracking](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md)
 - [CephCSI CBT PR #5347](https://github.com/ceph/ceph-csi/pull/5347)
 - [external-snapshot-metadata deployment](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/deploy/README.md)
-- [SnapshotMetadataService API types](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/client/apis/snapshotmetadataservice/v1alpha1/types.go)
+- [SnapshotMetadataService API types](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/client/apis/snapshotmetadataservice/v1beta1/types.go)
 - [CBT sidecar setup for ODF](https://access.redhat.com/articles/7130698)
 - [Velero CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)

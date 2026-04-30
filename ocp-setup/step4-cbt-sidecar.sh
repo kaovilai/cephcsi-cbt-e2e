@@ -136,7 +136,7 @@ if [ -z "$CA_CERT" ]; then
 fi
 
 oc apply -f - <<EOF
-apiVersion: cbt.storage.k8s.io/v1alpha1
+apiVersion: cbt.storage.k8s.io/v1beta1
 kind: SnapshotMetadataService
 metadata:
   name: ${CSI_DRIVER_NAME}

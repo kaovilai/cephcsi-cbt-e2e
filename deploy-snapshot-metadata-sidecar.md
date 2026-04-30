@@ -2,7 +2,7 @@
 
 This document describes how to deploy the `csi-external-snapshot-metadata` sidecar
 alongside the CephCSI RBD controller plugin on an OpenShift 4.21+ cluster with ODF,
-enabling the CSI Changed Block Tracking (CBT) API (`cbt.storage.k8s.io/v1alpha1`).
+enabling the CSI Changed Block Tracking (CBT) API (`cbt.storage.k8s.io/v1beta1`).
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ The following were already present on our OCP 4.21.4 cluster:
 | Resource | Status |
 |----------|--------|
 | `DevPreviewNoUpgrade` feature set | Enabled |
-| `SnapshotMetadataService` CRD (`cbt.storage.k8s.io/v1alpha1`) | Present (auto-created by feature set) |
+| `SnapshotMetadataService` CRD (`cbt.storage.k8s.io/v1beta1`) | Present (auto-created by feature set) |
 | `cephcsi-operator.v4.21.0-rhodf` CSV | Succeeded |
 | RBD ctrlplugin deployment | `openshift-storage.rbd.csi.ceph.com-ctrlplugin` (2 replicas) |
 | RBD ctrlplugin service account | `ceph-csi-rbd-ctrlplugin-sa` |
@@ -198,7 +198,7 @@ CA_CERT=$(oc get secrets -n openshift-storage csi-snapshot-metadata-certs \
   -o jsonpath='{.data.tls\.crt}')
 
 oc apply -f - <<EOF
-apiVersion: cbt.storage.k8s.io/v1alpha1
+apiVersion: cbt.storage.k8s.io/v1beta1
 kind: SnapshotMetadataService
 metadata:
   name: openshift-storage.rbd.csi.ceph.com

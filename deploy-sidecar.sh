@@ -170,7 +170,7 @@ create_sms() {
         -o jsonpath='{.data.tls\.crt}')
 
     oc apply -f - <<EOF
-apiVersion: cbt.storage.k8s.io/v1alpha1
+apiVersion: cbt.storage.k8s.io/v1beta1
 kind: SnapshotMetadataService
 metadata:
   name: ${DRIVER_NAME}

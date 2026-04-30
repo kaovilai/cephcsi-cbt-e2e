@@ -97,22 +97,18 @@ var _ = BeforeSuite(func() {
 	minor, err := strconv.Atoi(strings.TrimSuffix(serverVersion.Minor, "+"))
 	Expect(err).NotTo(HaveOccurred())
 	// Alpha went in v1.33. Beta targets v1.36 (KEP-3314 PR #5877).
-	// The SnapshotMetadataService CRD stays at v1alpha1 (out-of-tree, no k8s feature gate).
-	// No feature gate required - feature is enabled by deploying the CRD and sidecar.
 	Expect(minor).To(BeNumerically(">=", 33),
-		"Kubernetes version must be >= 1.33 for SnapshotMetadata alpha API. "+
-			"Beta expected in v1.36 (KEP-3314). API remains v1alpha1 (out-of-tree).")
+		"Kubernetes version must be >= 1.33 for SnapshotMetadata API.")
 
 	By("Checking VolumeSnapshot CRDs exist")
 	_, err = snapClient.SnapshotV1().VolumeSnapshotClasses().List(ctx, metav1.ListOptions{Limit: 1})
 	Expect(err).NotTo(HaveOccurred(), "VolumeSnapshot CRDs not installed (external-snapshotter required)")
 
 	By("Checking SnapshotMetadataService CRD exists")
-	// The SnapshotMetadataService CRD graduated to v1beta1 in external-snapshot-metadata v1.0.0.
 	smsList, err := smsClient.CbtV1beta1().SnapshotMetadataServices().List(ctx, metav1.ListOptions{Limit: 1})
 	Expect(err).NotTo(HaveOccurred(),
 		"SnapshotMetadataService CRD (cbt.storage.k8s.io/v1beta1) not found. "+
-			"Ensure external-snapshot-metadata is deployed.")
+			"Ensure external-snapshot-metadata v1.0.0+ is deployed.")
 
 	By("Checking snapshot-metadata gRPC endpoint is reachable (in-cluster DNS)")
 	if len(smsList.Items) > 0 {

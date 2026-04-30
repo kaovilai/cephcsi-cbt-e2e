@@ -30,7 +30,7 @@ the CRD and auto-inject the snapshot-metadata sidecar container.
 
 ### What it does
 
-The `ExternalSnapshotMetadata` feature gate is part of [KEP-3314: CSI Changed Block Tracking](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md). When enabled, it does **one thing**: the `cluster-csi-snapshot-controller-operator` installs the `SnapshotMetadataService` CRD (`snapshotmetadataservices.cbt.storage.k8s.io/v1alpha1`).
+The `ExternalSnapshotMetadata` feature gate is part of [KEP-3314: CSI Changed Block Tracking](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md). When enabled, it does **one thing**: the `cluster-csi-snapshot-controller-operator` installs the `SnapshotMetadataService` CRD (`snapshotmetadataservices.cbt.storage.k8s.io/v1beta1`).
 
 It does **not**:
 - Pass `--feature-gates` flags to kube-apiserver, kubelet, or any other component

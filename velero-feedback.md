@@ -193,7 +193,7 @@ Velero should document:
 |-----------|----------------|
 | Kubernetes | v1.33 (alpha), v1.36 (beta target per KEP-3314 PR #5877) |
 | CSI spec | v1.10.0 (SnapshotMetadata service) |
-| external-snapshot-metadata | v0.2.0 |
+| external-snapshot-metadata | v1.0.0 |
 | external-snapshotter | v8.0.0 |
 | Ceph | v17.0 (Quincy) |
 
@@ -204,8 +204,8 @@ kubernetes/enhancements#5877). Key notes for Velero:
 
 - **No feature gate**: This is an out-of-tree feature. Enablement is via CRD + sidecar
   deployment, not a Kubernetes feature gate.
-- **API stays v1alpha1**: The `SnapshotMetadataService` CRD remains at
-  `cbt.storage.k8s.io/v1alpha1` even for beta. No migration to `v1beta1`.
+- **API graduated to v1beta1**: The `SnapshotMetadataService` CRD moved to
+  `cbt.storage.k8s.io/v1beta1` in external-snapshot-metadata v1.0.0.
 - **New metric**: `snapshot_metadata_controller_operation_total_seconds` with labels
   `operation_status` (Success/Failure) and `operation_name`
   (MetadataAllocated/MetadataDelta). Velero should surface or correlate these metrics.

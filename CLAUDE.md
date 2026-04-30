@@ -93,7 +93,7 @@ ocp-setup/  # OpenShift cluster setup scripts for ODF + CBT sidecar
   - [PR #1678](https://github.com/ceph/ceph-csi/pull/1678) — added `minSnapshotsOnImage` flag
   - [Issue #1800](https://github.com/ceph/ceph-csi/issues/1800) — request to support snapshots without flattening (open)
   - [Velero CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
-- **SnapshotMetadataService CRD**: Stays at `v1alpha1` (out-of-tree API), does not graduate with the K8s beta milestone.
+- **SnapshotMetadataService CRD**: Graduated to `v1beta1` in external-snapshot-metadata v1.0.0 (out-of-tree API).
 
 ## ODF Version Compatibility
 
@@ -131,5 +131,5 @@ For a getting-started overview of Kubernetes CBT (with csi-driver-host-path), se
 References:
 - [KEP-3314: CSI Changed Block Tracking](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md)
 - [external-snapshot-metadata deployment](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/deploy/README.md)
-- [SnapshotMetadataService API types](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/client/apis/snapshotmetadataservice/v1alpha1/types.go)
+- [SnapshotMetadataService API types](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/client/apis/snapshotmetadataservice/v1beta1/types.go)
 - [CBT sidecar setup for ODF](https://access.redhat.com/articles/7130698)
