@@ -124,4 +124,4 @@ The first test run (with ODF's shipped sidecar) had 5 failures and 19 skipped te
 
 **Workaround**: Override the sidecar image to upstream `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` via driver-level ImageSet ConfigMap. Automated in `ocp-setup/step4-cbt-sidecar.sh` step 4j with ODF version detection (only applies on ODF <= 4.21).
 
-After applying the override, all 48 tests pass — `GetMetadataAllocated`, `GetMetadataDelta`, backup workflows, Velero compliance, volume resize, flattening, stored diffs, error handling, and volume mode rebind all work correctly.
+After applying the override, all 48 tests pass — including expected **post-flatten failure** assertions in the stored-diffs suite (no CephCSI stored-diffs fallback today), plus backup workflows, Velero compliance, volume resize, flattening prevention, error handling, and volume mode rebind.

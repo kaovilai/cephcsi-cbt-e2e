@@ -2,7 +2,7 @@
 
 End-to-end tests for validating Ceph RBD **Changed Block Tracking (CBT)** via the Kubernetes CSI SnapshotMetadata API.
 
-This suite verifies that incremental block-level backups can accurately track changed blocks between snapshots, supporting efficient backup workflows (e.g., [Velero Block Data Mover](https://github.com/vmware-tanzu/velero/pull/9528)) that only transfer changed data.
+This suite verifies that incremental block-level backups can accurately track changed blocks between snapshots, supporting efficient backup workflows (e.g., [Velero Block Data Mover](https://github.com/velero-io/velero/pull/9528)) that only transfer changed data.
 
 For a getting-started overview of Kubernetes CBT (using csi-driver-host-path), see [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo).
 
@@ -89,7 +89,7 @@ make e2e-fast
 make e2e-rox            # ROX PVC (30m)
 make e2e-rox-deletion   # Counter-based Deletion (30m)
 make e2e-flattening     # Flattening Prevention (30m)
-make e2e-stored-diffs   # Stored Diffs fallback (1h, slow)
+make e2e-stored-diffs   # Stored Diffs gap/flatten behavior (1h, slow)
 make e2e-errors         # Error Handling (30m)
 make e2e-backup         # Backup Workflow (1h)
 make e2e-compliance     # Velero Compliance, Block Metadata Properties, Error Compliance, Volume Resize (1h)
@@ -137,7 +137,7 @@ GINKGO="go run github.com/onsi/ginkgo/v2/ginkgo" \
 | **ROX PVC** | ReadOnlyMany PVC binding from snapshots, verifying no RBD flattening occurs |
 | **Counter-based Deletion** | Counter-based RBD snapshot deletion behavior |
 | **Flattening Prevention** | Snapshot chain preservation, conditions that trigger flattening |
-| **Stored Diffs** | Omap-stored diffs as fallback when snapshots are flattened (slow) |
+| **Stored Diffs** | Post-flatten behavior validation (no stored diffs fallback in CephCSI today) (slow) |
 | **Error Handling** | Graceful handling of flattened snapshots, nonexistent snapshots |
 | **Backup Workflow** | Simulated end-to-end backup workflow with snapshot retention |
 | **Velero Compliance** | Validates CBT behavior matches Velero integration requirements |
@@ -182,19 +182,19 @@ ReadOnlyMany PVCs created from snapshots do not trigger RBD flattening, preservi
 
 When a snapshot's intermediate RBD image is flattened (clone chain broken), `rbd snap diff` across images fails and `GetMetadataDelta` cannot compute deltas. There is a [design proposal](CLAUDE.md#key-domain-concepts) ("Combined solution") to store diffs in Ceph omap before flattening as a fallback, but this is **not yet implemented** in CephCSI.
 
-## Velero CBT Integration Status (as of 2026-04-30)
+## Velero CBT Integration Status (as of 2026-05-14)
 
 Velero's block data mover is being built incrementally. Current state of the PR chain:
 
 | Step | PR/Issue | Status | Description |
 |------|----------|--------|-------------|
-| Design doc | [PR #9528](https://github.com/velero-io/velero/pull/9528) | **Merged** | Block data mover design |
-| CBT interfaces | [PR #9716](https://github.com/velero-io/velero/pull/9716) | **Merged** | `cbtservice.Service` and bitmap interfaces |
-| Unified repo extension | [PR #9724](https://github.com/velero-io/velero/pull/9724) | **Merged** | Block uploader support in unified repository |
-| CBT bitmap impl | [PR #9736](https://github.com/velero-io/velero/pull/9736) | **Open** (approved by kaovilai) | RoaringBitmap-based block tracking |
-| gRPC client | [Issue #9710](https://github.com/velero-io/velero/issues/9710) | **No PR yet** | `cbtservice.Service` impl talking to external-snapshot-metadata sidecar |
-| Service-to-bitmap | [Issue #9715](https://github.com/velero-io/velero/issues/9715) | **No PR yet** | Glue between gRPC client and bitmap |
-| Block data mover | [Issue #9556](https://github.com/velero-io/velero/issues/9556) | **No PR yet** | End-to-end incremental backup using bitmap |
+| Design doc | [PR #9528](https://github.com/velero-io/velero/pull/9528) | **Completed** (merged) | Block data mover design |
+| CBT interfaces | [PR #9716](https://github.com/velero-io/velero/pull/9716) | **Completed** (merged) | `cbtservice.Service` and bitmap interfaces |
+| Unified repo extension | [PR #9724](https://github.com/velero-io/velero/pull/9724) | **Completed** (merged) | Block uploader support in unified repository |
+| CBT bitmap impl | [PR #9736](https://github.com/velero-io/velero/pull/9736) | **In progress** (open PR) | RoaringBitmap-based block tracking |
+| gRPC client | [Issue #9710](https://github.com/velero-io/velero/issues/9710) | **In progress** (open issue, no PR) | `cbtservice.Service` impl talking to external-snapshot-metadata sidecar |
+| Service-to-bitmap | [Issue #9715](https://github.com/velero-io/velero/issues/9715) | **In progress** (open issue, no PR) | Glue between gRPC client and bitmap |
+| Block data mover | [Issue #9556](https://github.com/velero-io/velero/issues/9556) | **In progress** (open issue, no PR) | End-to-end incremental backup using bitmap |
 
 **What this test suite validates today:** The CSI-level CBT layer (gRPC calls directly to the external-snapshot-metadata sidecar via CephCSI). This covers the same protocol that Velero's gRPC client (issue #9710) will use.
 
