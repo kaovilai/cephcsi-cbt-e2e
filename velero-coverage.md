@@ -66,7 +66,7 @@ implemented), so Case 1 remains unsupported for Ceph today (tracking:
 | Velero Requirement | Tracking Source | Current Status |
 |----|----|----|
 | Snapshot count pressure handling | [ceph/ceph-csi design](https://github.com/ceph/ceph-csi/blob/devel/docs/design/proposals/rbd-snap-clone.md) | Applies via CephCSI thresholds (`maxSnapshotsOnImage`, `minSnapshotsOnImage`) |
-| Priority flattening (deleted first) | [ceph/ceph-csi#1800](https://github.com/ceph/ceph-csi/issues/1800) | **Not implemented** in CephCSI today |
+| Priority flattening (deleted first) | [ceph/ceph-csi#1800](https://github.com/ceph/ceph-csi/issues/1800) (closed, completed Dec 2020) | **Not implemented** in CephCSI today (issue closed; no PR tracks this specifically) |
 | Preserve recent snapshots for CBT under flatten pressure | [velero-io/velero#9556](https://github.com/velero-io/velero/issues/9556) | **In progress** as part of overall BDM CBT work |
 
 ### Clone Chain Preservation
@@ -115,7 +115,7 @@ volumePolicies:
 ### Retention Constraints
 
 - **250-snapshot hard limit** per RBD image enforced by CephCSI
-- **Priority flattening** is a desired behavior but not implemented (tracked in [ceph/ceph-csi#1800](https://github.com/ceph/ceph-csi/issues/1800))
+- **Priority flattening** is a desired behavior but not implemented ([ceph/ceph-csi#1800](https://github.com/ceph/ceph-csi/issues/1800) is closed and no longer tracks this)
 - **Stored diffs in omap** fallback is not implemented in CephCSI today; Velero fallback-to-full is in progress in [velero-io/velero#9736](https://github.com/velero-io/velero/pull/9736)
 - **Velero GC** must clean up `VolumeSnapshotContent` with `DeletionPolicy: Retain`
   when backup chain is pruned
