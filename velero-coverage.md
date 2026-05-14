@@ -4,7 +4,7 @@ This document maps the Velero Block Data Mover design (PR #9528) requirements �
 specifically the **Volume Snapshot retention** section — to E2E tests in this suite
 that validate Ceph RBD CBT compliance.
 
-Reference: [Velero PR #9528](https://github.com/vmware-tanzu/velero/pull/9528) |
+Reference: [Velero PR #9528](https://github.com/velero-io/velero/pull/9528) |
 [velero-feedback.md](./velero-feedback.md)
 
 ---
@@ -19,8 +19,10 @@ PR #9528 defines two cases based on storage backend capabilities:
 | **Case 2** (Opt-in) | Retain snapshot with `deletionPolicy: Retain`; parent must exist for delta | **Required for Ceph RBD** | `retainSnapshot: "true"` |
 
 Ceph RBD requires **Case 2** because `rbd snap diff` needs both snapshots in the
-same clone chain. The CephCSI Combined solution (stored diffs in omap) can
-partially enable Case 1 behavior as a fallback.
+same clone chain. A stored-diffs fallback in CephCSI is still a proposal (not
+implemented), so Case 1 remains unsupported for Ceph today (tracking:
+[ceph/ceph-csi#1800](https://github.com/ceph/ceph-csi/issues/1800),
+[ceph/ceph-csi#5346](https://github.com/ceph/ceph-csi/issues/5346)).
 
 > "There is no way to automatically detect which way a specific volume supports"
 > — PR #9528 design document
@@ -50,22 +52,22 @@ partially enable Case 1 behavior as a fallback.
 | Full Velero workflow simulation | `velero_compliance_test.go` | 230-313 | "should simulate Velero incremental backup chain with handle-based delta" | Full->Incr1->Incr2 using handle-based API, then restore + verify |
 | ROX PVC as backup data source | `backup_workflow_test.go` | 221-256 | "should support backup workflow with ROX PVCs as read source" | ROX PVC reads match snap3 state; CBT works while ROX active |
 
-### Fallback-to-Full on Flattening (Stored Diffs)
+### Fallback-to-Full on Flattening (Current State)
 
 | Velero Requirement | Test File | Lines | Test Description | What's Validated |
 |----|----|----|----|----|
-| Stored diffs in omap after flattening | `stored_diffs_test.go` | 90-108 | "should have stored diffs in omap when a snapshot is flattened" | Omap keys exist for flattened image via `ListOmapKeys()` |
-| `GetMetadataAllocated` works on flattened snaps | `stored_diffs_test.go` | 110-118 | "should return correct data via GetMetadataAllocated on all snapshots" | Allocated blocks returned even for flattened snapshots |
-| `GetMetadataDelta` works despite flattening | `stored_diffs_test.go` | 120-146 | "should return correct delta between snapshots regardless of flattening state" | Deltas snap1->snap2, snap2->snap3, and cumulative snap1->snap3 all correct |
-| Oldest snapshot = full allocated blocks | `stored_diffs_test.go` | 148-155 | "should handle oldest snapshot's diff as full allocated blocks" | No previous snapshot to diff against; stored as full allocation |
+| No stored diffs present after manual flatten | `stored_diffs_test.go` | 177-188 | "should have no stored diffs in omap (manual flatten bypasses CephCSI)" | No usable CephCSI-stored diffs are found in omap after manual flatten |
+| `GetMetadataAllocated` after flatten | `stored_diffs_test.go` | 190-201 | "should fail GetMetadataAllocated after flattening without stored diffs" | Allocated metadata calls fail once chain/snapshot references are broken |
+| `GetMetadataDelta` after flatten | `stored_diffs_test.go` | 203-219 | "should fail GetMetadataDelta after flattening without stored diffs" | Delta calls fail for flattened pairs without stored diffs fallback |
+| Velero handling path | [PR #9736](https://github.com/velero-io/velero/pull/9736) | N/A | Bitmap fallback (`bitmap.SetFull()`) | Fallback-to-full implementation is **in progress** in Velero (open PR) |
 
 ### 250-Snapshot Limit and Priority Flattening
 
-| Velero Requirement | Test File | Lines | Test Description | What's Validated |
-|----|----|----|----|----|
-| Snapshot count monitoring | `priority_flattening_test.go` | 89-102 | "should report snapshot count approaching limit" | `GetSnapshotCount()` tracks accumulation toward 250 limit |
-| Deleted snapshots flattened first | `priority_flattening_test.go` | 104-120 | "should prioritize flattening deleted snapshots first" | After deleting early snaps, latest snap still has working CBT |
-| Recent snapshots preserved for CBT | `priority_flattening_test.go` | 122-131 | "should preserve latest snapshots for CBT even after flattening" | Delta between recent snaps works after older ones flattened |
+| Velero Requirement | Tracking Source | Current Status |
+|----|----|----|
+| Snapshot count pressure handling | [ceph/ceph-csi design](https://github.com/ceph/ceph-csi/blob/devel/docs/design/proposals/rbd-snap-clone.md) | Applies via CephCSI thresholds (`maxSnapshotsOnImage`, `minSnapshotsOnImage`) |
+| Priority flattening (deleted first) | [ceph/ceph-csi#1800](https://github.com/ceph/ceph-csi/issues/1800) | **Not implemented** in CephCSI today |
+| Preserve recent snapshots for CBT under flatten pressure | [velero-io/velero#9556](https://github.com/velero-io/velero/issues/9556) | **In progress** as part of overall BDM CBT work |
 
 ### Clone Chain Preservation
 
@@ -113,8 +115,8 @@ volumePolicies:
 ### Retention Constraints
 
 - **250-snapshot hard limit** per RBD image enforced by CephCSI
-- **Priority flattening** order: deleted > PVC-PVC clone > alive snapshots
-- **Stored diffs in omap** provide fallback when clone chain breaks
+- **Priority flattening** is a desired behavior but not implemented (tracked in [ceph/ceph-csi#1800](https://github.com/ceph/ceph-csi/issues/1800))
+- **Stored diffs in omap** fallback is not implemented in CephCSI today; Velero fallback-to-full is in progress in [velero-io/velero#9736](https://github.com/velero-io/velero/pull/9736)
 - **Velero GC** must clean up `VolumeSnapshotContent` with `DeletionPolicy: Retain`
   when backup chain is pruned
 
@@ -141,15 +143,13 @@ When `GetMetadataDelta` returns gRPC error (`FAILED_PRECONDITION`, `INVALID_ARGU
 ## Running Retention-Relevant Tests
 
 ```bash
-# All retention-relevant tests (excludes slow priority flattening)
+# All retention-relevant tests (excludes stored-diffs/manual-flatten behavior)
 make e2e-fast
 
 # Specific test suites
-make e2e-basic          # Basic CBT (30m)
 make e2e-rox-deletion   # Counter-based deletion tests (30m)
 make e2e-flattening     # Flattening prevention tests (30m)
-make e2e-stored-diffs   # Stored diffs fallback (1h)
-make e2e-priority       # Priority flattening - slow (3h)
+make e2e-stored-diffs   # Stored diffs gap/manual flatten behavior (1h)
 make e2e-backup         # Backup workflow tests (1h)
 
 # Single test by description

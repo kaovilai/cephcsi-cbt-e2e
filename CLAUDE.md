@@ -19,7 +19,7 @@ make e2e-fast           # Skip stored-diffs tests (2h timeout)
 make e2e-rox            # ReadOnlyMany PVC tests (30m)
 make e2e-rox-deletion   # Counter-based deletion tests (30m)
 make e2e-flattening     # Flattening prevention tests (30m)
-make e2e-stored-diffs   # Stored diffs fallback (1h)
+make e2e-stored-diffs   # Stored diffs gap/manual flatten behavior (1h)
 make e2e-errors         # Error handling tests (30m)
 make e2e-backup         # Backup workflow tests (1h)
 make e2e-compliance     # Velero/block metadata/error compliance + volume resize (1h)
@@ -101,7 +101,7 @@ ocp-setup/  # OpenShift cluster setup scripts for ODF + CBT sidecar
   - **Backup safety after flattening**: Once backup data is written to the Kopia repository (object storage), it is **completely independent** of the source RBD images. Flattening, snapshot deletion, or even cluster destruction does not affect existing backups. Kopia uses content-addressed storage (1MB chunks) — every backup snapshot is self-contained and independently restorable. **No user action is needed for existing backups when flattening occurs.** Restores create fresh PVCs from repository data, never touching original snapshots.
   - **Post-flattening recovery cycle**: After flattening breaks the clone chain, the next backup automatically falls back to full. Subsequent backups resume incremental from the new full backup. Pattern: `incremental → incremental → [flatten] → full (auto) → incremental → incremental`.
   - **Self-defeating accumulation risk**: Retaining snapshots for CBT (`RetainSnapshot`) increases snapshot count, which can trigger flattening (`maxSnapshotsOnImage`), which breaks CBT. The BDM design suggests periodic full backups (weekly/monthly) as a workaround but does not directly address snapshot cleanup.
-  - **Implementation status** (as of May 2026): Design merged ([PR #9528](https://github.com/velero-io/velero/pull/9528)). CBT interfaces merged ([PR #9716](https://github.com/velero-io/velero/pull/9716)). Bitmap implementation in review ([PR #9736](https://github.com/velero-io/velero/pull/9736)). K8s SnapshotMetadataService gRPC client, block uploader, and DataUpload CRD changes not yet landed.
+  - **Implementation status** (as of May 2026): Design merged ([PR #9528](https://github.com/velero-io/velero/pull/9528)). CBT interfaces merged ([PR #9716](https://github.com/velero-io/velero/pull/9716)). Unified repo extension merged ([PR #9724](https://github.com/velero-io/velero/pull/9724)). Bitmap implementation is in progress ([PR #9736](https://github.com/velero-io/velero/pull/9736), open). K8s SnapshotMetadataService gRPC client ([Issue #9710](https://github.com/velero-io/velero/issues/9710)), service-to-bitmap glue ([Issue #9715](https://github.com/velero-io/velero/issues/9715)), and end-to-end block data mover integration ([Issue #9556](https://github.com/velero-io/velero/issues/9556)) are still in progress.
 
 ## ODF Version Compatibility
 
