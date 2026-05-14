@@ -85,13 +85,13 @@ ocp-setup/  # OpenShift cluster setup scripts for ODF + CBT sidecar
   4. **Priority-based flattening** (proposed: flatten deleted snapshots first, then clones, then alive snapshots): Not implemented. Current behavior is threshold-based only (`minSnapshotsOnImage`/`maxSnapshotsOnImage`).
   5. **Stored diffs in omap** (proposed: store diffs as doubly-linked list when flattening, to extend CBT beyond 250 snapshots): Not implemented. No PRs, issues, or design docs exist for this in ceph/ceph-csi.
 
-  **Current CBT implementation** ([PR #5347](https://github.com/ceph/ceph-csi/pull/5347), merged July 2025): Uses `rbd DiffIterateByID` directly. Requires intact clone chains — if an intermediate image is flattened, GetMetadataDelta will fail with no driver-level fallback. See also: [Issue #5346](https://github.com/ceph/ceph-csi/issues/5346), [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md).
+  **Current CBT implementation** ([PR #5347](https://github.com/ceph/ceph-csi/pull/5347), merged July 2025): Uses `rbd DiffIterateByID` directly. Requires intact clone chains — if an intermediate image is flattened, GetMetadataDelta will fail with no driver-level fallback. See also: [Issue #5346](https://github.com/ceph/ceph-csi/issues/5346) (closed as not_planned, Dec 2025), [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md).
 
   **Key references**:
   - [Design: rbd-snap-clone.md](https://github.com/ceph/ceph-csi/blob/devel/docs/design/proposals/rbd-snap-clone.md) — snap-clone architecture, depth/snapshot limits
   - [PR #1160](https://github.com/ceph/ceph-csi/pull/1160) — original snapshot and clone from snapshot implementation
   - [PR #1678](https://github.com/ceph/ceph-csi/pull/1678) — added `minSnapshotsOnImage` flag
-  - [Issue #1800](https://github.com/ceph/ceph-csi/issues/1800) — request to support snapshots without flattening (open)
+  - [Issue #1800](https://github.com/ceph/ceph-csi/issues/1800) — request to support snapshots without flattening (closed, completed Dec 2020; addressed by PR #2900)
   - [Velero CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
 - **SnapshotMetadataService CRD**: Graduated to `v1beta1` in external-snapshot-metadata v1.0.0 (out-of-tree API).
 - **Velero Block Data Mover (BDM) CBT Integration** (design merged April 2026, [PR #9528](https://github.com/velero-io/velero/pull/9528), targeting v1.19):
