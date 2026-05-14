@@ -96,7 +96,7 @@ var _ = BeforeSuite(func() {
 	log.Printf("Kubernetes server version: %s", serverVersion.GitVersion)
 	minor, err := strconv.Atoi(strings.TrimSuffix(serverVersion.Minor, "+"))
 	Expect(err).NotTo(HaveOccurred())
-	// Alpha went in v1.33. Beta targets v1.36 (KEP-3314 PR #5877).
+	// Alpha went in v1.33. Beta is tracked for v1.36 (KEP-3314 kubernetes/enhancements#5877, merged).
 	Expect(minor).To(BeNumerically(">=", 33),
 		"Kubernetes version must be >= 1.33 for SnapshotMetadata API.")
 

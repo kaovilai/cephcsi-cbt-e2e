@@ -14,7 +14,7 @@ import (
 )
 
 // These tests simulate the full backup/restore workflow that Velero's Block Data
-// Mover (PR #9528) would perform:
+// Mover (velero-io/velero#9528, merged) performs:
 // 1. Full backup: GetMetadataAllocated -> read all allocated blocks
 // 2. Incremental backup: GetMetadataDelta -> read only changed blocks
 // 3. Restore: apply blocks in order (full + incremental) -> verify data
