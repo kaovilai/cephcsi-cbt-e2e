@@ -155,11 +155,16 @@ func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.
 	return nil
 }
 
+// mountFilePath returns the full path for a file under DefaultMountPath.
+func mountFilePath(filename string) string {
+	return DefaultMountPath + "/" + filename
+}
+
 // WriteFile writes content to a file on a Filesystem-mode PVC mounted at /mnt/data.
 func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename, content string) error {
 
-	path := fmt.Sprintf("%s/%s", DefaultMountPath, filename)
+	path := mountFilePath(filename)
 	cmd := []string{
 		"sh", "-c",
 		fmt.Sprintf("printf '%%s' '%s' > %s && sync", content, path),
@@ -176,7 +181,7 @@ func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest
 func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename string) (string, error) {
 
-	path := fmt.Sprintf("%s/%s", DefaultMountPath, filename)
+	path := mountFilePath(filename)
 	cmd := []string{"cat", path}
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
@@ -190,7 +195,7 @@ func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.
 func ReadFileHash(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename string) (string, error) {
 
-	path := fmt.Sprintf("%s/%s", DefaultMountPath, filename)
+	path := mountFilePath(filename)
 	cmd := []string{
 		"sh", "-c",
 		fmt.Sprintf("sha256sum %s | cut -d' ' -f1", path),

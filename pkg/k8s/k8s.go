@@ -32,6 +32,12 @@ const (
 	// DefaultPodImage is the default container image used for test pods.
 	DefaultPodImage = "registry.access.redhat.com/ubi9/ubi-minimal:latest"
 
+	// DefaultBlockDevicePath is the default device path for Block-mode PVC mounts in test pods.
+	DefaultBlockDevicePath = "/dev/xvda"
+
+	// DefaultFilesystemMountPath is the default mount directory for Filesystem-mode PVC mounts in test pods.
+	DefaultFilesystemMountPath = "/mnt/data"
+
 	// defaultContainerName is the name given to the main container in test pods,
 	// and the fallback used by ExecInPod when no explicit container is specified.
 	defaultContainerName = "main"
@@ -369,9 +375,9 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 	}
 	if opts.MountPath == "" {
 		if opts.VolumeMode == corev1.PersistentVolumeBlock {
-			opts.MountPath = "/dev/xvda"
+			opts.MountPath = DefaultBlockDevicePath
 		} else {
-			opts.MountPath = "/mnt/data"
+			opts.MountPath = DefaultFilesystemMountPath
 		}
 	}
 	if opts.Command == nil {
