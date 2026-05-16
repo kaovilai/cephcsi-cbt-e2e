@@ -23,6 +23,13 @@ import (
 	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
 )
 
+const (
+	// pollInterval is the default polling interval for Wait* functions.
+	pollInterval = 5 * time.Second
+	// fastPollInterval is used for short-lived resources like pods.
+	fastPollInterval = 2 * time.Second
+)
+
 // CreateNamespace creates a namespace, ignoring AlreadyExists.
 // Sets PodSecurity labels to "privileged" to allow block device access in test pods.
 func CreateNamespace(ctx context.Context, clientset kubernetes.Interface, name string) error {
@@ -52,7 +59,7 @@ func DeleteNamespace(ctx context.Context, clientset kubernetes.Interface, name s
 
 // WaitForNamespaceDeleted waits until the namespace is fully removed.
 func WaitForNamespaceDeleted(ctx context.Context, clientset kubernetes.Interface, name string, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		_, err := clientset.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
@@ -143,7 +150,7 @@ func CreateROXPVCFromSnapshot(ctx context.Context, clientset kubernetes.Interfac
 
 // WaitForPVCBound waits until a PVC reaches Bound phase.
 func WaitForPVCBound(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -178,7 +185,7 @@ func ResizePVC(ctx context.Context, clientset kubernetes.Interface, namespace, n
 
 // WaitForPVCResized waits until a PVC's status capacity reaches the expected size.
 func WaitForPVCResized(ctx context.Context, clientset kubernetes.Interface, namespace, name string, expectedSize resource.Quantity, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -215,7 +222,7 @@ func CreateSnapshot(ctx context.Context, snapClient snapclient.Interface, name, 
 // WaitForSnapshotReady waits until a VolumeSnapshot is ReadyToUse.
 func WaitForSnapshotReady(ctx context.Context, snapClient snapclient.Interface, namespace, name string, timeout time.Duration) (*snapshotv1.VolumeSnapshot, error) {
 	var result *snapshotv1.VolumeSnapshot
-	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		vs, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -245,7 +252,7 @@ func DeleteSnapshot(ctx context.Context, snapClient snapclient.Interface, namesp
 
 // WaitForSnapshotDeleted waits until a VolumeSnapshot is fully removed.
 func WaitForSnapshotDeleted(ctx context.Context, snapClient snapclient.Interface, namespace, name string, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		_, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
@@ -271,7 +278,7 @@ func GetSnapshotContentName(ctx context.Context, snapClient snapclient.Interface
 
 // WaitForSnapshotContentDeleted waits until a VolumeSnapshotContent is fully removed.
 func WaitForSnapshotContentDeleted(ctx context.Context, snapClient snapclient.Interface, name string, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		_, err := snapClient.SnapshotV1().VolumeSnapshotContents().Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
@@ -383,7 +390,7 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 
 // WaitForPodRunning waits until a pod reaches Running phase.
 func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -406,7 +413,7 @@ func DeletePod(ctx context.Context, clientset kubernetes.Interface, namespace, n
 
 // WaitForPodDeleted waits until a pod no longer exists.
 func WaitForPodDeleted(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		_, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
