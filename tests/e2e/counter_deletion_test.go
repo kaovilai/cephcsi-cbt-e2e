@@ -40,7 +40,7 @@ var _ = Describe("Counter-based Deletion", Ordered, func() {
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       podName,
@@ -49,7 +49,7 @@ var _ = Describe("Counter-based Deletion", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 0, 0xEE)).To(Succeed())
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, podName)).To(Succeed())
@@ -57,7 +57,7 @@ var _ = Describe("Counter-based Deletion", Ordered, func() {
 		By("Creating snapshot")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snapName, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Creating multiple ROX PVCs from the snapshot")
@@ -66,7 +66,7 @@ var _ = Describe("Counter-based Deletion", Ordered, func() {
 			roxPVCNames[i] = fmt.Sprintf("counter-del-rox-%d", i)
 			_, err = k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVCNames[i], testNamespace, storageClass, snapName, "1Gi")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVCNames[i], 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVCNames[i], pvcPodReadyTimeout)).To(Succeed())
 		}
 	})
 
@@ -110,7 +110,7 @@ var _ = Describe("Counter-based Deletion", Ordered, func() {
 		By("Verifying snapshot is eventually fully deleted after all ROX PVCs removed")
 		// Recreate the snapshot deletion request if it was deferred
 		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snapName)
-		err := k8sutil.WaitForSnapshotDeleted(ctx, snapClient, testNamespace, snapName, 3*time.Minute)
+		err := k8sutil.WaitForSnapshotDeleted(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred(), "snapshot should be fully deleted after all ROX PVCs removed")
 
 		// Clear the names so AfterAll doesn't double-delete

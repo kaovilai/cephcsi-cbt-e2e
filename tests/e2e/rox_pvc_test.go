@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -45,7 +44,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       podName,
@@ -54,7 +53,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 0, 0xDD)).To(Succeed())
 
@@ -64,7 +63,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 		By("Creating snapshot")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snapName, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -82,7 +81,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 		var err error
 		_, err = k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVCName, testNamespace, storageClass, snapName, "1Gi")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVCName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVCName, pvcPodReadyTimeout)).To(Succeed())
 
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(testNamespace).Get(ctx, roxPVCName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
@@ -98,7 +97,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, roxPodName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, roxPodName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Verifying data can be read from ROX PVC")
 		hash, err := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, roxPodName, 0, data.DefaultBlockSize)
@@ -114,7 +113,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 		By("Creating a second ROX PVC from the same snapshot")
 		_, err := k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVC2Name, testNamespace, storageClass, snapName, "1Gi")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVC2Name, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVC2Name, pvcPodReadyTimeout)).To(Succeed())
 
 		// CephCSI creates ROX PVCs as clones of an intermediate image created during
 		// snapshotting. The ROX PVC's image should retain its parent chain (not be
@@ -148,6 +147,6 @@ var _ = Describe("ROX PVC", Ordered, func() {
 			PVCCloneSource: roxPVCName,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, clonePVCName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, clonePVCName, pvcPodReadyTimeout)).To(Succeed())
 	})
 })

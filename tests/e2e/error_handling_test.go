@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -49,27 +48,27 @@ var _ = Describe("Error Handling", func() {
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc1Name, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc1Name, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
 			Name: pvc2Name, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc2Name, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc2Name, pvcPodReadyTimeout)).To(Succeed())
 
 		// Write data and snapshot PVC1
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name: pod1Name, Namespace: testNamespace, PVCName: pvc1Name, VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod1Name, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod1Name, pvcPodReadyTimeout)).To(Succeed())
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, pod1Name, 0, 0x01)).To(Succeed())
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, pod1Name)).To(Succeed())
 
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap1Name, testNamespace, pvc1Name, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Write data and snapshot PVC2
@@ -77,13 +76,13 @@ var _ = Describe("Error Handling", func() {
 			Name: pod2Name, Namespace: testNamespace, PVCName: pvc2Name, VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod2Name, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod2Name, pvcPodReadyTimeout)).To(Succeed())
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, pod2Name, 0, 0x02)).To(Succeed())
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, pod2Name)).To(Succeed())
 
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap2Name, testNamespace, pvc2Name, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Attempting GetMetadataDelta across different PVCs")
@@ -110,24 +109,24 @@ var _ = Describe("Error Handling", func() {
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name: podName, Namespace: testNamespace, PVCName: pvcName, VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 0, 0x10)).To(Succeed())
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snapOlder, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapOlder, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapOlder, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 1, 0x20)).To(Succeed())
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snapNewer, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapNewer, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapNewer, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, podName)).To(Succeed())
@@ -153,13 +152,13 @@ var _ = Describe("Error Handling", func() {
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name: podName, Namespace: testNamespace, PVCName: pvcName, VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 0, 0xAA)).To(Succeed())
 
@@ -167,7 +166,7 @@ var _ = Describe("Error Handling", func() {
 		baseSnap := "err-concurrent-base"
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, baseSnap, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, baseSnap, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, baseSnap, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, podName)).To(Succeed())
@@ -210,13 +209,13 @@ var _ = Describe("Error Handling", func() {
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name: podName, Namespace: testNamespace, PVCName: pvcName, VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing data to multiple blocks across the volume")
 		for i := 0; i < 50; i++ {
@@ -226,7 +225,7 @@ var _ = Describe("Error Handling", func() {
 
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snapName, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Verifying streaming completes for large volume")
@@ -254,14 +253,14 @@ var _ = Describe("Error Handling", func() {
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 			By("Creating pod and waiting for it to be running")
 			_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 				Name: podName, Namespace: testNamespace, PVCName: pvcName, VolumeMode: corev1.PersistentVolumeBlock,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 			By("Writing block 0 with pattern 0x01")
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 0, 0x01)).To(Succeed())
@@ -272,7 +271,7 @@ var _ = Describe("Error Handling", func() {
 			By("Creating snapshot and waiting for it to be ready")
 			_, err = k8sutil.CreateSnapshot(ctx, snapClient, snapName, testNamespace, pvcName, snapshotClass)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, 3*time.Minute)
+			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Calling GetChangedBlocksByID with a garbage snapshot handle")
@@ -299,20 +298,20 @@ var _ = Describe("Error Handling", func() {
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc1Name, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc1Name, pvcPodReadyTimeout)).To(Succeed())
 
 			By("Creating first pod, writing data, and snapshotting")
 			_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 				Name: pod1Name, Namespace: testNamespace, PVCName: pvc1Name, VolumeMode: corev1.PersistentVolumeBlock,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod1Name, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod1Name, pvcPodReadyTimeout)).To(Succeed())
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, pod1Name, 0, 0x01)).To(Succeed())
 			Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, pod1Name)).To(Succeed())
 
 			_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap1Name, testNamespace, pvc1Name, snapshotClass)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, 3*time.Minute)
+			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, snapshotReadyTimeout)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Getting the snapshot handle from the first volume's snapshot")
@@ -326,20 +325,20 @@ var _ = Describe("Error Handling", func() {
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc2Name, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc2Name, pvcPodReadyTimeout)).To(Succeed())
 
 			By("Creating second pod, writing data, and snapshotting")
 			_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 				Name: pod2Name, Namespace: testNamespace, PVCName: pvc2Name, VolumeMode: corev1.PersistentVolumeBlock,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod2Name, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod2Name, pvcPodReadyTimeout)).To(Succeed())
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, pod2Name, 0, 0x02)).To(Succeed())
 			Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, pod2Name)).To(Succeed())
 
 			_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap2Name, testNamespace, pvc2Name, snapshotClass)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, 3*time.Minute)
+			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, snapshotReadyTimeout)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Calling GetChangedBlocksByID with handle from a different volume")
@@ -365,14 +364,14 @@ var _ = Describe("Error Handling", func() {
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 			By("Creating pod, writing data, and deleting pod")
 			_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 				Name: podName, Namespace: testNamespace, PVCName: pvcName, VolumeMode: corev1.PersistentVolumeBlock,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 0, 0x01)).To(Succeed())
 			Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, podName)).To(Succeed())
 
@@ -389,7 +388,7 @@ var _ = Describe("Error Handling", func() {
 			}
 
 			By("Waiting for snapshot to become ready for cleanup")
-			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, 3*time.Minute)
+			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cleanup

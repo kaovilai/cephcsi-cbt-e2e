@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -44,7 +43,7 @@ var _ = Describe("Flattening Prevention", func() {
 				AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, origPVCName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, origPVCName, pvcPodReadyTimeout)).To(Succeed())
 
 			_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 				Name:       origPodName,
@@ -53,7 +52,7 @@ var _ = Describe("Flattening Prevention", func() {
 				VolumeMode: corev1.PersistentVolumeBlock,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, origPodName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, origPodName, pvcPodReadyTimeout)).To(Succeed())
 
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, origPodName, 0, 0x11)).To(Succeed())
 			Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, origPodName)).To(Succeed())
@@ -61,7 +60,7 @@ var _ = Describe("Flattening Prevention", func() {
 			By("Creating first snapshot")
 			_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap1Name, testNamespace, origPVCName, snapshotClass)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, 3*time.Minute)
+			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, snapshotReadyTimeout)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Restoring PVC from snapshot")
@@ -74,7 +73,7 @@ var _ = Describe("Flattening Prevention", func() {
 				SnapshotSource: snap1Name,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, restoredPVC, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, restoredPVC, pvcPodReadyTimeout)).To(Succeed())
 
 			By("Writing additional data to restored PVC")
 			_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -84,7 +83,7 @@ var _ = Describe("Flattening Prevention", func() {
 				VolumeMode: corev1.PersistentVolumeBlock,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, restoredPod, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, restoredPod, pvcPodReadyTimeout)).To(Succeed())
 
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, restoredPod, 1, 0x22)).To(Succeed())
 			Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, restoredPod)).To(Succeed())
@@ -92,7 +91,7 @@ var _ = Describe("Flattening Prevention", func() {
 			By("Creating snapshot of restored PVC")
 			_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap2Name, testNamespace, restoredPVC, snapshotClass)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, 3*time.Minute)
+			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, snapshotReadyTimeout)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -171,7 +170,7 @@ var _ = Describe("Flattening Prevention", func() {
 				AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, origPVCName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, origPVCName, pvcPodReadyTimeout)).To(Succeed())
 
 			_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 				Name:       origPodName,
@@ -180,7 +179,7 @@ var _ = Describe("Flattening Prevention", func() {
 				VolumeMode: corev1.PersistentVolumeBlock,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, origPodName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, origPodName, pvcPodReadyTimeout)).To(Succeed())
 
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, origPodName, 0, 0x33)).To(Succeed())
 			Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, origPodName)).To(Succeed())
@@ -195,7 +194,7 @@ var _ = Describe("Flattening Prevention", func() {
 				PVCCloneSource: origPVCName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, clonePVCName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, clonePVCName, pvcPodReadyTimeout)).To(Succeed())
 
 			By("Writing data to clone")
 			_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -205,7 +204,7 @@ var _ = Describe("Flattening Prevention", func() {
 				VolumeMode: corev1.PersistentVolumeBlock,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, clonePodName, 2*time.Minute)).To(Succeed())
+			Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, clonePodName, pvcPodReadyTimeout)).To(Succeed())
 
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, clonePodName, 1, 0x44)).To(Succeed())
 			Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, clonePodName)).To(Succeed())
@@ -213,7 +212,7 @@ var _ = Describe("Flattening Prevention", func() {
 			By("Creating snapshot of clone")
 			_, err = k8sutil.CreateSnapshot(ctx, snapClient, snapName, testNamespace, clonePVCName, snapshotClass)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, 3*time.Minute)
+			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 			Expect(err).NotTo(HaveOccurred())
 		})
 

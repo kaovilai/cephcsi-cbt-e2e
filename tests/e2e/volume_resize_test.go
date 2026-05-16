@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"context"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -40,7 +39,7 @@ var _ = Describe("Volume Resize", Ordered, func() {
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Creating a pod to write data")
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -50,7 +49,7 @@ var _ = Describe("Volume Resize", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing known pattern to block 0")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 0, 0xAA)).To(Succeed())
@@ -61,14 +60,14 @@ var _ = Describe("Volume Resize", Ordered, func() {
 		By("Creating snapshot 1")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap1Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Resizing PVC to 2Gi")
 		Expect(k8sutil.ResizePVC(ctx, clientset, testNamespace, pvcName, "2Gi")).To(Succeed())
 
 		By("Waiting for PVC resize to complete")
-		Expect(k8sutil.WaitForPVCResized(ctx, clientset, testNamespace, pvcName, resource.MustParse("2Gi"), 5*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCResized(ctx, clientset, testNamespace, pvcName, resource.MustParse("2Gi"), longOperationTimeout)).To(Succeed())
 
 		By("Creating a second pod with the resized PVC")
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -78,7 +77,7 @@ var _ = Describe("Volume Resize", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod2Name, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod2Name, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing known pattern to block 1024 in the expanded region")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, pod2Name, 1024, 0xBB)).To(Succeed())
@@ -89,7 +88,7 @@ var _ = Describe("Volume Resize", Ordered, func() {
 		By("Creating snapshot 2")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap2Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

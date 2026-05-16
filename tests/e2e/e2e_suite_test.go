@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	snapclient "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
 	. "github.com/onsi/ginkgo/v2"
@@ -244,7 +243,7 @@ var _ = AfterSuite(func() {
 	By(fmt.Sprintf("Cleaning up test namespace %s", testNamespace))
 	err := k8sutil.DeleteNamespace(ctx, clientset, testNamespace)
 	Expect(err).NotTo(HaveOccurred())
-	err = k8sutil.WaitForNamespaceDeleted(ctx, clientset, testNamespace, 5*time.Minute)
+	err = k8sutil.WaitForNamespaceDeleted(ctx, clientset, testNamespace, longOperationTimeout)
 	if err != nil {
 		log.Printf("WARNING: namespace %s did not fully delete: %v", testNamespace, err)
 	}
