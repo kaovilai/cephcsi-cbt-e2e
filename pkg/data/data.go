@@ -20,6 +20,8 @@ const (
 	DefaultBlockSize = 1024 * 1024
 	// DefaultDevicePath is the default block device path in pods.
 	DefaultDevicePath = "/dev/xvda"
+	// DefaultMountPath is the mount directory for Filesystem-mode PVCs in test pods.
+	DefaultMountPath = "/mnt/data"
 )
 
 // WriteKnownPattern writes a known byte pattern at a specific offset on a block device.
@@ -87,6 +89,9 @@ func VerifyAllocatedBlocks(ctx context.Context, clientset kubernetes.Interface, 
 			return fmt.Errorf("failed to read block at offset %d: %w", block.ByteOffset, err)
 		}
 
+		if block.SizeBytes != DefaultBlockSize {
+			zeroHash = zeroBlockHash(block.SizeBytes)
+		}
 		if hash == zeroHash {
 			return fmt.Errorf("block at offset %d reported as allocated but contains only zeros", block.ByteOffset)
 		}
@@ -153,7 +158,7 @@ func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.
 func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename, content string) error {
 
-	path := fmt.Sprintf("/mnt/data/%s", filename)
+	path := fmt.Sprintf("%s/%s", DefaultMountPath, filename)
 	cmd := []string{
 		"sh", "-c",
 		fmt.Sprintf("printf '%%s' '%s' > %s && sync", content, path),
@@ -170,7 +175,7 @@ func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest
 func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename string) (string, error) {
 
-	path := fmt.Sprintf("/mnt/data/%s", filename)
+	path := fmt.Sprintf("%s/%s", DefaultMountPath, filename)
 	cmd := []string{"cat", path}
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
@@ -184,7 +189,7 @@ func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.
 func ReadFileHash(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename string) (string, error) {
 
-	path := fmt.Sprintf("/mnt/data/%s", filename)
+	path := fmt.Sprintf("%s/%s", DefaultMountPath, filename)
 	cmd := []string{
 		"sh", "-c",
 		fmt.Sprintf("sha256sum %s | cut -d' ' -f1", path),
