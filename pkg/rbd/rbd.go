@@ -117,6 +117,17 @@ func (r *Inspector) GetImageParent(ctx context.Context, imageName string) (strin
 	return fmt.Sprintf("%s/%s@%s", info.Parent.Pool, info.Parent.Image, info.Parent.Snapshot), nil
 }
 
+// imageNameFromParentRef extracts the RBD image name from a parent reference string
+// in the form "pool/image@snapshot". Returns an empty string if the ref is malformed.
+func imageNameFromParentRef(parentRef string) string {
+	parts := strings.Split(parentRef, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	imageSnap := strings.Split(parts[len(parts)-1], "@")
+	return imageSnap[0]
+}
+
 // GetCloneDepth returns the depth of the clone chain for an image.
 func (r *Inspector) GetCloneDepth(ctx context.Context, imageName string) (int, error) {
 	depth := 0
@@ -131,13 +142,11 @@ func (r *Inspector) GetCloneDepth(ctx context.Context, imageName string) (int, e
 			break
 		}
 		depth++
-		// Extract image name from parent string (pool/image@snapshot)
-		parts := strings.Split(parent, "/")
-		if len(parts) < 2 {
+		next := imageNameFromParentRef(parent)
+		if next == "" {
 			break
 		}
-		imageSnap := strings.Split(parts[len(parts)-1], "@")
-		current = imageSnap[0]
+		current = next
 	}
 
 	return depth, nil
@@ -196,6 +205,26 @@ func (r *Inspector) ListSnapshots(ctx context.Context, imageName string) ([]RBDS
 	return snapshots, nil
 }
 
+// parseChildrenOutput parses the newline-delimited output of "rbd children".
+// Each line has the form "pool/image"; only the image name is returned.
+// Lines without a "/" are returned as-is.
+func parseChildrenOutput(output string) []string {
+	var children []string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "/", 2)
+		if len(parts) == 2 {
+			children = append(children, parts[1])
+		} else {
+			children = append(children, line)
+		}
+	}
+	return children
+}
+
 // GetChildren returns child image names cloned from a specific snapshot.
 // Uses rbd children which outputs "pool/image" per line.
 func (r *Inspector) GetChildren(ctx context.Context, imageName, snapName string) ([]string, error) {
@@ -214,22 +243,19 @@ func (r *Inspector) GetChildren(ctx context.Context, imageName, snapName string)
 		return nil, nil
 	}
 
-	var children []string
+	return parseChildrenOutput(output), nil
+}
+
+// parseImagesOutput parses the newline-delimited output of "rbd ls".
+func parseImagesOutput(output string) []string {
+	var images []string
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		// Extract image name from "pool/image" format
-		parts := strings.SplitN(line, "/", 2)
-		if len(parts) == 2 {
-			children = append(children, parts[1])
-		} else {
-			children = append(children, line)
+		if line != "" {
+			images = append(images, line)
 		}
 	}
-
-	return children, nil
+	return images
 }
 
 // ListImages returns all RBD image names in the pool.
@@ -245,15 +271,7 @@ func (r *Inspector) ListImages(ctx context.Context) ([]string, error) {
 		return nil, nil
 	}
 
-	var images []string
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			images = append(images, line)
-		}
-	}
-
-	return images, nil
+	return parseImagesOutput(output), nil
 }
 
 // GetOmapData retrieves omap key-value data for an RBD image.

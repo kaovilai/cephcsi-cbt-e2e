@@ -1,6 +1,7 @@
 package rbd
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -76,4 +77,135 @@ func TestParseCephMajorVersion(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseChildrenOutput(t *testing.T) {
+tests := []struct {
+name   string
+output string
+want   []string
+}{
+{
+name:   "empty",
+output: "",
+want:   nil,
+},
+{
+name:   "single child",
+output: "rbd/csi-vol-abc123",
+want:   []string{"csi-vol-abc123"},
+},
+{
+name:   "multiple children",
+output: "rbd/csi-vol-abc123\nrbd/csi-vol-def456\n",
+want:   []string{"csi-vol-abc123", "csi-vol-def456"},
+},
+{
+name:   "trailing whitespace",
+output: "  rbd/csi-vol-abc123  \n  rbd/csi-vol-def456  \n",
+want:   []string{"csi-vol-abc123", "csi-vol-def456"},
+},
+{
+name:   "no pool prefix",
+output: "csi-vol-abc123",
+want:   []string{"csi-vol-abc123"},
+},
+{
+name:   "blank lines skipped",
+output: "rbd/img1\n\nrbd/img2\n",
+want:   []string{"img1", "img2"},
+},
+}
+for _, tc := range tests {
+t.Run(tc.name, func(t *testing.T) {
+got := parseChildrenOutput(tc.output)
+if !reflect.DeepEqual(got, tc.want) {
+t.Errorf("parseChildrenOutput(%q) = %v, want %v", tc.output, got, tc.want)
+}
+})
+}
+}
+
+func TestParseImagesOutput(t *testing.T) {
+tests := []struct {
+name   string
+output string
+want   []string
+}{
+{
+name:   "empty",
+output: "",
+want:   nil,
+},
+{
+name:   "single image",
+output: "csi-vol-abc123",
+want:   []string{"csi-vol-abc123"},
+},
+{
+name:   "multiple images",
+output: "csi-vol-abc123\ncsi-vol-def456\n",
+want:   []string{"csi-vol-abc123", "csi-vol-def456"},
+},
+{
+name:   "blank lines skipped",
+output: "img1\n\nimg2\n",
+want:   []string{"img1", "img2"},
+},
+{
+name:   "whitespace-only lines skipped",
+output: "img1\n   \nimg2\n",
+want:   []string{"img1", "img2"},
+},
+}
+for _, tc := range tests {
+t.Run(tc.name, func(t *testing.T) {
+got := parseImagesOutput(tc.output)
+if !reflect.DeepEqual(got, tc.want) {
+t.Errorf("parseImagesOutput(%q) = %v, want %v", tc.output, got, tc.want)
+}
+})
+}
+}
+
+func TestImageNameFromParentRef(t *testing.T) {
+tests := []struct {
+name      string
+parentRef string
+want      string
+}{
+{
+name:      "standard pool/image@snap",
+parentRef: "rbd/csi-vol-abc123@csi-snap-xyz",
+want:      "csi-vol-abc123",
+},
+{
+name:      "no snapshot suffix",
+parentRef: "rbd/csi-vol-abc123",
+want:      "csi-vol-abc123",
+},
+{
+name:      "no pool prefix",
+parentRef: "csi-vol-abc123@csi-snap-xyz",
+want:      "",
+},
+{
+name:      "empty string",
+parentRef: "",
+want:      "",
+},
+{
+name:      "multiple pool path segments",
+parentRef: "rbd/pool/csi-vol-abc123@csi-snap-xyz",
+want:      "csi-vol-abc123",
+},
+}
+for _, tc := range tests {
+t.Run(tc.name, func(t *testing.T) {
+got := imageNameFromParentRef(tc.parentRef)
+if got != tc.want {
+t.Errorf("imageNameFromParentRef(%q) = %q, want %q", tc.parentRef, got, tc.want)
+}
+})
+}
 }
