@@ -81,7 +81,7 @@ func ReadBlockHash(ctx context.Context, clientset kubernetes.Interface, config *
 func VerifyAllocatedBlocks(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName string, result *cbt.MetadataResult) error {
 
-	zeroHash := zeroBlockHash(DefaultBlockSize)
+	defaultZeroHash := zeroBlockHash(DefaultBlockSize)
 
 	for _, block := range result.Blocks {
 		hash, err := ReadBlockHash(ctx, clientset, config, namespace, podName, block.ByteOffset, block.SizeBytes)
@@ -89,6 +89,7 @@ func VerifyAllocatedBlocks(ctx context.Context, clientset kubernetes.Interface, 
 			return fmt.Errorf("failed to read block at offset %d: %w", block.ByteOffset, err)
 		}
 
+		zeroHash := defaultZeroHash
 		if block.SizeBytes != DefaultBlockSize {
 			zeroHash = zeroBlockHash(block.SizeBytes)
 		}

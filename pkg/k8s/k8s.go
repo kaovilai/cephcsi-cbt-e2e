@@ -406,20 +406,16 @@ func DeletePod(ctx context.Context, clientset kubernetes.Interface, namespace, n
 
 // WaitForPodDeleted waits until a pod no longer exists.
 func WaitForPodDeleted(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
-	deadline := time.After(timeout)
-	for {
+	if err := wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		_, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
-			return nil
+			return true, nil
 		}
-		select {
-		case <-deadline:
-			return fmt.Errorf("pod %s/%s still exists after %v", namespace, name, timeout)
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
+		return false, nil
+	}); err != nil {
+		return fmt.Errorf("pod %s/%s still exists after %v: %w", namespace, name, timeout, err)
 	}
+	return nil
 }
 
 // RebindPVWithVolumeMode creates a new PV with a different VolumeMode pointing to
