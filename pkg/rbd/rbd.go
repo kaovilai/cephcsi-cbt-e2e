@@ -37,7 +37,7 @@ func NewInspector(clientset kubernetes.Interface, config *rest.Config, namespace
 func (r *Inspector) execInToolbox(ctx context.Context, command []string) (string, error) {
 	pod, err := k8s.GetToolboxPod(ctx, r.clientset, r.namespace)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get toolbox pod for %v: %w", command, err)
 	}
 
 	// Use the first container in the toolbox pod (container name varies by ODF version)
@@ -279,7 +279,7 @@ func (r *Inspector) ListOmapKeys(ctx context.Context, imageName string) ([]strin
 	return strings.Split(output, "\n"), nil
 }
 
-// GetCephVersion returns the Ceph version string from the cluster.
+// GetCephVersion returns the raw "ceph version X.Y.Z ..." string from the toolbox pod.
 func (r *Inspector) GetCephVersion(ctx context.Context) (string, error) {
 	return r.execInToolbox(ctx, []string{"ceph", "version"})
 }
@@ -310,11 +310,9 @@ func parseCephMajorVersion(version string) (int, error) {
 	return major, nil
 }
 
-// GetRBDImageNameFromPV extracts the RBD image name from a PV's CSI volume handle.
-// The CSI volume handle for Ceph RBD typically has the format:
-// <clusterID>-<pool>-<unique-id>
-func (r *Inspector) GetRBDImageNameFromPV(ctx context.Context, clientset kubernetes.Interface, pvName string) (string, error) {
-	pv, err := clientset.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{})
+// GetRBDImageNameFromPV extracts the RBD image name from a PV's CSI volume attributes.
+func (r *Inspector) GetRBDImageNameFromPV(ctx context.Context, pvName string) (string, error) {
+	pv, err := r.clientset.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get PV %s: %w", pvName, err)
 	}
