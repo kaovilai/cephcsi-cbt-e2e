@@ -90,7 +90,7 @@ func (r *Inspector) getRBDInfo(ctx context.Context, imageName string) (*rbdImage
 func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (bool, error) {
 	info, err := r.getRBDInfo(ctx, imageName)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("IsImageFlattened %s: %w", imageName, err)
 	}
 
 	// An image is flattened if it has no parent
@@ -101,7 +101,7 @@ func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (boo
 func (r *Inspector) GetImageParent(ctx context.Context, imageName string) (string, error) {
 	info, err := r.getRBDInfo(ctx, imageName)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("GetImageParent %s: %w", imageName, err)
 	}
 
 	if info.Parent == nil {
@@ -119,7 +119,7 @@ func (r *Inspector) GetCloneDepth(ctx context.Context, imageName string) (int, e
 	for {
 		parent, err := r.GetImageParent(ctx, current)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("GetCloneDepth at depth %d image %s: %w", depth, current, err)
 		}
 		if parent == "" {
 			break
@@ -141,7 +141,7 @@ func (r *Inspector) GetCloneDepth(ctx context.Context, imageName string) (int, e
 func (r *Inspector) GetSnapshotCount(ctx context.Context, imageName string) (int, error) {
 	snaps, err := r.ListSnapshots(ctx, imageName)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("GetSnapshotCount %s: %w", imageName, err)
 	}
 	return len(snaps), nil
 }
@@ -288,7 +288,7 @@ func (r *Inspector) GetCephVersion(ctx context.Context) (string, error) {
 func (r *Inspector) GetCephMajorVersion(ctx context.Context) (int, error) {
 	version, err := r.GetCephVersion(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("GetCephMajorVersion: %w", err)
 	}
 	return parseCephMajorVersion(version)
 }
