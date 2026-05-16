@@ -24,7 +24,39 @@ COMMON_FLAGS = \
 	--cephcsi-namespace=$(CEPHCSI_NAMESPACE) \
 	--test-namespace=$(TEST_NAMESPACE)
 
-.PHONY: build e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-clean
+.PHONY: help build e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-clean
+
+## help: Show this help message.
+help:
+	@echo "CephCSI CBT E2E — available targets:"
+	@echo ""
+	@echo "  Build"
+	@echo "    build              Compile all packages"
+	@echo "    lint               Run golangci-lint"
+	@echo "    lint-fix           Run golangci-lint with --fix"
+	@echo ""
+	@echo "  Local test targets (require port-forwarding or a local cluster)"
+	@echo "    e2e                Full suite (~20 min on OCP 4.21), 5 h timeout"
+	@echo "    e2e-fast           Full suite minus stored-diffs tests, 2 h timeout"
+	@echo "    e2e-rox            ROX PVC tests, 30 min"
+	@echo "    e2e-rox-deletion   Counter-based deletion tests, 30 min"
+	@echo "    e2e-flattening     Flattening prevention tests, 30 min"
+	@echo "    e2e-stored-diffs   Stored diffs gap/manual flatten tests, 1 h"
+	@echo "    e2e-errors         Error handling tests, 30 min"
+	@echo "    e2e-backup         Backup workflow tests, 1 h"
+	@echo "    e2e-compliance     Velero/block-metadata/error compliance + resize, 1 h"
+	@echo "    e2e-resize         Volume resize tests, 30 min"
+	@echo ""
+	@echo "  In-cluster targets (cross-compile + oc cp + oc exec)"
+	@echo "    cluster-e2e        Full suite in-cluster"
+	@echo "    cluster-compliance Compliance tests in-cluster"
+	@echo "    cluster-clean      Remove runner pod and namespace"
+	@echo ""
+	@echo "  Override defaults via env vars:"
+	@echo "    STORAGE_CLASS      (default: $(STORAGE_CLASS))"
+	@echo "    SNAPSHOT_CLASS     (default: $(SNAPSHOT_CLASS))"
+	@echo "    CEPHCSI_NAMESPACE  (default: $(CEPHCSI_NAMESPACE))"
+	@echo "    TEST_NAMESPACE     (default: $(TEST_NAMESPACE))"
 
 build:
 	go build ./...
