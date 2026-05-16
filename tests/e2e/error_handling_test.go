@@ -34,6 +34,16 @@ var _ = Describe("Error Handling", func() {
 		snap1Name := "err-cross-snap1"
 		snap2Name := "err-cross-snap2"
 
+		DeferCleanup(func() {
+			cleanCtx := context.Background()
+			_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snap2Name)
+			_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snap1Name)
+			_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, pod2Name)
+			_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, pod1Name)
+			_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvc2Name)
+			_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvc1Name)
+		})
+
 		// Clean up any leftovers from a previous failed run
 		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snap2Name)
 		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snap1Name)
@@ -90,12 +100,6 @@ var _ = Describe("Error Handling", func() {
 		Expect(err).To(HaveOccurred(),
 			"GetMetadataDelta across snapshots from different PVCs should return error")
 		GinkgoWriter.Printf("Expected error for cross-PVC delta: %v\n", err)
-
-		// Cleanup
-		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snap2Name)
-		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snap1Name)
-		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvc2Name)
-		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvc1Name)
 	})
 
 	It("should return error for reversed snapshot order in GetMetadataDelta", func() {
@@ -103,6 +107,14 @@ var _ = Describe("Error Handling", func() {
 		podName := "err-reversed-pod"
 		snapOlder := "err-reversed-snap-old"
 		snapNewer := "err-reversed-snap-new"
+
+		DeferCleanup(func() {
+			cleanCtx := context.Background()
+			_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snapNewer)
+			_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snapOlder)
+			_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, podName)
+			_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvcName)
+		})
 
 		_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
 			Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
@@ -136,16 +148,18 @@ var _ = Describe("Error Handling", func() {
 		Expect(err).To(HaveOccurred(),
 			"GetMetadataDelta with reversed snapshot order should return error")
 		GinkgoWriter.Printf("Expected error for reversed order: %v\n", err)
-
-		// Cleanup
-		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snapNewer)
-		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snapOlder)
-		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvcName)
 	})
 
 	It("should handle concurrent snapshot creation and CBT operations", func() {
 		pvcName := "err-concurrent-pvc"
 		podName := "err-concurrent-pod"
+
+		DeferCleanup(func() {
+			cleanCtx := context.Background()
+			_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, "err-concurrent-base")
+			_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, podName)
+			_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvcName)
+		})
 
 		_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
 			Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
@@ -187,16 +201,19 @@ var _ = Describe("Error Handling", func() {
 		for i, e := range errs {
 			Expect(e).NotTo(HaveOccurred(), fmt.Sprintf("concurrent CBT call %d should not fail", i))
 		}
-
-		// Cleanup
-		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, baseSnap)
-		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvcName)
 	})
 
 	It("should handle large volume with many blocks", func() {
 		pvcName := "err-large-pvc"
 		podName := "err-large-pod"
 		snapName := "err-large-snap"
+
+		DeferCleanup(func() {
+			cleanCtx := context.Background()
+			_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snapName)
+			_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, podName)
+			_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvcName)
+		})
 
 		// Clean up any leftovers from a previous failed run
 		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snapName)
@@ -234,10 +251,6 @@ var _ = Describe("Error Handling", func() {
 		Expect(result.Blocks).NotTo(BeEmpty())
 		GinkgoWriter.Printf("Large volume: %d blocks, capacity %d bytes\n",
 			len(result.Blocks), result.VolumeCapacityBytes)
-
-		// Cleanup
-		_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snapName)
-		_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvcName)
 	})
 
 	// Handle-based error compliance tests (GetChangedBlocksByID error cases)
@@ -246,6 +259,13 @@ var _ = Describe("Error Handling", func() {
 			pvcName := "errc-inv-pvc"
 			podName := "errc-inv-pod"
 			snapName := "errc-inv-snap"
+
+			DeferCleanup(func() {
+				cleanCtx := context.Background()
+				_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snapName)
+				_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, podName)
+				_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvcName)
+			})
 
 			By("Creating PVC and waiting for it to be bound")
 			_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
@@ -278,10 +298,6 @@ var _ = Describe("Error Handling", func() {
 			_, err = cbtClient.GetChangedBlocksByID(ctx, "garbage-handle-does-not-exist", snapName)
 			Expect(err).To(HaveOccurred())
 			GinkgoWriter.Printf("Expected error for invalid snapshot handle: %v\n", err)
-
-			// Cleanup
-			_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snapName)
-			_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvcName)
 		})
 
 		It("should return error for GetChangedBlocksByID with handle from different volume", func() {
@@ -291,6 +307,16 @@ var _ = Describe("Error Handling", func() {
 			pvc2Name := "errc-xvol-pvc2"
 			pod2Name := "errc-xvol-pod2"
 			snap2Name := "errc-xvol-snap2"
+
+			DeferCleanup(func() {
+				cleanCtx := context.Background()
+				_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snap2Name)
+				_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snap1Name)
+				_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, pod2Name)
+				_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, pod1Name)
+				_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvc2Name)
+				_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvc1Name)
+			})
 
 			By("Creating first PVC and waiting for it to be bound")
 			_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
@@ -345,18 +371,19 @@ var _ = Describe("Error Handling", func() {
 			_, err = cbtClient.GetChangedBlocksByID(ctx, pvc1Handle, snap2Name)
 			Expect(err).To(HaveOccurred())
 			GinkgoWriter.Printf("Expected error for cross-volume handle: %v\n", err)
-
-			// Cleanup
-			_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snap2Name)
-			_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snap1Name)
-			_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvc2Name)
-			_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvc1Name)
 		})
 
 		It("should return error when querying CBT on snapshot that is not ready", func() {
 			pvcName := "errc-notready-pvc"
 			podName := "errc-notready-pod"
 			snapName := "errc-notready-snap"
+
+			DeferCleanup(func() {
+				cleanCtx := context.Background()
+				_ = k8sutil.DeleteSnapshot(cleanCtx, snapClient, testNamespace, snapName)
+				_ = k8sutil.DeletePod(cleanCtx, clientset, testNamespace, podName)
+				_ = k8sutil.DeletePVC(cleanCtx, clientset, testNamespace, pvcName)
+			})
 
 			By("Creating PVC and waiting for it to be bound")
 			_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
@@ -390,10 +417,6 @@ var _ = Describe("Error Handling", func() {
 			By("Waiting for snapshot to become ready for cleanup")
 			_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 			Expect(err).NotTo(HaveOccurred())
-
-			// Cleanup
-			_ = k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, snapName)
-			_ = k8sutil.DeletePVC(ctx, clientset, testNamespace, pvcName)
 		})
 	})
 })
