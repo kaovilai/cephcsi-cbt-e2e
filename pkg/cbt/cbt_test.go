@@ -47,6 +47,7 @@ func TestContainsOffset(t *testing.T) {
 		{name: "miss: before block", blocks: []BlockMetadata{block(4096, 4096)}, offset: 4095, want: false},
 		{name: "miss: after block", blocks: []BlockMetadata{block(4096, 4096)}, offset: 8192, want: false},
 		{name: "miss: offset zero, block non-zero", blocks: []BlockMetadata{block(4096, 4096)}, offset: 0, want: false},
+		{name: "zero-size block does not contain its own offset", blocks: []BlockMetadata{block(4096, 0)}, offset: 4096, want: false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
