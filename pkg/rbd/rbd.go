@@ -290,7 +290,11 @@ func (r *Inspector) GetCephMajorVersion(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	return parseCephMajorVersion(version)
+}
 
+// parseCephMajorVersion parses the major version from a "ceph version X.Y.Z ..." string.
+func parseCephMajorVersion(version string) (int, error) {
 	// Parse "ceph version 17.2.6 (xxx) quincy (stable)"
 	parts := strings.Fields(version)
 	if len(parts) < 3 {
