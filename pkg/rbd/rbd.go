@@ -205,16 +205,25 @@ func (r *Inspector) ListSnapshots(ctx context.Context, imageName string) ([]RBDS
 	return snapshots, nil
 }
 
+// splitLines splits newline-delimited command output into trimmed, non-empty lines.
+// This is the canonical helper for all line-based parsing in this package.
+func splitLines(output string) []string {
+	var lines []string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
 // parseChildrenOutput parses the newline-delimited output of "rbd children".
 // Each line has the form "pool/image"; only the image name is returned.
 // Lines without a "/" are returned as-is.
 func parseChildrenOutput(output string) []string {
 	var children []string
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
+	for _, line := range splitLines(output) {
 		parts := strings.SplitN(line, "/", 2)
 		if len(parts) == 2 {
 			children = append(children, parts[1])
@@ -248,14 +257,7 @@ func (r *Inspector) GetChildren(ctx context.Context, imageName, snapName string)
 
 // parseImagesOutput parses the newline-delimited output of "rbd ls".
 func parseImagesOutput(output string) []string {
-	var images []string
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			images = append(images, line)
-		}
-	}
-	return images
+	return splitLines(output)
 }
 
 // ListImages returns all RBD image names in the pool.
@@ -296,11 +298,12 @@ func (r *Inspector) ListOmapKeys(ctx context.Context, imageName string) ([]strin
 		return nil, fmt.Errorf("rados listomapkeys failed: %w", err)
 	}
 
-	if output == "" {
+	lines := splitLines(output)
+	if len(lines) == 0 {
 		return nil, nil
 	}
 
-	return strings.Split(output, "\n"), nil
+	return lines, nil
 }
 
 // GetCephVersion returns the raw "ceph version X.Y.Z ..." string from the toolbox pod.
