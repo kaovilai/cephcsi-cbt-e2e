@@ -86,6 +86,10 @@ for i in $(seq 1 60); do
     fi
     sleep 2
 done
+if [ "$READY" != "true" ]; then
+    echo "ERROR: Snapshot did not become ready within 120s."
+    exit 1
+fi
 
 echo ""
 echo "=== Snapshot details ==="
@@ -161,4 +165,9 @@ echo "=== Done. Now check CephCSI driver version ==="
 oc exec -n openshift-storage "$TOOLBOX" -- ceph version
 echo ""
 echo "=== CephCSI image version ==="
-oc get pods -n openshift-storage -o jsonpath='{range .items[?(@.metadata.name=="openshift-storage.rbd.csi.ceph.com-ctrlplugin-69d4dd6445-8jl4z")]}{range .spec.containers[*]}{.name}: {.image}{"\n"}{end}{end}' 2>/dev/null
+CTRLPLUGIN_POD=$(oc get pods -n openshift-storage -l "app=openshift-storage.rbd.csi.ceph.com-ctrlplugin" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | head -1)
+if [ -n "$CTRLPLUGIN_POD" ]; then
+    oc get pod -n openshift-storage "$CTRLPLUGIN_POD" -o jsonpath='{range .spec.containers[*]}{.name}: {.image}{"\n"}{end}' 2>/dev/null
+else
+    echo "(ctrlplugin pod not found)"
+fi
