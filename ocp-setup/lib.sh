@@ -1,5 +1,6 @@
 #!/bin/bash
 # Shared helpers for ocp-setup scripts
+set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-openshift-storage}"
 CSI_DRIVER_NAME="${CSI_DRIVER_NAME:-openshift-storage.rbd.csi.ceph.com}"
