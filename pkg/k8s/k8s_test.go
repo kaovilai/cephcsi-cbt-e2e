@@ -167,3 +167,187 @@ func TestDeletePod_NotFound(t *testing.T) {
 		t.Fatalf("unexpected error for NotFound: %v", err)
 	}
 }
+
+func TestCreatePVC_Defaults(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	pvc, err := CreatePVC(ctx, client, PVCOptions{
+		Name:         "test-pvc",
+		Namespace:    "test-ns",
+		StorageClass: "test-sc",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pvc.Name != "test-pvc" {
+		t.Errorf("expected name %q, got %q", "test-pvc", pvc.Name)
+	}
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != "test-sc" {
+		t.Errorf("expected storage class %q", "test-sc")
+	}
+	// Default VolumeMode is Block
+	if pvc.Spec.VolumeMode == nil || *pvc.Spec.VolumeMode != corev1.PersistentVolumeBlock {
+		t.Errorf("expected default VolumeMode=Block")
+	}
+	// Default AccessMode is ReadWriteOnce
+	if len(pvc.Spec.AccessModes) != 1 || pvc.Spec.AccessModes[0] != corev1.ReadWriteOnce {
+		t.Errorf("expected default AccessMode=ReadWriteOnce, got %v", pvc.Spec.AccessModes)
+	}
+	// Default Size is 1Gi
+	storage := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	if storage.String() != "1Gi" {
+		t.Errorf("expected default Size=1Gi, got %s", storage.String())
+	}
+}
+
+func TestCreatePVC_WithSnapshotSource(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	pvc, err := CreatePVC(ctx, client, PVCOptions{
+		Name:           "restored-pvc",
+		Namespace:      "test-ns",
+		StorageClass:   "test-sc",
+		Size:           "5Gi",
+		SnapshotSource: "my-snapshot",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pvc.Spec.DataSource == nil {
+		t.Fatal("expected DataSource to be set from SnapshotSource")
+	}
+	if pvc.Spec.DataSource.Kind != "VolumeSnapshot" {
+		t.Errorf("expected Kind=VolumeSnapshot, got %q", pvc.Spec.DataSource.Kind)
+	}
+	if pvc.Spec.DataSource.Name != "my-snapshot" {
+		t.Errorf("expected DataSource.Name=my-snapshot, got %q", pvc.Spec.DataSource.Name)
+	}
+}
+
+func TestCreatePVC_WithPVCCloneSource(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	pvc, err := CreatePVC(ctx, client, PVCOptions{
+		Name:           "cloned-pvc",
+		Namespace:      "test-ns",
+		StorageClass:   "test-sc",
+		PVCCloneSource: "source-pvc",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pvc.Spec.DataSource == nil {
+		t.Fatal("expected DataSource to be set from PVCCloneSource")
+	}
+	if pvc.Spec.DataSource.Kind != "PersistentVolumeClaim" {
+		t.Errorf("expected Kind=PersistentVolumeClaim, got %q", pvc.Spec.DataSource.Kind)
+	}
+	if pvc.Spec.DataSource.Name != "source-pvc" {
+		t.Errorf("expected DataSource.Name=source-pvc, got %q", pvc.Spec.DataSource.Name)
+	}
+}
+
+func TestDeletePVC_Exists(t *testing.T) {
+	ctx := context.Background()
+	existing := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pvc", Namespace: "test-ns"},
+	}
+	client := fake.NewClientset(existing)
+
+	if err := DeletePVC(ctx, client, "test-ns", "my-pvc"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Verify deletion
+	pvcs, _ := client.CoreV1().PersistentVolumeClaims("test-ns").List(ctx, metav1.ListOptions{})
+	if len(pvcs.Items) != 0 {
+		t.Errorf("expected PVC to be deleted, still found %d items", len(pvcs.Items))
+	}
+}
+
+func TestDeletePVC_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	// Should not return an error when PVC does not exist.
+	if err := DeletePVC(ctx, client, "test-ns", "missing-pvc"); err != nil {
+		t.Fatalf("unexpected error for NotFound: %v", err)
+	}
+}
+
+func TestCreatePodWithPVC_BlockMode(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	pod, err := CreatePodWithPVC(ctx, client, PodOptions{
+		Name:       "test-pod",
+		Namespace:  "test-ns",
+		PVCName:    "test-pvc",
+		VolumeMode: corev1.PersistentVolumeBlock,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pod.Name != "test-pod" {
+		t.Errorf("expected name %q, got %q", "test-pod", pod.Name)
+	}
+	container := pod.Spec.Containers[0]
+	if len(container.VolumeDevices) != 1 {
+		t.Fatalf("expected 1 VolumeDevice, got %d", len(container.VolumeDevices))
+	}
+	if container.VolumeDevices[0].DevicePath != DefaultBlockDevicePath {
+		t.Errorf("expected device path %q, got %q", DefaultBlockDevicePath, container.VolumeDevices[0].DevicePath)
+	}
+	if len(container.VolumeMounts) != 0 {
+		t.Errorf("expected no VolumeMounts for Block mode, got %d", len(container.VolumeMounts))
+	}
+}
+
+func TestCreatePodWithPVC_FilesystemMode(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	pod, err := CreatePodWithPVC(ctx, client, PodOptions{
+		Name:       "test-pod",
+		Namespace:  "test-ns",
+		PVCName:    "test-pvc",
+		VolumeMode: corev1.PersistentVolumeFilesystem,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	container := pod.Spec.Containers[0]
+	if len(container.VolumeMounts) != 1 {
+		t.Fatalf("expected 1 VolumeMount, got %d", len(container.VolumeMounts))
+	}
+	if container.VolumeMounts[0].MountPath != DefaultFilesystemMountPath {
+		t.Errorf("expected mount path %q, got %q", DefaultFilesystemMountPath, container.VolumeMounts[0].MountPath)
+	}
+	if len(container.VolumeDevices) != 0 {
+		t.Errorf("expected no VolumeDevices for Filesystem mode, got %d", len(container.VolumeDevices))
+	}
+}
+
+func TestDeletePV_Exists(t *testing.T) {
+	ctx := context.Background()
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pv"},
+	}
+	client := fake.NewClientset(pv)
+
+	if err := DeletePV(ctx, client, "my-pv"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDeletePV_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	// Should not return an error when PV does not exist.
+	if err := DeletePV(ctx, client, "missing-pv"); err != nil {
+		t.Fatalf("unexpected error for NotFound: %v", err)
+	}
+}
