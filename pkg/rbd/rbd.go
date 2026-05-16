@@ -55,8 +55,8 @@ func (r *Inspector) execInToolbox(ctx context.Context, command []string) (string
 
 // rbdImageInfo holds the JSON output of `rbd info --format json`.
 type rbdImageInfo struct {
-	Name     string `json:"name"`
-	Size     int64  `json:"size"`
+	Name     string   `json:"name"`
+	Size     int64    `json:"size"`
 	Features []string `json:"features"`
 	Parent   *struct {
 		Pool     string `json:"pool"`
@@ -65,18 +65,32 @@ type rbdImageInfo struct {
 	} `json:"parent,omitempty"`
 }
 
-// IsImageFlattened checks whether an RBD image has been flattened (has no parent).
-func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (bool, error) {
+// poolImage returns the pool/image path string for use in rbd commands.
+func (r *Inspector) poolImage(imageName string) string {
+	return fmt.Sprintf("%s/%s", r.pool, imageName)
+}
+
+// getRBDInfo fetches and parses the rbd info JSON for an image.
+func (r *Inspector) getRBDInfo(ctx context.Context, imageName string) (*rbdImageInfo, error) {
 	output, err := r.execInToolbox(ctx, []string{
-		"rbd", "info", fmt.Sprintf("%s/%s", r.pool, imageName), "--format", "json",
+		"rbd", "info", r.poolImage(imageName), "--format", "json",
 	})
 	if err != nil {
-		return false, fmt.Errorf("rbd info failed: %w", err)
+		return nil, fmt.Errorf("rbd info failed for %s: %w", imageName, err)
 	}
 
 	var info rbdImageInfo
 	if err := json.Unmarshal([]byte(output), &info); err != nil {
-		return false, fmt.Errorf("failed to parse rbd info output: %w", err)
+		return nil, fmt.Errorf("failed to parse rbd info output for %s: %w", imageName, err)
+	}
+	return &info, nil
+}
+
+// IsImageFlattened checks whether an RBD image has been flattened (has no parent).
+func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (bool, error) {
+	info, err := r.getRBDInfo(ctx, imageName)
+	if err != nil {
+		return false, err
 	}
 
 	// An image is flattened if it has no parent
@@ -85,16 +99,9 @@ func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (boo
 
 // GetImageParent returns the parent image/snapshot of an RBD image, or empty if flattened.
 func (r *Inspector) GetImageParent(ctx context.Context, imageName string) (string, error) {
-	output, err := r.execInToolbox(ctx, []string{
-		"rbd", "info", fmt.Sprintf("%s/%s", r.pool, imageName), "--format", "json",
-	})
+	info, err := r.getRBDInfo(ctx, imageName)
 	if err != nil {
-		return "", fmt.Errorf("rbd info failed: %w", err)
-	}
-
-	var info rbdImageInfo
-	if err := json.Unmarshal([]byte(output), &info); err != nil {
-		return "", fmt.Errorf("failed to parse rbd info output: %w", err)
+		return "", err
 	}
 
 	if info.Parent == nil {
@@ -132,34 +139,18 @@ func (r *Inspector) GetCloneDepth(ctx context.Context, imageName string) (int, e
 
 // GetSnapshotCount returns the number of snapshots for an RBD image.
 func (r *Inspector) GetSnapshotCount(ctx context.Context, imageName string) (int, error) {
-	output, err := r.execInToolbox(ctx, []string{
-		"rbd", "snap", "ls", fmt.Sprintf("%s/%s", r.pool, imageName), "--format", "json",
-	})
+	snaps, err := r.ListSnapshots(ctx, imageName)
 	if err != nil {
-		// If no snapshots exist, rbd snap ls may return an error or empty output
-		if strings.Contains(err.Error(), "No such file") {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("rbd snap ls failed: %w", err)
+		return 0, err
 	}
-
-	if output == "" || output == "[]" {
-		return 0, nil
-	}
-
-	var snapshots []json.RawMessage
-	if err := json.Unmarshal([]byte(output), &snapshots); err != nil {
-		return 0, fmt.Errorf("failed to parse rbd snap ls output: %w", err)
-	}
-
-	return len(snapshots), nil
+	return len(snaps), nil
 }
 
 // FlattenImage flattens an RBD image, removing its parent reference.
 // This is destructive: the clone chain is permanently broken.
 func (r *Inspector) FlattenImage(ctx context.Context, imageName string) error {
 	_, err := r.execInToolbox(ctx, []string{
-		"rbd", "flatten", fmt.Sprintf("%s/%s", r.pool, imageName),
+		"rbd", "flatten", r.poolImage(imageName),
 	})
 	if err != nil {
 		return fmt.Errorf("rbd flatten failed for %s: %w", imageName, err)
@@ -178,7 +169,7 @@ type RBDSnapshot struct {
 // ListSnapshots returns the snapshots for an RBD image.
 func (r *Inspector) ListSnapshots(ctx context.Context, imageName string) ([]RBDSnapshot, error) {
 	output, err := r.execInToolbox(ctx, []string{
-		"rbd", "snap", "ls", fmt.Sprintf("%s/%s", r.pool, imageName), "--format", "json",
+		"rbd", "snap", "ls", r.poolImage(imageName), "--format", "json",
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "No such file") {
