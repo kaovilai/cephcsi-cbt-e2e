@@ -45,7 +45,10 @@ func CreateNamespace(ctx context.Context, clientset kubernetes.Interface, name s
 	if errors.IsAlreadyExists(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("create namespace %s: %w", name, err)
+	}
+	return nil
 }
 
 // DeleteNamespace deletes a namespace, ignoring NotFound.
@@ -54,7 +57,10 @@ func DeleteNamespace(ctx context.Context, clientset kubernetes.Interface, name s
 	if errors.IsNotFound(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("delete namespace %s: %w", name, err)
+	}
+	return nil
 }
 
 // WaitForNamespaceDeleted waits until the namespace is fully removed.
@@ -133,7 +139,11 @@ func CreatePVC(ctx context.Context, clientset kubernetes.Interface, opts PVCOpti
 		pvc.Spec.DataSource = opts.DataSource
 	}
 
-	return clientset.CoreV1().PersistentVolumeClaims(opts.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+	result, err := clientset.CoreV1().PersistentVolumeClaims(opts.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("create PVC %s/%s: %w", opts.Namespace, opts.Name, err)
+	}
+	return result, nil
 }
 
 // CreateROXPVCFromSnapshot creates a ReadOnlyMany PVC from a VolumeSnapshot.
@@ -168,7 +178,10 @@ func DeletePVC(ctx context.Context, clientset kubernetes.Interface, namespace, n
 	if errors.IsNotFound(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("delete PVC %s/%s: %w", namespace, name, err)
+	}
+	return nil
 }
 
 // ResizePVC patches a PVC to request a new storage size.
@@ -216,7 +229,11 @@ func CreateSnapshot(ctx context.Context, snapClient snapclient.Interface, name, 
 		},
 	}
 
-	return snapClient.SnapshotV1().VolumeSnapshots(namespace).Create(ctx, vs, metav1.CreateOptions{})
+	result, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Create(ctx, vs, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("create VolumeSnapshot %s/%s: %w", namespace, name, err)
+	}
+	return result, nil
 }
 
 // WaitForSnapshotReady waits until a VolumeSnapshot is ReadyToUse.
@@ -247,7 +264,10 @@ func DeleteSnapshot(ctx context.Context, snapClient snapclient.Interface, namesp
 	if errors.IsNotFound(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("delete VolumeSnapshot %s/%s: %w", namespace, name, err)
+	}
+	return nil
 }
 
 // WaitForSnapshotDeleted waits until a VolumeSnapshot is fully removed.
@@ -385,7 +405,11 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 		}
 	}
 
-	return clientset.CoreV1().Pods(opts.Namespace).Create(ctx, pod, metav1.CreateOptions{})
+	result, err := clientset.CoreV1().Pods(opts.Namespace).Create(ctx, pod, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("create pod %s/%s: %w", opts.Namespace, opts.Name, err)
+	}
+	return result, nil
 }
 
 // WaitForPodRunning waits until a pod reaches Running phase.
@@ -408,7 +432,10 @@ func DeletePod(ctx context.Context, clientset kubernetes.Interface, namespace, n
 	if errors.IsNotFound(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("delete pod %s/%s: %w", namespace, name, err)
+	}
+	return nil
 }
 
 // WaitForPodDeleted waits until a pod no longer exists.
@@ -511,7 +538,10 @@ func DeletePV(ctx context.Context, clientset kubernetes.Interface, name string) 
 	if errors.IsNotFound(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("delete PV %s: %w", name, err)
+	}
+	return nil
 }
 
 // ExecInPod executes a command in a pod and returns stdout/stderr.
