@@ -12,113 +12,92 @@ func block(offset, size int64) BlockMetadata {
 	return BlockMetadata{ByteOffset: offset, SizeBytes: size}
 }
 
-// TotalChangedBytes
-
-func TestTotalChangedBytes_empty(t *testing.T) {
-	if got := makeResult().TotalChangedBytes(); got != 0 {
-		t.Errorf("expected 0, got %d", got)
+func TestTotalChangedBytes(t *testing.T) {
+	tests := []struct {
+		name   string
+		blocks []BlockMetadata
+		want   int64
+	}{
+		{name: "empty", want: 0},
+		{name: "single", blocks: []BlockMetadata{block(0, 4096)}, want: 4096},
+		{name: "multiple", blocks: []BlockMetadata{block(0, 4096), block(8192, 8192)}, want: 12288},
+		{name: "zero-size block", blocks: []BlockMetadata{block(0, 0)}, want: 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := makeResult(tc.blocks...).TotalChangedBytes()
+			if got != tc.want {
+				t.Errorf("TotalChangedBytes() = %d, want %d", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestTotalChangedBytes_single(t *testing.T) {
-	if got := makeResult(block(0, 4096)).TotalChangedBytes(); got != 4096 {
-		t.Errorf("expected 4096, got %d", got)
+func TestContainsOffset(t *testing.T) {
+	tests := []struct {
+		name   string
+		blocks []BlockMetadata
+		offset int64
+		want   bool
+	}{
+		{name: "empty result", offset: 0, want: false},
+		{name: "hit: start of block", blocks: []BlockMetadata{block(4096, 4096)}, offset: 4096, want: true},
+		{name: "hit: middle of block", blocks: []BlockMetadata{block(4096, 4096)}, offset: 5000, want: true},
+		{name: "hit: last byte of block", blocks: []BlockMetadata{block(4096, 4096)}, offset: 8191, want: true},
+		{name: "miss: before block", blocks: []BlockMetadata{block(4096, 4096)}, offset: 4095, want: false},
+		{name: "miss: after block", blocks: []BlockMetadata{block(4096, 4096)}, offset: 8192, want: false},
+		{name: "miss: offset zero, block non-zero", blocks: []BlockMetadata{block(4096, 4096)}, offset: 0, want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := makeResult(tc.blocks...).ContainsOffset(tc.offset)
+			if got != tc.want {
+				t.Errorf("ContainsOffset(%d) = %v, want %v", tc.offset, got, tc.want)
+			}
+		})
 	}
 }
 
-func TestTotalChangedBytes_multiple(t *testing.T) {
-	r := makeResult(block(0, 4096), block(8192, 8192))
-	if got := r.TotalChangedBytes(); got != 12288 {
-		t.Errorf("expected 12288, got %d", got)
+func TestBlocksAreSorted(t *testing.T) {
+	tests := []struct {
+		name   string
+		blocks []BlockMetadata
+		want   bool
+	}{
+		{name: "empty", want: true},
+		{name: "single", blocks: []BlockMetadata{block(0, 4096)}, want: true},
+		{name: "sorted ascending", blocks: []BlockMetadata{block(0, 4096), block(4096, 4096), block(16384, 512)}, want: true},
+		{name: "unsorted", blocks: []BlockMetadata{block(8192, 4096), block(0, 4096)}, want: false},
+		{name: "duplicate offset", blocks: []BlockMetadata{block(4096, 512), block(4096, 512)}, want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := makeResult(tc.blocks...).BlocksAreSorted()
+			if got != tc.want {
+				t.Errorf("BlocksAreSorted() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
-// ContainsOffset
-
-func TestContainsOffset_empty(t *testing.T) {
-	if makeResult().ContainsOffset(0) {
-		t.Error("expected false for empty result")
+func TestBlocksAreNonOverlapping(t *testing.T) {
+	tests := []struct {
+		name   string
+		blocks []BlockMetadata
+		want   bool
+	}{
+		{name: "empty", want: true},
+		{name: "single", blocks: []BlockMetadata{block(0, 4096)}, want: true},
+		{name: "adjacent blocks", blocks: []BlockMetadata{block(0, 4096), block(4096, 4096)}, want: true},
+		{name: "gapped blocks", blocks: []BlockMetadata{block(0, 512), block(4096, 512)}, want: true},
+		{name: "overlapping blocks", blocks: []BlockMetadata{block(0, 8192), block(4096, 4096)}, want: false},
 	}
-}
-
-func TestContainsOffset_hit(t *testing.T) {
-	r := makeResult(block(4096, 4096))
-	for _, off := range []int64{4096, 5000, 8191} {
-		if !r.ContainsOffset(off) {
-			t.Errorf("expected offset %d to be contained", off)
-		}
-	}
-}
-
-func TestContainsOffset_miss(t *testing.T) {
-	r := makeResult(block(4096, 4096))
-	for _, off := range []int64{0, 4095, 8192} {
-		if r.ContainsOffset(off) {
-			t.Errorf("expected offset %d to not be contained", off)
-		}
-	}
-}
-
-// BlocksAreSorted
-
-func TestBlocksAreSorted_empty(t *testing.T) {
-	if !makeResult().BlocksAreSorted() {
-		t.Error("expected true for empty result")
-	}
-}
-
-func TestBlocksAreSorted_single(t *testing.T) {
-	if !makeResult(block(0, 4096)).BlocksAreSorted() {
-		t.Error("expected true for single block")
-	}
-}
-
-func TestBlocksAreSorted_sorted(t *testing.T) {
-	r := makeResult(block(0, 4096), block(4096, 4096), block(16384, 512))
-	if !r.BlocksAreSorted() {
-		t.Error("expected sorted blocks to return true")
-	}
-}
-
-func TestBlocksAreSorted_unsorted(t *testing.T) {
-	r := makeResult(block(8192, 4096), block(0, 4096))
-	if r.BlocksAreSorted() {
-		t.Error("expected unsorted blocks to return false")
-	}
-}
-
-func TestBlocksAreSorted_duplicateOffset(t *testing.T) {
-	r := makeResult(block(4096, 512), block(4096, 512))
-	if r.BlocksAreSorted() {
-		t.Error("expected duplicate offsets to return false")
-	}
-}
-
-// BlocksAreNonOverlapping
-
-func TestBlocksAreNonOverlapping_empty(t *testing.T) {
-	if !makeResult().BlocksAreNonOverlapping() {
-		t.Error("expected true for empty result")
-	}
-}
-
-func TestBlocksAreNonOverlapping_noOverlap(t *testing.T) {
-	r := makeResult(block(0, 4096), block(4096, 4096))
-	if !r.BlocksAreNonOverlapping() {
-		t.Error("expected adjacent blocks to be non-overlapping")
-	}
-}
-
-func TestBlocksAreNonOverlapping_overlap(t *testing.T) {
-	r := makeResult(block(0, 8192), block(4096, 4096))
-	if r.BlocksAreNonOverlapping() {
-		t.Error("expected overlapping blocks to return false")
-	}
-}
-
-func TestBlocksAreNonOverlapping_gapped(t *testing.T) {
-	r := makeResult(block(0, 512), block(4096, 512))
-	if !r.BlocksAreNonOverlapping() {
-		t.Error("expected gapped blocks to be non-overlapping")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := makeResult(tc.blocks...).BlocksAreNonOverlapping()
+			if got != tc.want {
+				t.Errorf("BlocksAreNonOverlapping() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

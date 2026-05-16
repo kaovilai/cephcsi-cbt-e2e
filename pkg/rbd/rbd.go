@@ -302,10 +302,6 @@ func parseCephMajorVersion(version string) (int, error) {
 	}
 
 	versionParts := strings.Split(parts[2], ".")
-	if len(versionParts) < 1 {
-		return 0, fmt.Errorf("unexpected version number format: %s", parts[2])
-	}
-
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse major version: %w", err)
