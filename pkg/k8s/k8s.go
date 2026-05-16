@@ -186,7 +186,7 @@ func WaitForPVCBound(ctx context.Context, clientset kubernetes.Interface, namesp
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 		return pvc.Status.Phase == corev1.ClaimBound, nil
 	}); err != nil {
@@ -265,7 +265,7 @@ func WaitForSnapshotReady(ctx context.Context, snapClient snapclient.Interface, 
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		vs, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 		if vs.Status == nil || vs.Status.ReadyToUse == nil {
 			return false, nil
@@ -350,7 +350,7 @@ func GetSnapshotHandle(ctx context.Context, snapClient snapclient.Interface, nam
 	}
 
 	if vsc.Status == nil || vsc.Status.SnapshotHandle == nil {
-		return "", fmt.Errorf("VolumeSnapshotContent has no snapshot handle")
+		return "", fmt.Errorf("VolumeSnapshotContent %s has no snapshot handle", *vs.Status.BoundVolumeSnapshotContentName)
 	}
 
 	return *vsc.Status.SnapshotHandle, nil
@@ -436,13 +436,24 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 }
 
 // WaitForPodRunning waits until a pod reaches Running phase.
+// Returns immediately with an error if the pod enters a terminal failure state.
 func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
-			return false, nil
+			return false, err
 		}
-		return pod.Status.Phase == corev1.PodRunning, nil
+		switch pod.Status.Phase {
+		case corev1.PodRunning:
+			return true, nil
+		case corev1.PodFailed:
+			return false, fmt.Errorf("pod %s/%s entered Failed phase (reason: %s, message: %s)",
+				namespace, name, pod.Status.Reason, pod.Status.Message)
+		case corev1.PodSucceeded:
+			// Succeeded without ever entering Running — treat as failure for test pods
+			return false, fmt.Errorf("pod %s/%s exited unexpectedly with Succeeded phase", namespace, name)
+		}
+		return false, nil
 	}); err != nil {
 		return fmt.Errorf("pod %s/%s not running after %v: %w", namespace, name, timeout, err)
 	}
