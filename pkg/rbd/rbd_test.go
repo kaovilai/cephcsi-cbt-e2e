@@ -126,6 +126,53 @@ t.Errorf("parseChildrenOutput(%q) = %v, want %v", tc.output, got, tc.want)
 }
 }
 
+func TestSplitLines(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   []string
+	}{
+		{
+			name:   "empty",
+			output: "",
+			want:   nil,
+		},
+		{
+			name:   "single line",
+			output: "key1",
+			want:   []string{"key1"},
+		},
+		{
+			name:   "multiple lines with trailing newline",
+			output: "key1\nkey2\nkey3\n",
+			want:   []string{"key1", "key2", "key3"},
+		},
+		{
+			name:   "blank lines skipped",
+			output: "key1\n\nkey2\n",
+			want:   []string{"key1", "key2"},
+		},
+		{
+			name:   "whitespace-only lines skipped",
+			output: "key1\n   \nkey2\n",
+			want:   []string{"key1", "key2"},
+		},
+		{
+			name:   "leading and trailing whitespace trimmed",
+			output: "  key1  \n  key2  \n",
+			want:   []string{"key1", "key2"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := splitLines(tc.output)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("splitLines(%q) = %v, want %v", tc.output, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestParseImagesOutput(t *testing.T) {
 tests := []struct {
 name   string
