@@ -1,7 +1,12 @@
 package rbd
 
 import (
+	"context"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestParseCephMajorVersion(t *testing.T) {
@@ -75,5 +80,90 @@ func TestParseCephMajorVersion(t *testing.T) {
 				t.Errorf("expected %d, got %d", tc.want, got)
 			}
 		})
+	}
+}
+
+func newTestInspector(client *fake.Clientset) *Inspector {
+	return NewInspector(client, nil, "rook-ceph", "replicapool")
+}
+
+func csiPV(name, imageName string) *corev1.PersistentVolume {
+	return &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver:       "rbd.csi.ceph.com",
+					VolumeHandle: "handle-" + name,
+					VolumeAttributes: map[string]string{
+						"imageName": imageName,
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestGetRBDImageNameFromPV_Found(t *testing.T) {
+	pv := csiPV("my-pv", "csi-vol-abc123")
+	client := fake.NewClientset(pv)
+	insp := newTestInspector(client)
+
+	got, err := insp.GetRBDImageNameFromPV(context.Background(), "my-pv")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "csi-vol-abc123" {
+		t.Errorf("expected %q, got %q", "csi-vol-abc123", got)
+	}
+}
+
+func TestGetRBDImageNameFromPV_PVNotFound(t *testing.T) {
+	client := fake.NewClientset()
+	insp := newTestInspector(client)
+
+	_, err := insp.GetRBDImageNameFromPV(context.Background(), "missing-pv")
+	if err == nil {
+		t.Fatal("expected error for missing PV, got nil")
+	}
+}
+
+func TestGetRBDImageNameFromPV_NotCSI(t *testing.T) {
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "hostpath-pv"},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{Path: "/tmp"},
+			},
+		},
+	}
+	client := fake.NewClientset(pv)
+	insp := newTestInspector(client)
+
+	_, err := insp.GetRBDImageNameFromPV(context.Background(), "hostpath-pv")
+	if err == nil {
+		t.Fatal("expected error for non-CSI PV, got nil")
+	}
+}
+
+func TestGetRBDImageNameFromPV_NoImageNameAttr(t *testing.T) {
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "no-attr-pv"},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver:           "rbd.csi.ceph.com",
+					VolumeHandle:     "some-handle",
+					VolumeAttributes: map[string]string{"pool": "replicapool"},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pv)
+	insp := newTestInspector(client)
+
+	_, err := insp.GetRBDImageNameFromPV(context.Background(), "no-attr-pv")
+	if err == nil {
+		t.Fatal("expected error when imageName attribute is missing, got nil")
 	}
 }
