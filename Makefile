@@ -24,7 +24,7 @@ COMMON_FLAGS = \
 	--cephcsi-namespace=$(CEPHCSI_NAMESPACE) \
 	--test-namespace=$(TEST_NAMESPACE)
 
-.PHONY: help build test vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-fast cluster-clean
+.PHONY: help build test vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize e2e-rebind lint lint-fix cluster-compliance cluster-e2e cluster-fast cluster-rebind cluster-clean
 
 ## help: Show this help message.
 help:
@@ -49,11 +49,13 @@ help:
 	@echo "    e2e-backup         Backup workflow tests, 1 h"
 	@echo "    e2e-compliance     Velero/block-metadata/error compliance + resize, 1 h"
 	@echo "    e2e-resize         Volume resize tests, 30 min"
+	@echo "    e2e-rebind         Volume mode rebind tests, 30 min"
 	@echo ""
 	@echo "  In-cluster targets (cross-compile + oc cp + oc exec)"
 	@echo "    cluster-e2e        Full suite in-cluster"
 	@echo "    cluster-fast       Full suite minus stored-diffs, in-cluster"
 	@echo "    cluster-compliance Compliance tests in-cluster"
+	@echo "    cluster-rebind     Volume mode rebind tests in-cluster"
 	@echo "    cluster-clean      Remove runner pod and namespace"
 	@echo ""
 	@echo "  Override defaults via env vars:"
@@ -114,6 +116,10 @@ e2e-compliance:
 e2e-resize:
 	$(GINKGO) -v --timeout=30m --focus='Volume Resize' ./tests/e2e/... -- $(COMMON_FLAGS)
 
+# Category K: Volume Mode Rebind
+e2e-rebind:
+	$(GINKGO) -v --timeout=30m --focus='Volume Mode Rebind' ./tests/e2e/... -- $(COMMON_FLAGS)
+
 # In-cluster execution (cross-compile + oc cp + oc exec)
 cluster-compliance:
 	./run-in-cluster.sh -ginkgo.focus='Velero Compliance|Block Metadata Properties|Error Compliance|Volume Resize' -ginkgo.timeout=1h
@@ -128,6 +134,10 @@ cluster-fast:
 
 cluster-clean:
 	./run-in-cluster.sh --clean
+
+# Volume mode rebind tests in-cluster
+cluster-rebind:
+	./run-in-cluster.sh -ginkgo.focus='Volume Mode Rebind' -ginkgo.timeout=30m
 
 GOLANGCI_LINT = go tool -modfile=golangci-lint.mod golangci-lint
 
