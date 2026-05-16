@@ -28,6 +28,17 @@ import (
 	"github.com/cephcsi-cbt-e2e/pkg/rbd"
 )
 
+const (
+	// cbtSAName is the ServiceAccount created for CBT client authentication.
+	cbtSAName = "cbt-e2e-client"
+	// cbtClusterRoleBindingName is the ClusterRoleBinding granting CBT access to the SA.
+	cbtClusterRoleBindingName = "cbt-e2e-client-binding"
+	// cbtClusterRoleName is the ClusterRole that grants CBT client permissions.
+	cbtClusterRoleName = "external-snapshot-metadata-client-runner"
+	// sidecarContainerName is the expected container name for the snapshot-metadata sidecar.
+	sidecarContainerName = "csi-snapshot-metadata"
+)
+
 var (
 	storageClass     string
 	snapshotClass    string
@@ -104,14 +115,36 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), "VolumeSnapshot CRDs not installed (external-snapshotter required)")
 
 	By("Checking SnapshotMetadataService CRD exists")
-	smsList, err := smsClient.CbtV1beta1().SnapshotMetadataServices().List(ctx, metav1.ListOptions{Limit: 1})
+	// List without a limit so that --snapshot-metadata-service can find any named SMS.
+	smsList, err := smsClient.CbtV1beta1().SnapshotMetadataServices().List(ctx, metav1.ListOptions{})
 	Expect(err).NotTo(HaveOccurred(),
 		"SnapshotMetadataService CRD (cbt.storage.k8s.io/v1beta1) not found. "+
 			"Ensure external-snapshot-metadata v1.0.0+ is deployed.")
 
 	By("Checking snapshot-metadata gRPC endpoint is reachable (in-cluster DNS)")
+	// If --snapshot-metadata-service was specified, verify that named SMS exists.
+	if smsName != "" {
+		found := false
+		for _, item := range smsList.Items {
+			if item.Name == smsName {
+				found = true
+				break
+			}
+		}
+		Expect(found).To(BeTrue(), "SnapshotMetadataService %q not found", smsName)
+	}
 	if len(smsList.Items) > 0 {
-		smsAddr := smsList.Items[0].Spec.Address
+		// If a specific service was requested, prefer it; otherwise use the first available.
+		smsIndex := 0
+		if smsName != "" {
+			for i, item := range smsList.Items {
+				if item.Name == smsName {
+					smsIndex = i
+					break
+				}
+			}
+		}
+		smsAddr := smsList.Items[smsIndex].Spec.Address
 		host, _, splitErr := net.SplitHostPort(smsAddr)
 		if splitErr != nil {
 			host = smsAddr
@@ -165,7 +198,7 @@ var _ = BeforeSuite(func() {
 	hasSidecar := false
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
-			if container.Name == "csi-snapshot-metadata" {
+			if container.Name == sidecarContainerName {
 				hasSidecar = true
 				break
 			}
@@ -175,9 +208,10 @@ var _ = BeforeSuite(func() {
 		}
 	}
 	if !hasSidecar {
-		log.Println("WARNING: external-snapshot-metadata sidecar not found in RBD provisioner pods. " +
-			"CBT tests requiring GetMetadataAllocated/GetMetadataDelta will fail. " +
-			"Deploy the csi-snapshot-metadata container as a sidecar in the RBD provisioner pod.")
+		log.Printf("WARNING: %s sidecar not found in RBD provisioner pods. "+
+			"CBT tests requiring GetMetadataAllocated/GetMetadataDelta will fail. "+
+			"Deploy the %s container as a sidecar in the RBD provisioner pod.",
+			sidecarContainerName, sidecarContainerName)
 	}
 
 	By("Checking StorageClass exists")
@@ -201,7 +235,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Creating ServiceAccount for CBT client authentication")
-	cbtSAName := "cbt-e2e-client"
 	_, err = clientset.CoreV1().ServiceAccounts(testNamespace).Create(ctx, &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: cbtSAName},
 	}, metav1.CreateOptions{})
@@ -212,11 +245,11 @@ var _ = BeforeSuite(func() {
 
 	By("Creating ClusterRoleBinding for CBT client ServiceAccount")
 	_, err = clientset.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{Name: "cbt-e2e-client-binding"},
+		ObjectMeta: metav1.ObjectMeta{Name: cbtClusterRoleBindingName},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     "external-snapshot-metadata-client-runner",
+			Name:     cbtClusterRoleName,
 		},
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
@@ -238,7 +271,7 @@ var _ = AfterSuite(func() {
 	ctx := context.Background()
 
 	By("Cleaning up CBT client ClusterRoleBinding")
-	_ = clientset.RbacV1().ClusterRoleBindings().Delete(ctx, "cbt-e2e-client-binding", metav1.DeleteOptions{})
+	_ = clientset.RbacV1().ClusterRoleBindings().Delete(ctx, cbtClusterRoleBindingName, metav1.DeleteOptions{})
 
 	By(fmt.Sprintf("Cleaning up test namespace %s", testNamespace))
 	err := k8sutil.DeleteNamespace(ctx, clientset, testNamespace)
