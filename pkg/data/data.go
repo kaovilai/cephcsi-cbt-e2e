@@ -5,6 +5,7 @@ package data
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -163,13 +164,16 @@ func mountFilePath(filename string) string {
 }
 
 // WriteFile writes content to a file on a Filesystem-mode PVC mounted at /mnt/data.
+// Content is base64-encoded before injection into the shell command to avoid
+// quoting issues with single quotes or other special characters.
 func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename, content string) error {
 
 	path := mountFilePath(filename)
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
 	cmd := []string{
 		"sh", "-c",
-		fmt.Sprintf("printf '%%s' '%s' > %s && sync", content, path),
+		fmt.Sprintf("echo '%s' | base64 -d > '%s' && sync", encoded, path),
 	}
 
 	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
@@ -200,7 +204,7 @@ func ReadFileHash(ctx context.Context, clientset kubernetes.Interface, config *r
 	path := mountFilePath(filename)
 	cmd := []string{
 		"sh", "-c",
-		fmt.Sprintf("sha256sum %s | cut -d' ' -f1", path),
+		fmt.Sprintf("sha256sum '%s' | cut -d' ' -f1", path),
 	}
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
