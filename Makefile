@@ -24,7 +24,7 @@ COMMON_FLAGS = \
 	--cephcsi-namespace=$(CEPHCSI_NAMESPACE) \
 	--test-namespace=$(TEST_NAMESPACE)
 
-.PHONY: help build test vet e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-fast cluster-clean
+.PHONY: help build test vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-fast cluster-clean
 
 ## help: Show this help message.
 help:
@@ -32,6 +32,7 @@ help:
 	@echo ""
 	@echo "  Build"
 	@echo "    build              Compile all packages"
+	@echo "    clean              Remove compiled test binary (e2e.test)"
 	@echo "    test               Run unit tests (pkg/...)"
 	@echo "    vet                Run go vet on all packages"
 	@echo "    lint               Run golangci-lint"
@@ -63,6 +64,9 @@ help:
 
 build:
 	go build ./...
+
+clean:
+	rm -f e2e.test
 
 test:
 	go test ./pkg/...
