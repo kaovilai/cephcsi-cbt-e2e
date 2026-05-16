@@ -17,10 +17,12 @@ import (
 
 // Inspector provides RBD introspection via the Ceph toolbox pod.
 type Inspector struct {
-	clientset kubernetes.Interface
-	config    *rest.Config
-	namespace string
-	pool      string
+	clientset        kubernetes.Interface
+	config           *rest.Config
+	namespace        string
+	pool             string
+	toolboxPodName   string
+	toolboxContainer string
 }
 
 // NewInspector creates a new RBD inspector.
@@ -34,18 +36,22 @@ func NewInspector(clientset kubernetes.Interface, config *rest.Config, namespace
 }
 
 // execInToolbox executes a command in the Ceph toolbox pod.
+// The toolbox pod name and container are cached after the first successful lookup
+// to avoid repeated pod-list API calls in operations that call execInToolbox in a loop
+// (e.g. GetCloneDepth traversing the clone chain).
 func (r *Inspector) execInToolbox(ctx context.Context, command []string) (string, error) {
-	pod, err := k8s.GetToolboxPod(ctx, r.clientset, r.namespace)
-	if err != nil {
-		return "", fmt.Errorf("get toolbox pod for %v: %w", command, err)
+	if r.toolboxPodName == "" {
+		pod, err := k8s.GetToolboxPod(ctx, r.clientset, r.namespace)
+		if err != nil {
+			return "", fmt.Errorf("get toolbox pod for %v: %w", command, err)
+		}
+		r.toolboxPodName = pod.Name
+		if len(pod.Spec.Containers) > 0 {
+			r.toolboxContainer = pod.Spec.Containers[0].Name
+		}
 	}
 
-	// Use the first container in the toolbox pod (container name varies by ODF version)
-	containerName := ""
-	if len(pod.Spec.Containers) > 0 {
-		containerName = pod.Spec.Containers[0].Name
-	}
-	stdout, stderr, err := k8s.ExecInPod(ctx, r.clientset, r.config, r.namespace, pod.Name, containerName, command)
+	stdout, stderr, err := k8s.ExecInPod(ctx, r.clientset, r.config, r.namespace, r.toolboxPodName, r.toolboxContainer, command)
 	if err != nil {
 		return "", fmt.Errorf("toolbox exec failed (stderr: %s): %w", stderr, err)
 	}

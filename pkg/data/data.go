@@ -19,9 +19,11 @@ const (
 	// DefaultBlockSize is the default CBT block size (1 MiB).
 	DefaultBlockSize = 1024 * 1024
 	// DefaultDevicePath is the default block device path in pods.
-	DefaultDevicePath = "/dev/xvda"
+	// It is an alias for k8s.DefaultBlockDevicePath to maintain a single source of truth.
+	DefaultDevicePath = k8s.DefaultBlockDevicePath
 	// DefaultMountPath is the mount directory for Filesystem-mode PVCs in test pods.
-	DefaultMountPath = "/mnt/data"
+	// It is an alias for k8s.DefaultFilesystemMountPath to maintain a single source of truth.
+	DefaultMountPath = k8s.DefaultFilesystemMountPath
 )
 
 // WriteKnownPattern writes a known byte pattern at a specific offset on a block device.
