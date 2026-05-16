@@ -24,7 +24,7 @@ COMMON_FLAGS = \
 	--cephcsi-namespace=$(CEPHCSI_NAMESPACE) \
 	--test-namespace=$(TEST_NAMESPACE)
 
-.PHONY: help build test vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize e2e-rebind lint lint-fix cluster-compliance cluster-e2e cluster-fast cluster-rebind cluster-clean
+.PHONY: help build test vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize e2e-rebind lint lint-fix cluster-e2e cluster-fast cluster-compliance cluster-rox cluster-rox-deletion cluster-flattening cluster-stored-diffs cluster-errors cluster-backup cluster-resize cluster-rebind cluster-clean
 
 ## help: Show this help message.
 help:
@@ -52,11 +52,18 @@ help:
 	@echo "    e2e-rebind         Volume mode rebind tests, 30 min"
 	@echo ""
 	@echo "  In-cluster targets (cross-compile + oc cp + oc exec)"
-	@echo "    cluster-e2e        Full suite in-cluster"
-	@echo "    cluster-fast       Full suite minus stored-diffs, in-cluster"
-	@echo "    cluster-compliance Compliance tests in-cluster"
-	@echo "    cluster-rebind     Volume mode rebind tests in-cluster"
-	@echo "    cluster-clean      Remove runner pod and namespace"
+	@echo "    cluster-e2e          Full suite in-cluster"
+	@echo "    cluster-fast         Full suite minus stored-diffs, in-cluster"
+	@echo "    cluster-compliance   Compliance tests in-cluster"
+	@echo "    cluster-rox          ROX PVC tests in-cluster"
+	@echo "    cluster-rox-deletion Counter-based deletion tests in-cluster"
+	@echo "    cluster-flattening   Flattening prevention tests in-cluster"
+	@echo "    cluster-stored-diffs Stored diffs tests in-cluster"
+	@echo "    cluster-errors       Error handling tests in-cluster"
+	@echo "    cluster-backup       Backup workflow tests in-cluster"
+	@echo "    cluster-resize       Volume resize tests in-cluster"
+	@echo "    cluster-rebind       Volume mode rebind tests in-cluster"
+	@echo "    cluster-clean        Remove runner pod and namespace"
 	@echo ""
 	@echo "  Override defaults via env vars:"
 	@echo "    STORAGE_CLASS      (default: $(STORAGE_CLASS))"
@@ -138,6 +145,34 @@ cluster-clean:
 # Volume mode rebind tests in-cluster
 cluster-rebind:
 	./run-in-cluster.sh -ginkgo.focus='Volume Mode Rebind' -ginkgo.timeout=30m
+
+# ROX PVC tests in-cluster
+cluster-rox:
+	./run-in-cluster.sh -ginkgo.focus='ROX PVC' -ginkgo.timeout=30m
+
+# Counter-based deletion tests in-cluster
+cluster-rox-deletion:
+	./run-in-cluster.sh -ginkgo.focus='Counter-based Deletion' -ginkgo.timeout=30m
+
+# Flattening prevention tests in-cluster
+cluster-flattening:
+	./run-in-cluster.sh -ginkgo.focus='Flattening Prevention' -ginkgo.timeout=30m
+
+# Stored diffs tests in-cluster
+cluster-stored-diffs:
+	./run-in-cluster.sh -ginkgo.label-filter='stored-diffs' -ginkgo.timeout=1h
+
+# Error handling tests in-cluster
+cluster-errors:
+	./run-in-cluster.sh -ginkgo.focus='Error Handling' -ginkgo.timeout=30m
+
+# Backup workflow tests in-cluster
+cluster-backup:
+	./run-in-cluster.sh -ginkgo.focus='Backup Workflow' -ginkgo.timeout=1h
+
+# Volume resize tests in-cluster
+cluster-resize:
+	./run-in-cluster.sh -ginkgo.focus='Volume Resize' -ginkgo.timeout=30m
 
 GOLANGCI_LINT = go tool -modfile=golangci-lint.mod golangci-lint
 
