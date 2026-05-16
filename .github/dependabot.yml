@@ -1,20 +1,22 @@
-version: 2
 updates:
-  - package-ecosystem: gomod
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      k8s:
-        patterns:
-          - "k8s.io/*"
-      csi:
-        patterns:
-          - "github.com/kubernetes-csi/*"
-      ginkgo:
-        patterns:
-          - "github.com/onsi/*"
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
+- directory: /
+  groups:
+    csi:
+      patterns:
+      - github.com/kubernetes-csi/*
+    ginkgo:
+      patterns:
+      - github.com/onsi/*
+    k8s:
+      patterns:
+      - k8s.io/*
+  package-ecosystem: gomod
+  schedule:
+    interval: weekly
+- directory: /
+  ignore:
+  - dependency-name: "github/gh-aw-actions/**" # Managed by gh aw compile. Version-locked to the gh-aw compiler; do not bump.
+  package-ecosystem: github-actions
+  schedule:
+    interval: weekly
+version: 2
