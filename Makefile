@@ -24,7 +24,7 @@ COMMON_FLAGS = \
 	--cephcsi-namespace=$(CEPHCSI_NAMESPACE) \
 	--test-namespace=$(TEST_NAMESPACE)
 
-.PHONY: help build e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-clean
+.PHONY: help build test vet e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize lint lint-fix cluster-compliance cluster-e2e cluster-fast cluster-clean
 
 ## help: Show this help message.
 help:
@@ -32,6 +32,8 @@ help:
 	@echo ""
 	@echo "  Build"
 	@echo "    build              Compile all packages"
+	@echo "    test               Run unit tests (pkg/...)"
+	@echo "    vet                Run go vet on all packages"
 	@echo "    lint               Run golangci-lint"
 	@echo "    lint-fix           Run golangci-lint with --fix"
 	@echo ""
@@ -49,6 +51,7 @@ help:
 	@echo ""
 	@echo "  In-cluster targets (cross-compile + oc cp + oc exec)"
 	@echo "    cluster-e2e        Full suite in-cluster"
+	@echo "    cluster-fast       Full suite minus stored-diffs, in-cluster"
 	@echo "    cluster-compliance Compliance tests in-cluster"
 	@echo "    cluster-clean      Remove runner pod and namespace"
 	@echo ""
@@ -60,6 +63,12 @@ help:
 
 build:
 	go build ./...
+
+test:
+	go test ./pkg/...
+
+vet:
+	go vet ./...
 
 # Full suite (~20m on OCP 4.21)
 e2e:
@@ -108,6 +117,10 @@ cluster-compliance:
 # Full suite in-cluster (~20m observed on OCP 4.21)
 cluster-e2e:
 	./run-in-cluster.sh -ginkgo.timeout=5h
+
+# Skip stored-diffs tests in-cluster (faster)
+cluster-fast:
+	./run-in-cluster.sh -ginkgo.label-filter='!stored-diffs' -ginkgo.timeout=2h
 
 cluster-clean:
 	./run-in-cluster.sh --clean
