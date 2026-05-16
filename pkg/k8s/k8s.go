@@ -52,13 +52,16 @@ func DeleteNamespace(ctx context.Context, clientset kubernetes.Interface, name s
 
 // WaitForNamespaceDeleted waits until the namespace is fully removed.
 func WaitForNamespaceDeleted(ctx context.Context, clientset kubernetes.Interface, name string, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		_, err := clientset.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
 		}
 		return false, nil
-	})
+	}); err != nil {
+		return fmt.Errorf("namespace %s not deleted after %v: %w", name, timeout, err)
+	}
+	return nil
 }
 
 // PVCOptions configures PVC creation.
@@ -140,13 +143,16 @@ func CreateROXPVCFromSnapshot(ctx context.Context, clientset kubernetes.Interfac
 
 // WaitForPVCBound waits until a PVC reaches Bound phase.
 func WaitForPVCBound(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
 		}
 		return pvc.Status.Phase == corev1.ClaimBound, nil
-	})
+	}); err != nil {
+		return fmt.Errorf("PVC %s/%s not bound after %v: %w", namespace, name, timeout, err)
+	}
+	return nil
 }
 
 // DeletePVC deletes a PVC, ignoring NotFound.
@@ -172,7 +178,7 @@ func ResizePVC(ctx context.Context, clientset kubernetes.Interface, namespace, n
 
 // WaitForPVCResized waits until a PVC's status capacity reaches the expected size.
 func WaitForPVCResized(ctx context.Context, clientset kubernetes.Interface, namespace, name string, expectedSize resource.Quantity, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -182,7 +188,10 @@ func WaitForPVCResized(ctx context.Context, clientset kubernetes.Interface, name
 		}
 		currentSize := pvc.Status.Capacity[corev1.ResourceStorage]
 		return currentSize.Cmp(expectedSize) >= 0, nil
-	})
+	}); err != nil {
+		return fmt.Errorf("PVC %s/%s not resized to %s after %v: %w", namespace, name, expectedSize.String(), timeout, err)
+	}
+	return nil
 }
 
 // CreateSnapshot creates a VolumeSnapshot for a given PVC.
@@ -206,7 +215,7 @@ func CreateSnapshot(ctx context.Context, snapClient snapclient.Interface, name, 
 // WaitForSnapshotReady waits until a VolumeSnapshot is ReadyToUse.
 func WaitForSnapshotReady(ctx context.Context, snapClient snapclient.Interface, namespace, name string, timeout time.Duration) (*snapshotv1.VolumeSnapshot, error) {
 	var result *snapshotv1.VolumeSnapshot
-	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		vs, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -219,8 +228,10 @@ func WaitForSnapshotReady(ctx context.Context, snapClient snapclient.Interface, 
 			return true, nil
 		}
 		return false, nil
-	})
-	return result, err
+	}); err != nil {
+		return nil, fmt.Errorf("VolumeSnapshot %s/%s not ready after %v: %w", namespace, name, timeout, err)
+	}
+	return result, nil
 }
 
 // DeleteSnapshot deletes a VolumeSnapshot, ignoring NotFound.
@@ -234,13 +245,16 @@ func DeleteSnapshot(ctx context.Context, snapClient snapclient.Interface, namesp
 
 // WaitForSnapshotDeleted waits until a VolumeSnapshot is fully removed.
 func WaitForSnapshotDeleted(ctx context.Context, snapClient snapclient.Interface, namespace, name string, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		_, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
 		}
 		return false, nil
-	})
+	}); err != nil {
+		return fmt.Errorf("VolumeSnapshot %s/%s not deleted after %v: %w", namespace, name, timeout, err)
+	}
+	return nil
 }
 
 // GetSnapshotContentName returns the bound VolumeSnapshotContent name for a VolumeSnapshot.
@@ -257,13 +271,16 @@ func GetSnapshotContentName(ctx context.Context, snapClient snapclient.Interface
 
 // WaitForSnapshotContentDeleted waits until a VolumeSnapshotContent is fully removed.
 func WaitForSnapshotContentDeleted(ctx context.Context, snapClient snapclient.Interface, name string, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		_, err := snapClient.SnapshotV1().VolumeSnapshotContents().Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
 		}
 		return false, nil
-	})
+	}); err != nil {
+		return fmt.Errorf("VolumeSnapshotContent %s not deleted after %v: %w", name, timeout, err)
+	}
+	return nil
 }
 
 // GetSnapshotHandle returns the CSI snapshot handle from a VolumeSnapshot.
@@ -366,13 +383,16 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 
 // WaitForPodRunning waits until a pod reaches Running phase.
 func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
 		}
 		return pod.Status.Phase == corev1.PodRunning, nil
-	})
+	}); err != nil {
+		return fmt.Errorf("pod %s/%s not running after %v: %w", namespace, name, timeout, err)
+	}
+	return nil
 }
 
 // DeletePod deletes a pod, ignoring NotFound.
