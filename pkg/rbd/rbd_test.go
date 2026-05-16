@@ -27,6 +27,11 @@ func TestParseCephMajorVersion(t *testing.T) {
 			want:  19,
 		},
 		{
+			name:    "empty string",
+			input:   "",
+			wantErr: true,
+		},
+		{
 			name:    "too short",
 			input:   "ceph version",
 			wantErr: true,
