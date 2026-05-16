@@ -28,6 +28,23 @@ const (
 	pollInterval = 5 * time.Second
 	// fastPollInterval is used for short-lived resources like pods.
 	fastPollInterval = 2 * time.Second
+
+	// DefaultPodImage is the default container image used for test pods.
+	DefaultPodImage = "registry.access.redhat.com/ubi9/ubi-minimal:latest"
+
+	// defaultContainerName is the name given to the main container in test pods,
+	// and the fallback used by ExecInPod when no explicit container is specified.
+	defaultContainerName = "main"
+
+	// volumeName is the volume name used inside test pods for the PVC attachment.
+	volumeName = "data"
+
+	// snapshotAPIGroup is the API group for VolumeSnapshot resources.
+	snapshotAPIGroup = "snapshot.storage.k8s.io"
+
+	// toolboxPodNameFragment is used to find the Ceph toolbox pod by name when
+	// label-based lookups fail.
+	toolboxPodNameFragment = "rook-ceph-tools"
 )
 
 // CreateNamespace creates a namespace, ignoring AlreadyExists.
@@ -124,7 +141,7 @@ func CreatePVC(ctx context.Context, clientset kubernetes.Interface, opts PVCOpti
 
 	// Set DataSource from snapshot or clone shorthand
 	if opts.SnapshotSource != "" {
-		apiGroup := "snapshot.storage.k8s.io"
+		apiGroup := snapshotAPIGroup
 		pvc.Spec.DataSource = &corev1.TypedLocalObjectReference{
 			APIGroup: &apiGroup,
 			Kind:     "VolumeSnapshot",
@@ -348,7 +365,7 @@ type PodOptions struct {
 // CreatePodWithPVC creates a pod that mounts a PVC.
 func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts PodOptions) (*corev1.Pod, error) {
 	if opts.Image == "" {
-		opts.Image = "registry.access.redhat.com/ubi9/ubi-minimal:latest"
+		opts.Image = DefaultPodImage
 	}
 	if opts.MountPath == "" {
 		if opts.VolumeMode == corev1.PersistentVolumeBlock {
@@ -369,14 +386,14 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:    "main",
+					Name:    defaultContainerName,
 					Image:   opts.Image,
 					Command: opts.Command,
 				},
 			},
 			Volumes: []corev1.Volume{
 				{
-					Name: "data",
+					Name: volumeName,
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: opts.PVCName,
@@ -391,14 +408,14 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 	if opts.VolumeMode == corev1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = []corev1.VolumeDevice{
 			{
-				Name:       "data",
+				Name:       volumeName,
 				DevicePath: opts.MountPath,
 			},
 		}
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
 			{
-				Name:      "data",
+				Name:      volumeName,
 				MountPath: opts.MountPath,
 				ReadOnly:  opts.ReadOnly,
 			},
@@ -547,7 +564,7 @@ func DeletePV(ctx context.Context, clientset kubernetes.Interface, name string) 
 // ExecInPod executes a command in a pod and returns stdout/stderr.
 func ExecInPod(ctx context.Context, clientset kubernetes.Interface, config *rest.Config, namespace, podName, container string, command []string) (string, string, error) {
 	if container == "" {
-		container = "main"
+		container = defaultContainerName
 	}
 
 	req := clientset.CoreV1().RESTClient().Post().
@@ -581,8 +598,8 @@ func ExecInPod(ctx context.Context, clientset kubernetes.Interface, config *rest
 func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespace string) (*corev1.Pod, error) {
 	// Try multiple selectors for different ODF/Rook versions
 	selectors := []string{
-		"app=rook-ceph-tools",
-		"app=rook-ceph-tools,app.kubernetes.io/part-of=rook-ceph-operator",
+		"app=" + toolboxPodNameFragment,
+		"app=" + toolboxPodNameFragment + ",app.kubernetes.io/part-of=rook-ceph-operator",
 	}
 	for _, selector := range selectors {
 		pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
@@ -607,7 +624,7 @@ func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespac
 		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
 	for i := range allPods.Items {
-		if strings.Contains(allPods.Items[i].Name, "rook-ceph-tools") {
+		if strings.Contains(allPods.Items[i].Name, toolboxPodNameFragment) {
 			return &allPods.Items[i], nil
 		}
 	}
