@@ -78,6 +78,7 @@ spec:
 EOF
 
 echo "Waiting for snapshot to be ready..."
+READY="false"
 for i in $(seq 1 60); do
     READY=$(oc get volumesnapshot -n "$NS" debug-snap1 -o jsonpath='{.status.readyToUse}' 2>/dev/null || echo "false")
     if [ "$READY" = "true" ]; then

@@ -117,19 +117,26 @@ echo "Service created."
 
 # Wait for TLS secret to be auto-generated
 echo "Waiting for TLS secret..."
+TLS_SECRET_FOUND=false
 for i in $(seq 1 30); do
     if oc get secret -n "$NAMESPACE" csi-snapshot-metadata-certs &>/dev/null; then
         echo "TLS secret 'csi-snapshot-metadata-certs' is available."
+        TLS_SECRET_FOUND=true
         break
     fi
     echo "  Waiting... ($i/30)"
     sleep 5
 done
+if ! $TLS_SECRET_FOUND; then
+    echo "ERROR: TLS secret 'csi-snapshot-metadata-certs' was not created after 150s."
+    echo "  Check that the Service has the serving-cert annotation and the cluster has cert-manager."
+    exit 1
+fi
 
 # --- 4e: Create SnapshotMetadataService CR ---
 echo ""
 echo "--- 4e: Creating SnapshotMetadataService CR ---"
-CA_CERT=$(oc get secrets -n "$NAMESPACE" csi-snapshot-metadata-certs -o jsonpath='{.data.tls\.crt}')
+CA_CERT=$(oc get secrets -n "$NAMESPACE" csi-snapshot-metadata-certs -o jsonpath='{.data.tls\.crt}' 2>/dev/null || echo "")
 if [ -z "$CA_CERT" ]; then
     echo "ERROR: Could not get CA cert from secret. Aborting."
     exit 1
@@ -264,6 +271,8 @@ fi
 sleep 10
 
 echo "Waiting for operator to reconcile deployment..."
+HAS_SIDECAR=false
+HAS_TLS_VOL=false
 for i in $(seq 1 36); do
     CONTAINERS=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" \
       -o jsonpath='{.spec.template.spec.containers[*].name}')
