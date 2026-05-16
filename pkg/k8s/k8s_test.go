@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	snapfake "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -349,5 +351,152 @@ func TestDeletePV_NotFound(t *testing.T) {
 	// Should not return an error when PV does not exist.
 	if err := DeletePV(ctx, client, "missing-pv"); err != nil {
 		t.Fatalf("unexpected error for NotFound: %v", err)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func TestGetSnapshotContentName_Success(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: ptr("my-content"),
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+
+	got, err := GetSnapshotContentName(ctx, client, "test-ns", "my-snap")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "my-content" {
+		t.Errorf("got %q, want %q", got, "my-content")
+	}
+}
+
+func TestGetSnapshotContentName_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+
+	_, err := GetSnapshotContentName(ctx, client, "test-ns", "missing-snap")
+	if err == nil {
+		t.Fatal("expected error for missing snapshot, got nil")
+	}
+}
+
+func TestGetSnapshotContentName_NilStatus(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		// Status is nil — snapshot not yet bound
+	}
+	client := snapfake.NewSimpleClientset(vs)
+
+	_, err := GetSnapshotContentName(ctx, client, "test-ns", "my-snap")
+	if err == nil {
+		t.Fatal("expected error for unbound snapshot, got nil")
+	}
+}
+
+func TestGetSnapshotContentName_NilContentName(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: nil,
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+
+	_, err := GetSnapshotContentName(ctx, client, "test-ns", "my-snap")
+	if err == nil {
+		t.Fatal("expected error when BoundVolumeSnapshotContentName is nil, got nil")
+	}
+}
+
+func TestGetSnapshotHandle_Success(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: ptr("my-content"),
+		},
+	}
+	vsc := &snapshotv1.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-content"},
+		Status: &snapshotv1.VolumeSnapshotContentStatus{
+			SnapshotHandle: ptr("ceph-handle-abc123"),
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs, vsc)
+
+	got, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "ceph-handle-abc123" {
+		t.Errorf("got %q, want %q", got, "ceph-handle-abc123")
+	}
+}
+
+func TestGetSnapshotHandle_SnapshotNotFound(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+
+	_, err := GetSnapshotHandle(ctx, client, "test-ns", "missing-snap")
+	if err == nil {
+		t.Fatal("expected error for missing snapshot, got nil")
+	}
+}
+
+func TestGetSnapshotHandle_SnapshotNotBound(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		// Status nil — not bound yet
+	}
+	client := snapfake.NewSimpleClientset(vs)
+
+	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
+	if err == nil {
+		t.Fatal("expected error for unbound snapshot, got nil")
+	}
+}
+
+func TestGetSnapshotHandle_ContentNotFound(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: ptr("missing-content"),
+		},
+	}
+	// VolumeSnapshotContent is not added to the fake client
+	client := snapfake.NewSimpleClientset(vs)
+
+	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
+	if err == nil {
+		t.Fatal("expected error for missing VolumeSnapshotContent, got nil")
+	}
+}
+
+func TestGetSnapshotHandle_NoHandle(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: ptr("my-content"),
+		},
+	}
+	vsc := &snapshotv1.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-content"},
+		// Status nil — no handle yet
+	}
+	client := snapfake.NewSimpleClientset(vs, vsc)
+
+	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
+	if err == nil {
+		t.Fatal("expected error for missing snapshot handle, got nil")
 	}
 }
