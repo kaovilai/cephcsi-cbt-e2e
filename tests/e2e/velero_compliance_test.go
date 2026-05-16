@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -48,7 +47,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       podName,
@@ -57,14 +56,14 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing block 0 (0xAA) and creating snapshot 1")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 0, 0xAA)).To(Succeed())
 
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap1Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Getting snapshot 1 handle")
@@ -77,7 +76,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap2Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Getting snapshot 2 handle")
@@ -97,7 +96,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 		By("Creating snapshot 3")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap3Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap3Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap3Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Deleting pod")
@@ -154,7 +153,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, delPVC, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, delPVC, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       delPod,
@@ -163,14 +162,14 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, delPod, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, delPod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing block 0 (0x11) and creating first snapshot (parent)")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, delPod, 0, 0x11)).To(Succeed())
 
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, delSnap1, testNamespace, delPVC, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, delSnap1, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, delSnap1, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		deletedHandle, err := k8sutil.GetSnapshotHandle(ctx, snapClient, testNamespace, delSnap1)
@@ -188,15 +187,15 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, delSnap2, testNamespace, delPVC, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, delSnap2, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, delSnap2, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Deleting parent VolumeSnapshot (simulating Case 1: no retention after backup)")
 		Expect(k8sutil.DeleteSnapshot(ctx, snapClient, testNamespace, delSnap1)).To(Succeed())
-		Expect(k8sutil.WaitForSnapshotDeleted(ctx, snapClient, testNamespace, delSnap1, 3*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForSnapshotDeleted(ctx, snapClient, testNamespace, delSnap1, snapshotReadyTimeout)).To(Succeed())
 
 		By("Waiting for VolumeSnapshotContent to be fully deleted (confirms RBD snapshot cleanup)")
-		Expect(k8sutil.WaitForSnapshotContentDeleted(ctx, snapClient, vscName, 5*time.Minute)).To(Succeed(),
+		Expect(k8sutil.WaitForSnapshotContentDeleted(ctx, snapClient, vscName, longOperationTimeout)).To(Succeed(),
 			"VolumeSnapshotContent %s should be deleted along with the underlying RBD snapshot", vscName)
 
 		By("Attempting delta with deleted parent handle — must fail for Ceph RBD")
@@ -294,7 +293,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			SnapshotSource: snap3Name,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, restorePVC, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, restorePVC, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       restorePod,
@@ -303,7 +302,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, restorePod, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, restorePod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Verifying restored data matches snap3 state")
 		for i := 0; i < 3; i++ {

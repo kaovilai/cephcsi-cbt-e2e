@@ -49,7 +49,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			VolumeMode:   &fsMode,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, fsPVC, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, fsPVC, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Creating pod and writing files to Filesystem PVC")
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -59,7 +59,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeFilesystem,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, fsPod, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, fsPod, pvcPodReadyTimeout)).To(Succeed())
 
 		// Write identifiable files
 		testFiles := map[string]string{
@@ -88,12 +88,12 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 
 		By("Deleting pod before snapshot")
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, fsPod)).To(Succeed())
-		Expect(k8sutil.WaitForPodDeleted(ctx, clientset, testNamespace, fsPod, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodDeleted(ctx, clientset, testNamespace, fsPod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Creating snapshot of Filesystem PVC")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snapName, testNamespace, fsPVC, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snapName, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Annotating VolumeSnapshotContent to allow volume mode conversion (KEP-3141)")
@@ -145,7 +145,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			// VolumeMode defaults to Block
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, blockRestorePVC, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, blockRestorePVC, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       blockRestorePod,
@@ -154,7 +154,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, blockRestorePod, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, blockRestorePod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Verifying CBT-reported blocks contain non-zero data on Block PVC")
 		allocResult, err := cbtClient.GetAllocatedBlocks(ctx, snapName)
@@ -183,7 +183,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			SnapshotSource: snapName,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, restorePVC, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, restorePVC, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Getting the PV name from the restored PVC")
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(testNamespace).Get(ctx, restorePVC, metav1.GetOptions{})
@@ -209,7 +209,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 				return ""
 			}
 			return pv.Status.Phase
-		}, 2*time.Minute, 5*time.Second).Should(Equal(corev1.VolumeReleased))
+		}, pvcPodReadyTimeout, 5*time.Second).Should(Equal(corev1.VolumeReleased))
 
 		By("Rebinding: creating new PV with Filesystem VolumeMode using same volume handle")
 		Expect(k8sutil.RebindPVWithVolumeMode(ctx, clientset,
@@ -218,7 +218,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			[]corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		)).To(Succeed())
 
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, reboundPVC, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, reboundPVC, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Mounting rebound Filesystem PVC and verifying original files")
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -228,7 +228,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeFilesystem,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, reboundPod, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, reboundPod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Verifying each file matches the original hash")
 		for filename, expectedHash := range fileHashes {

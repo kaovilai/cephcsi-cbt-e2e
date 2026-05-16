@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -41,7 +40,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Creating a pod to write data")
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -51,7 +50,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing non-sequential blocks: 5 (0x55), 2 (0x22), 8 (0x88), 0 (0x00)")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 5, 0x55)).To(Succeed())
@@ -61,12 +60,12 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 
 		By("Deleting pod before snapshot 1")
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, podName)).To(Succeed())
-		Expect(k8sutil.WaitForPodDeleted(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodDeleted(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Creating snapshot 1")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap1Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Creating a new pod to write more data")
@@ -77,7 +76,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing blocks 3 (0x33) and 7 (0x77)")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 3, 0x33)).To(Succeed())
@@ -89,7 +88,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 		By("Creating snapshot 2")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap2Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Pre-fetching allocated blocks for snap1")
@@ -197,7 +196,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, oddPVCName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, oddPVCName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Creating a pod to write data")
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -207,7 +206,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, oddPodName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, oddPodName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing block 0 (0xDD)")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, oddPodName, 0, 0xDD)).To(Succeed())
@@ -218,7 +217,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 		By("Creating snapshot")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, oddSnapName, testNamespace, oddPVCName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, oddSnapName, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, oddSnapName, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Getting allocated blocks")

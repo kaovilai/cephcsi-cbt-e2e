@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -53,7 +52,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvcName, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       podName,
@@ -62,7 +61,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		// Write initial data: blocks 0, 1, 2
 		By("Writing initial data for full backup (blocks 0, 1, 2)")
@@ -79,7 +78,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		By("Creating snapshot 1 (full backup point)")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap1Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Modify blocks 1 and 3 for first incremental
@@ -95,7 +94,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		By("Creating snapshot 2 (first incremental)")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap2Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap2Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Modify blocks 2 and 4 for second incremental
@@ -111,7 +110,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		By("Creating snapshot 3 (second incremental)")
 		_, err = k8sutil.CreateSnapshot(ctx, snapClient, snap3Name, testNamespace, pvcName, snapshotClass)
 		Expect(err).NotTo(HaveOccurred())
-		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap3Name, 3*time.Minute)
+		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap3Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, podName)).To(Succeed())
@@ -194,7 +193,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 			SnapshotSource: snap3Name,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, restorePVC, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, restorePVC, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       restorePod,
@@ -203,7 +202,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, restorePod, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, restorePod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Verifying restored data matches final snapshot state")
 		for i := 0; i < 5; i++ {
@@ -237,7 +236,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 
 		_, err := k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVC, testNamespace, storageClass, snap3Name, "1Gi")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVC, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVC, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
 			Name:       roxPod,
@@ -247,7 +246,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 			VolumeMode: corev1.PersistentVolumeBlock,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, roxPod, 2*time.Minute)).To(Succeed())
+		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, roxPod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Reading data from ROX PVC (simulating backup data reader)")
 		for i := 0; i < 5; i++ {
