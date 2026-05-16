@@ -41,6 +41,21 @@ func TestParseCephMajorVersion(t *testing.T) {
 			input:   "ceph version x.2.6 (abc) quincy (stable)",
 			wantErr: true,
 		},
+		{
+			name:  "tentacle 20",
+			input: "ceph version 20.0.0 (abc123) tentacle (dev)",
+			want:  20,
+		},
+		{
+			name:  "no patch version",
+			input: "ceph version 17 (abc) quincy (stable)",
+			want:  17,
+		},
+		{
+			name:    "only two words",
+			input:   "ceph 17",
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range tests {

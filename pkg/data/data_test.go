@@ -68,3 +68,36 @@ func TestZeroBlockHashDeterministic(t *testing.T) {
 		}
 	}
 }
+
+// TestMountFilePath verifies the path construction for Filesystem-mode PVC files.
+func TestMountFilePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		want     string
+	}{
+		{
+			name:     "simple filename",
+			filename: "test.txt",
+			want:     DefaultMountPath + "/test.txt",
+		},
+		{
+			name:     "empty filename",
+			filename: "",
+			want:     DefaultMountPath + "/",
+		},
+		{
+			name:     "nested path",
+			filename: "subdir/file.txt",
+			want:     DefaultMountPath + "/subdir/file.txt",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := mountFilePath(tc.filename)
+			if got != tc.want {
+				t.Errorf("mountFilePath(%q) = %q, want %q", tc.filename, got, tc.want)
+			}
+		})
+	}
+}
