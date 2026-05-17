@@ -410,6 +410,93 @@ func TestDeletePV_NotFound(t *testing.T) {
 	}
 }
 
+func TestCreateROXPVCFromSnapshot(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	pvc, err := CreateROXPVCFromSnapshot(ctx, client, "rox-pvc", "test-ns", "rbd-sc", "my-snap", "5Gi")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pvc.Name != "rox-pvc" {
+		t.Errorf("expected name %q, got %q", "rox-pvc", pvc.Name)
+	}
+	if len(pvc.Spec.AccessModes) != 1 || pvc.Spec.AccessModes[0] != corev1.ReadOnlyMany {
+		t.Errorf("expected AccessMode=ReadOnlyMany, got %v", pvc.Spec.AccessModes)
+	}
+	if pvc.Spec.DataSource == nil || pvc.Spec.DataSource.Kind != "VolumeSnapshot" {
+		t.Error("expected DataSource.Kind=VolumeSnapshot")
+	}
+	if pvc.Spec.DataSource.Name != "my-snap" {
+		t.Errorf("expected DataSource.Name=%q, got %q", "my-snap", pvc.Spec.DataSource.Name)
+	}
+}
+
+func TestCreateSnapshot_Success(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+
+	vs, err := CreateSnapshot(ctx, client, "my-snap", "test-ns", "my-pvc", "csi-snapclass")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if vs.Name != "my-snap" {
+		t.Errorf("expected name %q, got %q", "my-snap", vs.Name)
+	}
+	if vs.Spec.VolumeSnapshotClassName == nil || *vs.Spec.VolumeSnapshotClassName != "csi-snapclass" {
+		t.Errorf("expected VolumeSnapshotClassName=%q", "csi-snapclass")
+	}
+	if vs.Spec.Source.PersistentVolumeClaimName == nil || *vs.Spec.Source.PersistentVolumeClaimName != "my-pvc" {
+		t.Errorf("expected PersistentVolumeClaimName=%q", "my-pvc")
+	}
+}
+
+func TestDeleteSnapshot_Exists(t *testing.T) {
+	ctx := context.Background()
+	existing := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+	}
+	client := snapfake.NewSimpleClientset(existing)
+
+	if err := DeleteSnapshot(ctx, client, "test-ns", "my-snap"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	snaps, _ := client.SnapshotV1().VolumeSnapshots("test-ns").List(ctx, metav1.ListOptions{})
+	if len(snaps.Items) != 0 {
+		t.Errorf("expected snapshot to be deleted, still found %d items", len(snaps.Items))
+	}
+}
+
+func TestDeleteSnapshot_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+
+	// Should not return an error when snapshot does not exist.
+	if err := DeleteSnapshot(ctx, client, "test-ns", "missing-snap"); err != nil {
+		t.Fatalf("unexpected error for NotFound: %v", err)
+	}
+}
+
+func TestResizePVC_Success(t *testing.T) {
+	ctx := context.Background()
+	existing := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pvc", Namespace: "test-ns"},
+	}
+	client := fake.NewClientset(existing)
+
+	if err := ResizePVC(ctx, client, "test-ns", "my-pvc", "10Gi"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	pvc, err := client.CoreV1().PersistentVolumeClaims("test-ns").Get(ctx, "my-pvc", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get PVC after resize: %v", err)
+	}
+	storage := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	if storage.String() != "10Gi" {
+		t.Errorf("expected storage=10Gi after resize, got %s", storage.String())
+	}
+}
+
 func ptr[T any](v T) *T { return &v }
 
 func TestGetSnapshotContentName_Success(t *testing.T) {
