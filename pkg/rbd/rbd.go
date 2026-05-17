@@ -186,6 +186,19 @@ type RBDSnapshot struct {
 	Protected string `json:"protected"`
 }
 
+// parseSnapshotsJSON parses the JSON output of "rbd snap ls --format json"
+// into a slice of RBDSnapshot. Returns nil for empty or empty-array output.
+func parseSnapshotsJSON(output string) ([]RBDSnapshot, error) {
+	if output == "" || output == "[]" {
+		return nil, nil
+	}
+	var snapshots []RBDSnapshot
+	if err := json.Unmarshal([]byte(output), &snapshots); err != nil {
+		return nil, fmt.Errorf("failed to parse rbd snap ls: %w", err)
+	}
+	return snapshots, nil
+}
+
 // ListSnapshots returns the snapshots for an RBD image.
 func (r *Inspector) ListSnapshots(ctx context.Context, imageName string) ([]RBDSnapshot, error) {
 	output, err := r.execInToolbox(ctx, []string{
@@ -197,17 +210,7 @@ func (r *Inspector) ListSnapshots(ctx context.Context, imageName string) ([]RBDS
 		}
 		return nil, fmt.Errorf("rbd snap ls failed: %w", err)
 	}
-
-	if output == "" || output == "[]" {
-		return nil, nil
-	}
-
-	var snapshots []RBDSnapshot
-	if err := json.Unmarshal([]byte(output), &snapshots); err != nil {
-		return nil, fmt.Errorf("failed to parse rbd snap ls: %w", err)
-	}
-
-	return snapshots, nil
+	return parseSnapshotsJSON(output)
 }
 
 // splitLines splits newline-delimited command output into trimmed, non-empty lines.

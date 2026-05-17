@@ -370,3 +370,73 @@ func TestPoolImage(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSnapshotsJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    []RBDSnapshot
+		wantErr bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "empty array",
+			input: "[]",
+			want:  nil,
+		},
+		{
+			name:  "single snapshot",
+			input: `[{"id":1,"name":"csi-snap-abc","size":10737418240,"protected":"false"}]`,
+			want: []RBDSnapshot{
+				{ID: 1, Name: "csi-snap-abc", Size: 10737418240, Protected: "false"},
+			},
+		},
+		{
+			name: "multiple snapshots",
+			input: `[{"id":1,"name":"snap-1","size":1073741824,"protected":"false"},` +
+				`{"id":2,"name":"snap-2","size":2147483648,"protected":"true"}]`,
+			want: []RBDSnapshot{
+				{ID: 1, Name: "snap-1", Size: 1073741824, Protected: "false"},
+				{ID: 2, Name: "snap-2", Size: 2147483648, Protected: "true"},
+			},
+		},
+		{
+			name:    "invalid JSON",
+			input:   `[{"id":1,"name":}]`,
+			wantErr: true,
+		},
+		{
+			name:    "not an array",
+			input:   `{"id":1,"name":"snap-1"}`,
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseSnapshotsJSON(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+			if len(got) != len(tc.want) {
+				t.Errorf("parseSnapshotsJSON(%q) returned %d snapshots, want %d", tc.input, len(got), len(tc.want))
+				return
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("snapshot[%d] = %+v, want %+v", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
