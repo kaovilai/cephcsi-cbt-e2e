@@ -101,7 +101,7 @@ func (r *Inspector) getRBDInfo(ctx context.Context, imageName string) (*rbdImage
 func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (bool, error) {
 	info, err := r.getRBDInfo(ctx, imageName)
 	if err != nil {
-		return false, fmt.Errorf("IsImageFlattened %s: %w", imageName, err)
+		return false, fmt.Errorf("IsImageFlattened: %w", err)
 	}
 
 	// An image is flattened if it has no parent
@@ -112,7 +112,7 @@ func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (boo
 func (r *Inspector) GetImageParent(ctx context.Context, imageName string) (string, error) {
 	info, err := r.getRBDInfo(ctx, imageName)
 	if err != nil {
-		return "", fmt.Errorf("GetImageParent %s: %w", imageName, err)
+		return "", fmt.Errorf("GetImageParent: %w", err)
 	}
 
 	if info.Parent == nil {
