@@ -98,13 +98,14 @@ func main() {
 		}
 	}
 
-	log.Printf("Result: %d blocks, volumeCapacity=%d, type=%v",
-		len(result.Blocks), result.VolumeCapacityBytes, result.BlockMetadataType)
+	log.Printf("Result: %d blocks, totalBytes=%d, volumeCapacity=%d, type=%v",
+		len(result.Blocks), result.TotalChangedBytes(), result.VolumeCapacityBytes, result.BlockMetadataType)
 	for i, b := range result.Blocks {
 		log.Printf("  block[%d]: offset=%d size=%d", i, b.ByteOffset, b.SizeBytes)
 	}
 	if len(result.Blocks) == 0 {
-		log.Println("WARNING: 0 blocks returned")
-		os.Exit(1)
+		// 0 blocks is a valid CBT result (e.g. snapshot of an unwritten device).
+		// Print a notice but exit 0 — the API call succeeded.
+		log.Println("NOTICE: 0 blocks returned — snapshot may be empty or unwritten")
 	}
 }
