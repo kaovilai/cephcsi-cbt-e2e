@@ -44,7 +44,7 @@ K8S_VERSION=$(oc version -o json | jq -r '.serverVersion.gitVersion')
 echo "  OCP: $OCP_VERSION / K8s: $K8S_VERSION"
 
 K8S_MINOR=$(echo "$K8S_VERSION" | sed 's/v1\.\([0-9]*\).*/\1/')
-if [ "$K8S_MINOR" -ge 33 ] 2>/dev/null; then
+if [ "$K8S_MINOR" -ge 33 ]; then
     pass "Kubernetes >= 1.33 (required for CBT API)"
 else
     fail "Kubernetes < 1.33 (got $K8S_VERSION). CBT API requires 1.33+"
@@ -98,16 +98,16 @@ for node in $WORKERS; do
     TOTAL_CPU=$((TOTAL_CPU + CPU))
     TOTAL_MEM_GI=$((TOTAL_MEM_GI + MEM_GI))
 
-    if [ "$CPU" -ge 8 ] 2>/dev/null; then
+    if [ "$CPU" -ge 8 ]; then
         pass "$node has >= 8 vCPU"
     else
         warn "$node has < 8 vCPU ($CPU_RAW) - ODF recommends 8+"
     fi
 
     # Warn below 24Gi (recommended) or 16Gi (ODF minimum). ODF may still work on smaller nodes.
-    if [ "$MEM_GI" -ge 24 ] 2>/dev/null; then
+    if [ "$MEM_GI" -ge 24 ]; then
         pass "$node has >= 24Gi RAM"
-    elif [ "$MEM_GI" -ge 16 ] 2>/dev/null; then
+    elif [ "$MEM_GI" -ge 16 ]; then
         warn "$node has < 24Gi RAM (${MEM_GI}Gi) - ODF recommends 24Gi+"
     else
         warn "$node has < 16Gi RAM (${MEM_GI}Gi) - below ODF recommended minimum of 16Gi"
@@ -133,12 +133,12 @@ else
 fi
 echo "  Requirements: ${REQ_CPU} vCPU, ${REQ_MEM}Gi RAM"
 
-if [ "$TOTAL_CPU" -ge "$REQ_CPU" ] 2>/dev/null; then
+if [ "$TOTAL_CPU" -ge "$REQ_CPU" ]; then
     pass "Cluster has >= ${REQ_CPU} vCPU for '$SELECTED_PROFILE' profile"
 else
     warn "Cluster has < ${REQ_CPU} vCPU ($TOTAL_CPU) for '$SELECTED_PROFILE' profile"
 fi
-if [ "$TOTAL_MEM_GI" -ge "$REQ_MEM" ] 2>/dev/null; then
+if [ "$TOTAL_MEM_GI" -ge "$REQ_MEM" ]; then
     pass "Cluster has >= ${REQ_MEM}Gi RAM for '$SELECTED_PROFILE' profile"
 else
     warn "Cluster has < ${REQ_MEM}Gi RAM (${TOTAL_MEM_GI}Gi) for '$SELECTED_PROFILE' profile"
