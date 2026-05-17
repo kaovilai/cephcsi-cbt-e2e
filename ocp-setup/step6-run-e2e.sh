@@ -10,11 +10,11 @@ echo "=== Step 6: Run CBT E2E Tests ==="
 
 cd "$PROJECT_DIR"
 
-# Accept target from: $1, E2E_TARGET env var, or default to e2e-basic
-TARGET="${1:-${E2E_TARGET:-e2e-basic}}"
+# Accept target from: $1, E2E_TARGET env var, or default to e2e
+TARGET="${1:-${E2E_TARGET:-e2e}}"
 
 # Validate target against known make targets
-VALID_TARGETS="e2e e2e-fast e2e-basic e2e-rox e2e-rox-deletion e2e-flattening e2e-priority e2e-stored-diffs e2e-errors e2e-backup build lint"
+VALID_TARGETS="e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize e2e-rebind build lint"
 if ! echo " $VALID_TARGETS " | grep -q " $TARGET "; then
     echo "ERROR: Unknown make target '$TARGET'"
     echo "Valid targets: $VALID_TARGETS"
