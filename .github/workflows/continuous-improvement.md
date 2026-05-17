@@ -15,6 +15,11 @@ tools:
   bash: ["go build ./...", "go vet ./...", "go test ./...", "golangci-lint run", "git log", "git diff", "git status", "find", "grep", "cat", "ls", "wc", "head", "tail", "make"]
   github:
     toolsets: [repos, issues, pull_requests]
+network:
+  allowed:
+    - defaults
+    - go
+    - github
 safe-outputs:
   create-pull-request:
     max: 1

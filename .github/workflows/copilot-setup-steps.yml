@@ -20,7 +20,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - name: Install gh-aw extension
         uses: github/gh-aw-actions/setup-cli@8a9a52673cb8f97ebb43b344618af2d6f2c9ac7f # v0.74.3
         with:
-          version: v0.72.1
+          version: v0.74.3
