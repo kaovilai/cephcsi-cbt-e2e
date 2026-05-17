@@ -71,6 +71,11 @@ type rbdImageInfo struct {
 	} `json:"parent,omitempty"`
 }
 
+// rbd and rados commands return this string when the requested image or snapshot
+// does not exist. Callers that want to treat "not found" as empty use this constant
+// instead of duplicating the literal string across multiple call sites.
+const rbdErrNotFound = "No such file"
+
 // poolImage returns the pool/image path string for use in rbd commands.
 func (r *Inspector) poolImage(imageName string) string {
 	return fmt.Sprintf("%s/%s", r.pool, imageName)
@@ -187,7 +192,7 @@ func (r *Inspector) ListSnapshots(ctx context.Context, imageName string) ([]RBDS
 		"rbd", "snap", "ls", r.poolImage(imageName), "--format", "json",
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "No such file") {
+		if strings.Contains(err.Error(), rbdErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("rbd snap ls failed: %w", err)
@@ -242,7 +247,7 @@ func (r *Inspector) GetChildren(ctx context.Context, imageName, snapName string)
 	})
 	if err != nil {
 		// No children is not an error
-		if strings.Contains(err.Error(), "No such file") {
+		if strings.Contains(err.Error(), rbdErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("rbd children failed: %w", err)
