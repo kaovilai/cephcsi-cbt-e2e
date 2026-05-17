@@ -7,6 +7,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	snapfake "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -499,6 +500,10 @@ func TestResizePVC_Success(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
+func mustParseQuantity(s string) resource.Quantity {
+	return resource.MustParse(s)
+}
+
 func TestGetSnapshotContentName_Success(t *testing.T) {
 	ctx := context.Background()
 	vs := &snapshotv1.VolumeSnapshot{
@@ -641,5 +646,120 @@ func TestGetSnapshotHandle_NoHandle(t *testing.T) {
 	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
 	if err == nil {
 		t.Fatal("expected error for missing snapshot handle, got nil")
+	}
+}
+
+func makeCSIPV(name string) *corev1.PersistentVolume {
+	return &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: corev1.PersistentVolumeSpec{
+			StorageClassName: "rbd-sc",
+			Capacity: corev1.ResourceList{
+				corev1.ResourceStorage: mustParseQuantity("1Gi"),
+			},
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver:       "rbd.csi.ceph.com",
+					VolumeHandle: "0001-0011-rook-ceph-0000000000000001-abc123",
+					VolumeAttributes: map[string]string{
+						"imageName": "csi-vol-abc123",
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestRebindPVWithVolumeMode_Success(t *testing.T) {
+	ctx := context.Background()
+	sourcePV := makeCSIPV("source-pv")
+	client := fake.NewClientset(sourcePV)
+
+	blockMode := corev1.PersistentVolumeBlock
+	err := RebindPVWithVolumeMode(ctx, client, "source-pv", "new-pv", "new-pvc", "test-ns",
+		blockMode, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the new PV was created with the correct VolumeMode
+	newPV, err := client.CoreV1().PersistentVolumes().Get(ctx, "new-pv", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("new PV not found: %v", err)
+	}
+	if newPV.Spec.VolumeMode == nil || *newPV.Spec.VolumeMode != corev1.PersistentVolumeBlock {
+		t.Errorf("expected VolumeMode Block, got %v", newPV.Spec.VolumeMode)
+	}
+	if newPV.Spec.CSI.VolumeHandle != sourcePV.Spec.CSI.VolumeHandle {
+		t.Errorf("expected VolumeHandle %q, got %q", sourcePV.Spec.CSI.VolumeHandle, newPV.Spec.CSI.VolumeHandle)
+	}
+	if newPV.Spec.ClaimRef == nil || newPV.Spec.ClaimRef.Name != "new-pvc" {
+		t.Errorf("expected ClaimRef to new-pvc, got %v", newPV.Spec.ClaimRef)
+	}
+
+	// Verify the new PVC was created
+	newPVC, err := client.CoreV1().PersistentVolumeClaims("test-ns").Get(ctx, "new-pvc", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("new PVC not found: %v", err)
+	}
+	if newPVC.Spec.VolumeName != "new-pv" {
+		t.Errorf("expected PVC bound to new-pv, got %q", newPVC.Spec.VolumeName)
+	}
+	if newPVC.Spec.VolumeMode == nil || *newPVC.Spec.VolumeMode != corev1.PersistentVolumeBlock {
+		t.Errorf("expected PVC VolumeMode Block, got %v", newPVC.Spec.VolumeMode)
+	}
+}
+
+func TestRebindPVWithVolumeMode_DefaultsAccessMode(t *testing.T) {
+	ctx := context.Background()
+	sourcePV := makeCSIPV("source-pv")
+	client := fake.NewClientset(sourcePV)
+
+	filesystemMode := corev1.PersistentVolumeFilesystem
+	// Pass nil access modes to exercise the default-to-RWO path
+	err := RebindPVWithVolumeMode(ctx, client, "source-pv", "new-pv", "new-pvc", "test-ns",
+		filesystemMode, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	newPV, err := client.CoreV1().PersistentVolumes().Get(ctx, "new-pv", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("new PV not found: %v", err)
+	}
+	if len(newPV.Spec.AccessModes) != 1 || newPV.Spec.AccessModes[0] != corev1.ReadWriteOnce {
+		t.Errorf("expected default RWO access mode, got %v", newPV.Spec.AccessModes)
+	}
+}
+
+func TestRebindPVWithVolumeMode_SourceNotFound(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	blockMode := corev1.PersistentVolumeBlock
+	err := RebindPVWithVolumeMode(ctx, client, "missing-pv", "new-pv", "new-pvc", "test-ns",
+		blockMode, nil)
+	if err == nil {
+		t.Fatal("expected error for missing source PV, got nil")
+	}
+}
+
+func TestRebindPVWithVolumeMode_NonCSISource(t *testing.T) {
+	ctx := context.Background()
+	nonCSIPV := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "hostpath-pv"},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{Path: "/data"},
+			},
+		},
+	}
+	client := fake.NewClientset(nonCSIPV)
+
+	blockMode := corev1.PersistentVolumeBlock
+	err := RebindPVWithVolumeMode(ctx, client, "hostpath-pv", "new-pv", "new-pvc", "test-ns",
+		blockMode, nil)
+	if err == nil {
+		t.Fatal("expected error for non-CSI source PV, got nil")
 	}
 }
