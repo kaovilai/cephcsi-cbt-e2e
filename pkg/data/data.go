@@ -170,16 +170,16 @@ func mountFilePath(filename string) string {
 func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename, content string) error {
 
-	path := mountFilePath(filename)
+	filePath := mountFilePath(filename)
 	encoded := base64.StdEncoding.EncodeToString([]byte(content))
 	cmd := []string{
 		"sh", "-c",
-		fmt.Sprintf("echo '%s' | base64 -d > '%s' && sync", encoded, path),
+		fmt.Sprintf("echo '%s' | base64 -d > '%s' && sync", encoded, filePath),
 	}
 
 	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
 	if err != nil {
-		return fmt.Errorf("failed to write file %s: %s: %w", path, stderr, err)
+		return fmt.Errorf("failed to write file %s: %s: %w", filePath, stderr, err)
 	}
 	return nil
 }
@@ -188,12 +188,12 @@ func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest
 func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename string) (string, error) {
 
-	path := mountFilePath(filename)
-	cmd := []string{"cat", path}
+	filePath := mountFilePath(filename)
+	cmd := []string{"cat", filePath}
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file %s: %s: %w", path, stderr, err)
+		return "", fmt.Errorf("failed to read file %s: %s: %w", filePath, stderr, err)
 	}
 	return stdout, nil
 }
@@ -202,15 +202,15 @@ func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.
 func ReadFileHash(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename string) (string, error) {
 
-	path := mountFilePath(filename)
+	filePath := mountFilePath(filename)
 	cmd := []string{
 		"sh", "-c",
-		fmt.Sprintf("sha256sum '%s' | cut -d' ' -f1", path),
+		fmt.Sprintf("sha256sum '%s' | cut -d' ' -f1", filePath),
 	}
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
 	if err != nil {
-		return "", fmt.Errorf("failed to hash file %s: %s: %w", path, stderr, err)
+		return "", fmt.Errorf("failed to hash file %s: %s: %w", filePath, stderr, err)
 	}
 	return strings.TrimSpace(stdout), nil
 }
