@@ -76,8 +76,8 @@ func TestCephCSICBT(t *testing.T) {
 	} else {
 		kubeConfig, err = rest.InClusterConfig()
 		if err != nil {
-			// Fallback to default kubeconfig
-			kubeConfig, err = clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
+			// Fallback to default loading rules (respects KUBECONFIG env var and ~/.kube/config)
+			kubeConfig, err = clientcmd.BuildConfigFromFlags("", "")
 		}
 	}
 	Expect(err).NotTo(HaveOccurred(), "failed to build kubeconfig")

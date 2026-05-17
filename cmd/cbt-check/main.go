@@ -55,10 +55,10 @@ func main() {
 		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	} else {
 		// Try in-cluster config first, then fall back to default kubeconfig
-		// (respects KUBECONFIG env var and ~/.kube/config).
+		// loading rules (respects KUBECONFIG env var and ~/.kube/config).
 		config, err = rest.InClusterConfig()
 		if err != nil {
-			config, err = clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
+			config, err = clientcmd.BuildConfigFromFlags("", "")
 		}
 	}
 	if err != nil {
