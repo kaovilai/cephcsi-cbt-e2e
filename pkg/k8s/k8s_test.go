@@ -744,6 +744,72 @@ func TestRebindPVWithVolumeMode_SourceNotFound(t *testing.T) {
 	}
 }
 
+func TestResizePVC_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	// ResizePVC on a non-existent PVC should return an error.
+	if err := ResizePVC(ctx, client, "test-ns", "missing-pvc", "10Gi"); err == nil {
+		t.Fatal("expected error for non-existent PVC, got nil")
+	}
+}
+
+func TestCreatePodWithPVC_ReadOnly(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	pod, err := CreatePodWithPVC(ctx, client, PodOptions{
+		Name:       "test-pod",
+		Namespace:  "test-ns",
+		PVCName:    "test-pvc",
+		ReadOnly:   true,
+		VolumeMode: corev1.PersistentVolumeFilesystem,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(pod.Spec.Containers[0].VolumeMounts) != 1 {
+		t.Fatalf("expected 1 VolumeMount, got %d", len(pod.Spec.Containers[0].VolumeMounts))
+	}
+	if !pod.Spec.Containers[0].VolumeMounts[0].ReadOnly {
+		t.Error("expected VolumeMount.ReadOnly=true")
+	}
+	if !pod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly {
+		t.Error("expected PersistentVolumeClaimVolumeSource.ReadOnly=true")
+	}
+}
+
+func TestCreatePodWithPVC_CustomImageAndCommand(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	customImage := "custom-image:latest"
+	customCmd := []string{"/bin/sh", "-c", "echo hello"}
+
+	pod, err := CreatePodWithPVC(ctx, client, PodOptions{
+		Name:       "test-pod",
+		Namespace:  "test-ns",
+		PVCName:    "test-pvc",
+		Image:      customImage,
+		Command:    customCmd,
+		VolumeMode: corev1.PersistentVolumeBlock,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pod.Spec.Containers[0].Image != customImage {
+		t.Errorf("expected image %q, got %q", customImage, pod.Spec.Containers[0].Image)
+	}
+	if len(pod.Spec.Containers[0].Command) != len(customCmd) {
+		t.Errorf("expected command len %d, got %d", len(customCmd), len(pod.Spec.Containers[0].Command))
+	}
+	for i, c := range customCmd {
+		if pod.Spec.Containers[0].Command[i] != c {
+			t.Errorf("command[%d] = %q, want %q", i, pod.Spec.Containers[0].Command[i], c)
+		}
+	}
+}
+
 func TestRebindPVWithVolumeMode_NonCSISource(t *testing.T) {
 	ctx := context.Background()
 	nonCSIPV := &corev1.PersistentVolume{
