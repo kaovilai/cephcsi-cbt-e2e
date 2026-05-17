@@ -133,12 +133,20 @@ func imageNameFromParentRef(parentRef string) string {
 	return imageSnap[0]
 }
 
+// maxCloneDepth is a safety limit for GetCloneDepth to prevent infinite loops
+// in case of a pathological or corrupt clone chain. CephCSI's hardMaxCloneDepth
+// default is 8, so 100 is well beyond any expected chain length.
+const maxCloneDepth = 100
+
 // GetCloneDepth returns the depth of the clone chain for an image.
 func (r *Inspector) GetCloneDepth(ctx context.Context, imageName string) (int, error) {
 	depth := 0
 	current := imageName
 
 	for {
+		if depth > maxCloneDepth {
+			return 0, fmt.Errorf("clone chain depth exceeds maximum %d starting from %s (possible cycle or corrupt chain)", maxCloneDepth, imageName)
+		}
 		parent, err := r.GetImageParent(ctx, current)
 		if err != nil {
 			return 0, fmt.Errorf("GetCloneDepth at depth %d image %s: %w", depth, current, err)
