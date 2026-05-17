@@ -2,7 +2,7 @@ package k8s
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -1034,7 +1034,7 @@ func TestIsRetryableAPIError(t *testing.T) {
 		},
 		{
 			name: "forbidden — not retryable",
-			err:  k8serrors.NewForbidden(gr, "my-pod", fmt.Errorf("access denied")),
+			err:  k8serrors.NewForbidden(gr, "my-pod", errors.New("access denied")),
 			want: false,
 		},
 		{
@@ -1044,7 +1044,7 @@ func TestIsRetryableAPIError(t *testing.T) {
 		},
 		{
 			name: "plain error — not retryable",
-			err:  fmt.Errorf("some generic error"),
+			err:  errors.New("some generic error"),
 			want: false,
 		},
 	}
