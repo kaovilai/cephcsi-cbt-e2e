@@ -478,3 +478,156 @@ func TestGetCephMajorVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestGetOmapData(t *testing.T) {
+	tests := []struct {
+		name      string
+		imageName string
+		key       string
+		execOut   string
+		execErr   error
+		want      string
+		wantErr   bool
+	}{
+		{
+			name:      "key found",
+			imageName: "csi-vol-abc",
+			key:       "csi.volname",
+			execOut:   "pvc-123",
+			want:      "pvc-123",
+		},
+		{
+			name:      "empty value",
+			imageName: "csi-vol-abc",
+			key:       "csi.volname",
+			execOut:   "",
+			want:      "",
+		},
+		{
+			name:      "exec error",
+			imageName: "csi-vol-abc",
+			key:       "csi.volname",
+			execErr:   fmt.Errorf("toolbox unavailable"),
+			wantErr:   true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestInspector(func(_ context.Context, _ []string) (string, error) {
+				return tc.execOut, tc.execErr
+			})
+			got, err := r.GetOmapData(context.Background(), tc.imageName, tc.key)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("GetOmapData() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestListOmapKeys(t *testing.T) {
+	tests := []struct {
+		name      string
+		imageName string
+		execOut   string
+		execErr   error
+		want      []string
+		wantErr   bool
+	}{
+		{
+			name:      "no keys",
+			imageName: "csi-vol-abc",
+			execOut:   "",
+			want:      nil,
+		},
+		{
+			name:      "single key",
+			imageName: "csi-vol-abc",
+			execOut:   "csi.volname",
+			want:      []string{"csi.volname"},
+		},
+		{
+			name:      "multiple keys",
+			imageName: "csi-vol-abc",
+			execOut:   "csi.volname\ncsi.volid\ncsi.snapshotID\n",
+			want:      []string{"csi.volname", "csi.volid", "csi.snapshotID"},
+		},
+		{
+			name:      "blank lines skipped",
+			imageName: "csi-vol-abc",
+			execOut:   "csi.volname\n\ncsi.volid\n",
+			want:      []string{"csi.volname", "csi.volid"},
+		},
+		{
+			name:      "exec error",
+			imageName: "csi-vol-abc",
+			execErr:   fmt.Errorf("toolbox unavailable"),
+			wantErr:   true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestInspector(func(_ context.Context, _ []string) (string, error) {
+				return tc.execOut, tc.execErr
+			})
+			got, err := r.ListOmapKeys(context.Background(), tc.imageName)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("ListOmapKeys() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFlattenImage(t *testing.T) {
+	tests := []struct {
+		name      string
+		imageName string
+		execErr   error
+		wantErr   bool
+	}{
+		{
+			name:      "flatten succeeds",
+			imageName: "csi-vol-abc",
+		},
+		{
+			name:      "flatten exec error",
+			imageName: "csi-vol-abc",
+			execErr:   fmt.Errorf("rbd flatten failed: exit status 1"),
+			wantErr:   true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestInspector(func(_ context.Context, _ []string) (string, error) {
+				return "", tc.execErr
+			})
+			err := r.FlattenImage(context.Background(), tc.imageName)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
