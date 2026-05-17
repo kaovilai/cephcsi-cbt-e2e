@@ -8,7 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/cephcsi-cbt-e2e/pkg/cbt"
@@ -163,7 +163,7 @@ func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.
 
 // mountFilePath returns the full path for a file under DefaultMountPath.
 func mountFilePath(filename string) string {
-	return path.Join(DefaultMountPath, filename)
+	return filepath.Join(DefaultMountPath, filename)
 }
 
 // WriteFile writes content to a file on a Filesystem-mode PVC mounted at /mnt/data.

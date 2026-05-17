@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"testing"
 )
 
@@ -79,7 +80,7 @@ func TestMountFilePath(t *testing.T) {
 		{
 			name:     "simple filename",
 			filename: "test.txt",
-			want:     DefaultMountPath + "/test.txt",
+			want:     filepath.Join(DefaultMountPath, "test.txt"),
 		},
 		{
 			name:     "empty filename",
@@ -89,7 +90,7 @@ func TestMountFilePath(t *testing.T) {
 		{
 			name:     "nested path",
 			filename: "subdir/file.txt",
-			want:     DefaultMountPath + "/subdir/file.txt",
+			want:     filepath.Join(DefaultMountPath, "subdir/file.txt"),
 		},
 	}
 	for _, tc := range tests {
