@@ -16,7 +16,7 @@ echo "Using ODF performance profile: $ODF_PROFILE"
 
 # Wait for odf-operator CSV to be Succeeded
 echo "Verifying ODF operator is ready..."
-for i in $(seq 1 20); do
+for i in {1..20}; do
     if oc get csv -n openshift-storage 2>/dev/null | grep -q "odf-operator.*Succeeded"; then
         echo "ODF operator is ready."
         break
@@ -32,7 +32,7 @@ fi
 
 # Also wait for ocs-operator CSV
 echo "Waiting for ocs-operator CSV..."
-for i in $(seq 1 40); do
+for i in {1..40}; do
     if oc get csv -n openshift-storage 2>/dev/null | grep -q "ocs-operator.*Succeeded"; then
         echo "OCS operator is ready."
         break
@@ -97,7 +97,7 @@ fi
 
 echo ""
 echo "Waiting for StorageCluster to become Ready..."
-for i in $(seq 1 80); do
+for i in {1..80}; do
     PHASE=$(oc get storagecluster -n openshift-storage ocs-storagecluster -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
     if [ "$PHASE" = "Ready" ]; then
         echo "StorageCluster is Ready!"
@@ -131,7 +131,7 @@ else
     oc patch storagecluster ocs-storagecluster -n "$NAMESPACE" --type merge \
       -p '{"spec":{"enableCephTools": true}}'
     echo "Waiting for Ceph toolbox pod to be ready..."
-    for i in $(seq 1 24); do
+    for i in {1..24}; do
         if oc get pods -n "$NAMESPACE" -l app=rook-ceph-tools --no-headers 2>/dev/null | grep -q "Running"; then
             echo "Ceph toolbox pod is ready."
             break

@@ -118,7 +118,7 @@ echo "Service created."
 # Wait for TLS secret to be auto-generated
 echo "Waiting for TLS secret..."
 TLS_SECRET_FOUND=false
-for i in $(seq 1 30); do
+for i in {1..30}; do
     if oc get secret -n "$NAMESPACE" csi-snapshot-metadata-certs &>/dev/null; then
         echo "TLS secret 'csi-snapshot-metadata-certs' is available."
         TLS_SECRET_FOUND=true
@@ -273,7 +273,7 @@ sleep 10
 echo "Waiting for operator to reconcile deployment..."
 HAS_SIDECAR=false
 HAS_TLS_VOL=false
-for i in $(seq 1 36); do
+for i in {1..36}; do
     CONTAINERS=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" \
       -o jsonpath='{.spec.template.spec.containers[*].name}')
     VOLS=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" \

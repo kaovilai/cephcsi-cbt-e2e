@@ -7,7 +7,7 @@ echo "=== Step 2: Install ODF Operator ==="
 
 # Wait for machineconfigpool to finish updating
 echo "Waiting for machineconfigpool rollout to complete..."
-for i in $(seq 1 90); do
+for i in {1..90}; do
     MASTER_UPDATING=$(oc get mcp master -o jsonpath='{.status.conditions[?(@.type=="Updating")].status}')
     WORKER_UPDATING=$(oc get mcp worker -o jsonpath='{.status.conditions[?(@.type=="Updating")].status}')
     if [ "$MASTER_UPDATING" = "False" ] && [ "$WORKER_UPDATING" = "False" ]; then
@@ -70,7 +70,7 @@ EOF
 
 echo ""
 echo "Waiting for ODF operator CSV to succeed..."
-for i in $(seq 1 60); do
+for i in {1..60}; do
     # Find any odf-operator CSV regardless of version
     CSV_STATE=$(oc get csv -n openshift-storage 2>/dev/null | grep -i "odf-operator" | awk '{print $NF}' || echo "")
     if [ "$CSV_STATE" = "Succeeded" ]; then
