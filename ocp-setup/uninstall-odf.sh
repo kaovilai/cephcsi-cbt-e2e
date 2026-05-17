@@ -175,7 +175,7 @@ fi
 # --- Phase 5: Wait for cleanup pods ---
 echo ""
 echo "--- Phase 5: Wait for cleanup pods ---"
-for i in $(seq 1 30); do
+for i in {1..30}; do
     CLEANUP_PODS=$(oc get pods -n "$NAMESPACE" 2>/dev/null | grep -i cleanup || echo "")
     if [ -z "$CLEANUP_PODS" ]; then
         echo "  No cleanup pods running."

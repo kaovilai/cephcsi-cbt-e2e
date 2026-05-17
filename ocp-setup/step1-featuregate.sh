@@ -31,7 +31,7 @@ fi
 
 echo ""
 echo "Waiting for SnapshotMetadataService CRD to appear..."
-for i in $(seq 1 60); do
+for i in {1..60}; do
     if oc get crd snapshotmetadataservices.cbt.storage.k8s.io &>/dev/null; then
         echo "SnapshotMetadataService CRD is available!"
         oc get crd snapshotmetadataservices.cbt.storage.k8s.io

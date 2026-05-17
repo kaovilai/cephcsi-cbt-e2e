@@ -152,7 +152,7 @@ spec:
 EOF
 
     log "Waiting for TLS certificate secret..."
-    for i in $(seq 1 30); do
+    for i in {1..30}; do
         if oc get secret -n "$NAMESPACE" csi-snapshot-metadata-certs &>/dev/null; then
             log "TLS certificate secret created."
             return
