@@ -1,8 +1,13 @@
 package rbd
 
 import (
+	"context"
 	"reflect"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestParseCephMajorVersion(t *testing.T) {
@@ -255,4 +260,92 @@ t.Errorf("imageNameFromParentRef(%q) = %q, want %q", tc.parentRef, got, tc.want)
 }
 })
 }
+}
+
+func TestGetRBDImageNameFromPV(t *testing.T) {
+	tests := []struct {
+		name    string
+		pv      *corev1.PersistentVolume
+		pvName  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "CSI volume with imageName",
+			pvName: "test-pv",
+			pv: &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-pv"},
+				Spec: corev1.PersistentVolumeSpec{
+					PersistentVolumeSource: corev1.PersistentVolumeSource{
+						CSI: &corev1.CSIPersistentVolumeSource{
+							Driver:           "rbd.csi.ceph.com",
+							VolumeHandle:     "0001-0011-rook-ceph-0000000000000001-abc123",
+							VolumeAttributes: map[string]string{"imageName": "csi-vol-abc123"},
+						},
+					},
+				},
+			},
+			want: "csi-vol-abc123",
+		},
+		{
+			name:    "PV not found",
+			pvName:  "missing-pv",
+			wantErr: true,
+		},
+		{
+			name:   "non-CSI volume",
+			pvName: "test-pv",
+			pv: &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-pv"},
+				Spec: corev1.PersistentVolumeSpec{
+					PersistentVolumeSource: corev1.PersistentVolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{Path: "/data"},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name:   "CSI volume without imageName attribute",
+			pvName: "test-pv",
+			pv: &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-pv"},
+				Spec: corev1.PersistentVolumeSpec{
+					PersistentVolumeSource: corev1.PersistentVolumeSource{
+						CSI: &corev1.CSIPersistentVolumeSource{
+							Driver:           "rbd.csi.ceph.com",
+							VolumeHandle:     "0001-0011-rook-ceph-0000000000000001-abc123",
+							VolumeAttributes: map[string]string{"pool": "replicapool"},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var clientset *fake.Clientset
+			if tc.pv != nil {
+				clientset = fake.NewClientset(tc.pv)
+			} else {
+				clientset = fake.NewClientset()
+			}
+			inspector := NewInspector(clientset, nil, "rook-ceph", "replicapool")
+			got, err := inspector.GetRBDImageNameFromPV(context.Background(), tc.pvName)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("GetRBDImageNameFromPV(%q) = %q, want %q", tc.pvName, got, tc.want)
+			}
+		})
+	}
 }
