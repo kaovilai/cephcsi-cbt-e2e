@@ -340,7 +340,11 @@ func (r *Inspector) GetCephMajorVersion(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("GetCephMajorVersion: %w", err)
 	}
-	return parseCephMajorVersion(version)
+	major, err := parseCephMajorVersion(version)
+	if err != nil {
+		return 0, fmt.Errorf("GetCephMajorVersion: %w", err)
+	}
+	return major, nil
 }
 
 // parseCephMajorVersion parses the major version from a "ceph version X.Y.Z ..." string.

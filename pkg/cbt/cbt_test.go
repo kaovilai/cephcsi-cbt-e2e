@@ -2,6 +2,9 @@ package cbt
 
 import (
 	"testing"
+
+	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/api"
+	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/iterator"
 )
 
 func makeResult(blocks ...BlockMetadata) *MetadataResult {
@@ -100,5 +103,36 @@ func TestBlocksAreNonOverlapping(t *testing.T) {
 				t.Errorf("BlocksAreNonOverlapping() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestCollectingEmitter_MultiRecord verifies that BlockMetadataType and
+// VolumeCapacityBytes are both updated on every record, not just the first.
+func TestCollectingEmitter_MultiRecord(t *testing.T) {
+	result := &MetadataResult{}
+	emitter := &collectingEmitter{result: result}
+
+	records := []iterator.IteratorMetadata{
+		{
+			BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+			VolumeCapacityBytes: 1073741824,
+		},
+		{
+			BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+			VolumeCapacityBytes: 1073741824,
+		},
+	}
+
+	for i, rec := range records {
+		if err := emitter.SnapshotMetadataIteratorRecord(i, rec); err != nil {
+			t.Fatalf("record %d: unexpected error: %v", i, err)
+		}
+	}
+
+	if result.BlockMetadataType != api.BlockMetadataType_VARIABLE_LENGTH {
+		t.Errorf("BlockMetadataType = %v, want VARIABLE_LENGTH", result.BlockMetadataType)
+	}
+	if result.VolumeCapacityBytes != 1073741824 {
+		t.Errorf("VolumeCapacityBytes = %d, want 1073741824", result.VolumeCapacityBytes)
 	}
 }
