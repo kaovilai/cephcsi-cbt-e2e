@@ -23,6 +23,8 @@ type Inspector struct {
 	pool             string
 	toolboxPodName   string
 	toolboxContainer string
+	// execOverride replaces execInToolbox when set; used only in unit tests.
+	execOverride func(ctx context.Context, command []string) (string, error)
 }
 
 // NewInspector creates a new RBD inspector.
@@ -40,6 +42,9 @@ func NewInspector(clientset kubernetes.Interface, config *rest.Config, namespace
 // to avoid repeated pod-list API calls in operations that call execInToolbox in a loop
 // (e.g. GetCloneDepth traversing the clone chain).
 func (r *Inspector) execInToolbox(ctx context.Context, command []string) (string, error) {
+	if r.execOverride != nil {
+		return r.execOverride(ctx, command)
+	}
 	if r.toolboxPodName == "" {
 		pod, err := k8s.GetToolboxPod(ctx, r.clientset, r.namespace)
 		if err != nil {
