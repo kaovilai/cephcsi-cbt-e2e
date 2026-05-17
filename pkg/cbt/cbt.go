@@ -55,10 +55,8 @@ type collectingEmitter struct {
 	result *MetadataResult
 }
 
-func (e *collectingEmitter) SnapshotMetadataIteratorRecord(recordNum int, metadata iterator.IteratorMetadata) error {
-	if recordNum == 0 {
-		e.result.BlockMetadataType = metadata.BlockMetadataType
-	}
+func (e *collectingEmitter) SnapshotMetadataIteratorRecord(_ int, metadata iterator.IteratorMetadata) error {
+	e.result.BlockMetadataType = metadata.BlockMetadataType
 	e.result.VolumeCapacityBytes = metadata.VolumeCapacityBytes
 	for _, bm := range metadata.BlockMetadata {
 		e.result.Blocks = append(e.result.Blocks, BlockMetadata{
