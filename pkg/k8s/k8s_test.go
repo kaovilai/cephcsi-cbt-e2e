@@ -936,6 +936,109 @@ func TestWaitForPodDeleted_AlreadyGone(t *testing.T) {
 	}
 }
 
+func TestWaitForPVCBound_Timeout(t *testing.T) {
+	ctx := context.Background()
+	// PVC exists but stays in Pending — should time out.
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "pending-pvc", Namespace: "test-ns"},
+		Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimPending},
+	}
+	client := fake.NewClientset(pvc)
+	err := WaitForPVCBound(ctx, client, "test-ns", "pending-pvc", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for Pending PVC, got nil")
+	}
+}
+
+func TestWaitForPodRunning_Timeout(t *testing.T) {
+	ctx := context.Background()
+	// Pod exists but stays in Pending — should time out.
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pending-pod", Namespace: "test-ns"},
+		Status:     corev1.PodStatus{Phase: corev1.PodPending},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "pending-pod", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for Pending pod, got nil")
+	}
+}
+
+func TestWaitForSnapshotReady_Timeout(t *testing.T) {
+	ctx := context.Background()
+	// Snapshot exists but ReadyToUse is false — should time out.
+	notReady := false
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "not-ready-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			ReadyToUse: &notReady,
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "not-ready-snap", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for not-ready snapshot, got nil")
+	}
+}
+
+func TestWaitForPodDeleted_Timeout(t *testing.T) {
+	ctx := context.Background()
+	// Pod exists and is not deleted — should time out.
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "live-pod", Namespace: "test-ns"},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodDeleted(ctx, client, "test-ns", "live-pod", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for existing pod, got nil")
+	}
+}
+
+func TestWaitForNamespaceDeleted_Timeout(t *testing.T) {
+	ctx := context.Background()
+	// Namespace exists and is not deleted — should time out.
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: "live-ns"},
+	}
+	client := fake.NewClientset(ns)
+	err := WaitForNamespaceDeleted(ctx, client, "live-ns", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for existing namespace, got nil")
+	}
+}
+
+func TestWaitForSnapshotDeleted_Timeout(t *testing.T) {
+	ctx := context.Background()
+	// Snapshot exists and is not deleted — should time out.
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "live-snap", Namespace: "test-ns"},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+	err := WaitForSnapshotDeleted(ctx, client, "test-ns", "live-snap", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for existing snapshot, got nil")
+	}
+}
+
+func TestWaitForPVCResized_Timeout(t *testing.T) {
+	ctx := context.Background()
+	// PVC exists but capacity is below the expected size — should time out.
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "small-pvc", Namespace: "test-ns"},
+		Status: corev1.PersistentVolumeClaimStatus{
+			Capacity: corev1.ResourceList{
+				corev1.ResourceStorage: mustParseQuantity("1Gi"),
+			},
+		},
+	}
+	client := fake.NewClientset(pvc)
+	err := WaitForPVCResized(ctx, client, "test-ns", "small-pvc", mustParseQuantity("10Gi"), 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for under-sized PVC, got nil")
+	}
+}
+
 func TestCreatePVC_FilesystemMode(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
