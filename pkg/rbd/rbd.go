@@ -108,7 +108,7 @@ func (r *Inspector) getRBDInfo(ctx context.Context, imageName string) (*rbdImage
 func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (bool, error) {
 	info, err := r.getRBDInfo(ctx, imageName)
 	if err != nil {
-		return false, fmt.Errorf("IsImageFlattened: %w", err)
+		return false, fmt.Errorf("check if image %s is flattened: %w", imageName, err)
 	}
 
 	// An image is flattened if it has no parent
@@ -119,7 +119,7 @@ func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (boo
 func (r *Inspector) GetImageParent(ctx context.Context, imageName string) (string, error) {
 	info, err := r.getRBDInfo(ctx, imageName)
 	if err != nil {
-		return "", fmt.Errorf("GetImageParent: %w", err)
+		return "", fmt.Errorf("get parent of image %s: %w", imageName, err)
 	}
 
 	if info.Parent == nil {
@@ -338,11 +338,11 @@ func (r *Inspector) GetCephVersion(ctx context.Context) (string, error) {
 func (r *Inspector) GetCephMajorVersion(ctx context.Context) (int, error) {
 	version, err := r.GetCephVersion(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("GetCephMajorVersion: %w", err)
+		return 0, fmt.Errorf("get ceph version string: %w", err)
 	}
 	major, err := parseCephMajorVersion(version)
 	if err != nil {
-		return 0, fmt.Errorf("GetCephMajorVersion: %w", err)
+		return 0, fmt.Errorf("parse ceph major version from %q: %w", version, err)
 	}
 	return major, nil
 }

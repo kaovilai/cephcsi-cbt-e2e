@@ -28,7 +28,11 @@ const (
 	DefaultMountPath = k8s.DefaultFilesystemMountPath
 )
 
-// WriteKnownPattern writes a known byte pattern at a specific offset on a block device.
+// defaultSizeZeroHash is the SHA-256 of a zero-filled DefaultBlockSize block,
+// computed once at package init to avoid per-call allocation in VerifyAllocatedBlocks.
+var defaultSizeZeroHash = zeroBlockHash(DefaultBlockSize)
+
+ writes a known byte pattern at a specific offset on a block device.
 // This is used to verify that CBT correctly reports which blocks have been written.
 func WriteKnownPattern(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName string, offset int64, sizeBytes int64, pattern byte) error {
@@ -85,15 +89,13 @@ func ReadBlockHash(ctx context.Context, clientset kubernetes.Interface, config *
 func VerifyAllocatedBlocks(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName string, result *cbt.MetadataResult) error {
 
-	defaultZeroHash := zeroBlockHash(DefaultBlockSize)
-
 	for _, block := range result.Blocks {
 		hash, err := ReadBlockHash(ctx, clientset, config, namespace, podName, block.ByteOffset, block.SizeBytes)
 		if err != nil {
 			return fmt.Errorf("read block at offset %d: %w", block.ByteOffset, err)
 		}
 
-		zeroHash := defaultZeroHash
+		zeroHash := defaultSizeZeroHash
 		if block.SizeBytes != DefaultBlockSize {
 			zeroHash = zeroBlockHash(block.SizeBytes)
 		}
