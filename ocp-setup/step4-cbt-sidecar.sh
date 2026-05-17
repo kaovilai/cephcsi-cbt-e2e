@@ -60,7 +60,7 @@ echo "ClusterRoles created."
 # --- 4c: Create ClusterRoleBinding ---
 echo ""
 echo "--- 4c: Creating ClusterRoleBinding ---"
-oc apply -f - <<'EOF'
+oc apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -72,7 +72,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ceph-csi-rbd-ctrlplugin-sa
-  namespace: openshift-storage
+  namespace: ${NAMESPACE}
 EOF
 echo "ClusterRoleBinding created."
 
