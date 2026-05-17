@@ -56,7 +56,7 @@ type collectingEmitter struct {
 }
 
 func (e *collectingEmitter) SnapshotMetadataIteratorRecord(recordNum int, metadata iterator.IteratorMetadata) error {
-	if len(e.result.Blocks) == 0 {
+	if recordNum == 0 {
 		e.result.BlockMetadataType = metadata.BlockMetadataType
 	}
 	e.result.VolumeCapacityBytes = metadata.VolumeCapacityBytes
