@@ -54,6 +54,17 @@ const (
 	toolboxPodNameFragment = "rook-ceph-tools"
 )
 
+// isRetryableAPIError returns true for transient Kubernetes API errors that should
+// be retried rather than immediately aborting a polling loop. These errors are
+// typically caused by temporary API server overload or network blips and are not
+// indicative of a permanent problem with the resource being polled.
+func isRetryableAPIError(err error) bool {
+	return errors.IsServerTimeout(err) ||
+		errors.IsServiceUnavailable(err) ||
+		errors.IsTooManyRequests(err) ||
+		errors.IsTimeout(err)
+}
+
 // CreateNamespace creates a namespace, ignoring AlreadyExists.
 // Sets PodSecurity labels to "privileged" to allow block device access in test pods.
 func CreateNamespace(ctx context.Context, clientset kubernetes.Interface, name string) error {
@@ -95,6 +106,9 @@ func WaitForNamespaceDeleted(ctx context.Context, clientset kubernetes.Interface
 			return true, nil
 		}
 		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		return false, nil
@@ -195,6 +209,9 @@ func WaitForPVCBound(ctx context.Context, clientset kubernetes.Interface, namesp
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		return pvc.Status.Phase == corev1.ClaimBound, nil
@@ -245,6 +262,9 @@ func WaitForPVCResized(ctx context.Context, clientset kubernetes.Interface, name
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		if pvc.Status.Capacity == nil {
@@ -286,6 +306,9 @@ func WaitForSnapshotReady(ctx context.Context, snapClient snapclient.Interface, 
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		vs, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		if vs.Status == nil || vs.Status.ReadyToUse == nil {
@@ -322,6 +345,9 @@ func WaitForSnapshotDeleted(ctx context.Context, snapClient snapclient.Interface
 			return true, nil
 		}
 		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		return false, nil
@@ -351,6 +377,9 @@ func WaitForSnapshotContentDeleted(ctx context.Context, snapClient snapclient.In
 			return true, nil
 		}
 		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		return false, nil
@@ -464,6 +493,9 @@ func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, name
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		switch pod.Status.Phase {
@@ -503,6 +535,9 @@ func WaitForPodDeleted(ctx context.Context, clientset kubernetes.Interface, name
 			return true, nil
 		}
 		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		return false, nil
