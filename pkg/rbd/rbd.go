@@ -99,7 +99,7 @@ func (r *Inspector) getRBDInfo(ctx context.Context, imageName string) (*rbdImage
 
 	var info rbdImageInfo
 	if err := json.Unmarshal([]byte(output), &info); err != nil {
-		return nil, fmt.Errorf("failed to parse rbd info output for %s: %w", imageName, err)
+		return nil, fmt.Errorf("parse rbd info output for %s: %w", imageName, err)
 	}
 	return &info, nil
 }
@@ -209,7 +209,7 @@ func parseSnapshotsJSON(output string) ([]RBDSnapshot, error) {
 	}
 	var snapshots []RBDSnapshot
 	if err := json.Unmarshal([]byte(output), &snapshots); err != nil {
-		return nil, fmt.Errorf("failed to parse rbd snap ls: %w", err)
+		return nil, fmt.Errorf("parse rbd snap ls: %w", err)
 	}
 	return snapshots, nil
 }
@@ -358,7 +358,7 @@ func parseCephMajorVersion(version string) (int, error) {
 	versionParts := strings.Split(parts[2], ".")
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse major version: %w", err)
+		return 0, fmt.Errorf("parse major version: %w", err)
 	}
 
 	return major, nil
@@ -368,7 +368,7 @@ func parseCephMajorVersion(version string) (int, error) {
 func (r *Inspector) GetRBDImageNameFromPV(ctx context.Context, pvName string) (string, error) {
 	pv, err := r.clientset.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to get PV %s: %w", pvName, err)
+		return "", fmt.Errorf("get PV %s: %w", pvName, err)
 	}
 
 	if pv.Spec.CSI == nil {

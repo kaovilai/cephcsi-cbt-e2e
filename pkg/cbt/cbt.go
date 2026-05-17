@@ -39,7 +39,7 @@ type Client struct {
 func NewClient(config *rest.Config, namespace, saNamespace, saName string) (*Client, error) {
 	clients, err := iterator.BuildClients(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build iterator clients: %w", err)
+		return nil, fmt.Errorf("build iterator clients: %w", err)
 	}
 
 	return &Client{

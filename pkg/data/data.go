@@ -46,7 +46,7 @@ func WriteKnownPattern(ctx context.Context, clientset kubernetes.Interface, conf
 
 	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
 	if err != nil {
-		return fmt.Errorf("failed to write pattern at offset %d: %s: %w", offset, stderr, err)
+		return fmt.Errorf("write pattern at offset %d: %s: %w", offset, stderr, err)
 	}
 
 	return nil
@@ -74,7 +74,7 @@ func ReadBlockHash(ctx context.Context, clientset kubernetes.Interface, config *
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
 	if err != nil {
-		return "", fmt.Errorf("failed to read block at offset %d: %s: %w", offset, stderr, err)
+		return "", fmt.Errorf("read block at offset %d: %s: %w", offset, stderr, err)
 	}
 
 	return strings.TrimSpace(stdout), nil
@@ -90,7 +90,7 @@ func VerifyAllocatedBlocks(ctx context.Context, clientset kubernetes.Interface, 
 	for _, block := range result.Blocks {
 		hash, err := ReadBlockHash(ctx, clientset, config, namespace, podName, block.ByteOffset, block.SizeBytes)
 		if err != nil {
-			return fmt.Errorf("failed to read block at offset %d: %w", block.ByteOffset, err)
+			return fmt.Errorf("read block at offset %d: %w", block.ByteOffset, err)
 		}
 
 		zeroHash := defaultZeroHash
@@ -113,12 +113,12 @@ func VerifyChangedBlocks(ctx context.Context, clientset kubernetes.Interface, co
 	for _, block := range result.Blocks {
 		baseHash, err := ReadBlockHash(ctx, clientset, config, namespace, basePod, block.ByteOffset, block.SizeBytes)
 		if err != nil {
-			return fmt.Errorf("failed to read base block at offset %d: %w", block.ByteOffset, err)
+			return fmt.Errorf("read base block at offset %d: %w", block.ByteOffset, err)
 		}
 
 		targetHash, err := ReadBlockHash(ctx, clientset, config, namespace, targetPod, block.ByteOffset, block.SizeBytes)
 		if err != nil {
-			return fmt.Errorf("failed to read target block at offset %d: %w", block.ByteOffset, err)
+			return fmt.Errorf("read target block at offset %d: %w", block.ByteOffset, err)
 		}
 
 		if baseHash == targetHash {
@@ -179,7 +179,7 @@ func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest
 
 	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
 	if err != nil {
-		return fmt.Errorf("failed to write file %s: %s: %w", filePath, stderr, err)
+		return fmt.Errorf("write file %s: %s: %w", filePath, stderr, err)
 	}
 	return nil
 }
@@ -193,7 +193,7 @@ func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file %s: %s: %w", filePath, stderr, err)
+		return "", fmt.Errorf("read file %s: %s: %w", filePath, stderr, err)
 	}
 	return stdout, nil
 }
@@ -210,7 +210,7 @@ func ReadFileHash(ctx context.Context, clientset kubernetes.Interface, config *r
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
 	if err != nil {
-		return "", fmt.Errorf("failed to hash file %s: %s: %w", filePath, stderr, err)
+		return "", fmt.Errorf("hash file %s: %s: %w", filePath, stderr, err)
 	}
 	return strings.TrimSpace(stdout), nil
 }

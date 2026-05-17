@@ -335,7 +335,7 @@ func WaitForSnapshotDeleted(ctx context.Context, snapClient snapclient.Interface
 func GetSnapshotContentName(ctx context.Context, snapClient snapclient.Interface, namespace, name string) (string, error) {
 	vs, err := snapClient.SnapshotV1().VolumeSnapshots(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to get VolumeSnapshot %s/%s: %w", namespace, name, err)
+		return "", fmt.Errorf("get VolumeSnapshot %s/%s: %w", namespace, name, err)
 	}
 	if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
 		return "", fmt.Errorf("VolumeSnapshot %s/%s not bound", namespace, name)
@@ -369,7 +369,7 @@ func GetSnapshotHandle(ctx context.Context, snapClient snapclient.Interface, nam
 
 	vsc, err := snapClient.SnapshotV1().VolumeSnapshotContents().Get(ctx, vscName, metav1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to get VolumeSnapshotContent %s: %w", vscName, err)
+		return "", fmt.Errorf("get VolumeSnapshotContent %s: %w", vscName, err)
 	}
 
 	if vsc.Status == nil || vsc.Status.SnapshotHandle == nil {
@@ -522,7 +522,7 @@ func RebindPVWithVolumeMode(ctx context.Context, clientset kubernetes.Interface,
 	// Get the source PV to copy CSI volume info
 	sourcePV, err := clientset.CoreV1().PersistentVolumes().Get(ctx, sourcePVName, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get source PV %s: %w", sourcePVName, err)
+		return fmt.Errorf("get source PV %s: %w", sourcePVName, err)
 	}
 	if sourcePV.Spec.CSI == nil {
 		return fmt.Errorf("source PV %s is not a CSI volume", sourcePVName)
@@ -564,7 +564,7 @@ func RebindPVWithVolumeMode(ctx context.Context, clientset kubernetes.Interface,
 
 	_, err = clientset.CoreV1().PersistentVolumes().Create(ctx, newPV, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create rebound PV %s: %w", newPVName, err)
+		return fmt.Errorf("create rebound PV %s: %w", newPVName, err)
 	}
 
 	// Create PVC that binds to the new PV
@@ -586,7 +586,7 @@ func RebindPVWithVolumeMode(ctx context.Context, clientset kubernetes.Interface,
 
 	_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, pvc, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create rebound PVC %s: %w", newPVCName, err)
+		return fmt.Errorf("create rebound PVC %s: %w", newPVCName, err)
 	}
 
 	return nil
@@ -624,7 +624,7 @@ func ExecInPod(ctx context.Context, clientset kubernetes.Interface, config *rest
 
 	executor, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create executor: %w", err)
+		return "", "", fmt.Errorf("create SPDY executor: %w", err)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -667,9 +667,9 @@ func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespac
 	allPods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if len(listErrs) > 0 {
-			return nil, fmt.Errorf("failed to list pods (prior label errors: %s): %w", strings.Join(listErrs, "; "), err)
+			return nil, fmt.Errorf("list pods (prior label errors: %s): %w", strings.Join(listErrs, "; "), err)
 		}
-		return nil, fmt.Errorf("failed to list pods: %w", err)
+		return nil, fmt.Errorf("list pods: %w", err)
 	}
 	for i := range allPods.Items {
 		if strings.Contains(allPods.Items[i].Name, toolboxPodNameFragment) {
