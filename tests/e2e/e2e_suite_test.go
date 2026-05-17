@@ -121,11 +121,14 @@ var _ = BeforeSuite(func() {
 			"Ensure external-snapshot-metadata v1.0.0+ is deployed.")
 
 	By("Checking snapshot-metadata gRPC endpoint is reachable (in-cluster DNS)")
-	// If --snapshot-metadata-service was specified, verify that named SMS exists.
+	// If a specific SMS was requested, find its index (also validates it exists).
+	// Otherwise default to the first available SMS.
+	smsIndex := 0
 	if smsName != "" {
 		found := false
-		for _, item := range smsList.Items {
+		for i, item := range smsList.Items {
 			if item.Name == smsName {
+				smsIndex = i
 				found = true
 				break
 			}
@@ -133,16 +136,6 @@ var _ = BeforeSuite(func() {
 		Expect(found).To(BeTrue(), "SnapshotMetadataService %q not found", smsName)
 	}
 	if len(smsList.Items) > 0 {
-		// If a specific service was requested, prefer it; otherwise use the first available.
-		smsIndex := 0
-		if smsName != "" {
-			for i, item := range smsList.Items {
-				if item.Name == smsName {
-					smsIndex = i
-					break
-				}
-			}
-		}
 		smsAddr := smsList.Items[smsIndex].Spec.Address
 		host, _, splitErr := net.SplitHostPort(smsAddr)
 		if splitErr != nil {
