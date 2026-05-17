@@ -32,7 +32,7 @@ const (
 // computed once at package init to avoid per-call allocation in VerifyAllocatedBlocks.
 var defaultSizeZeroHash = zeroBlockHash(DefaultBlockSize)
 
- writes a known byte pattern at a specific offset on a block device.
+// WriteKnownPattern writes a known byte pattern at a specific offset on a block device.
 // This is used to verify that CBT correctly reports which blocks have been written.
 func WriteKnownPattern(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName string, offset int64, sizeBytes int64, pattern byte) error {
