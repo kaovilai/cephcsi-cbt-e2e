@@ -2,14 +2,17 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	snapfake "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -988,5 +991,70 @@ func TestRebindPVWithVolumeMode_NonCSISource(t *testing.T) {
 		blockMode, nil)
 	if err == nil {
 		t.Fatal("expected error for non-CSI source PV, got nil")
+	}
+}
+
+func TestIsRetryableAPIError(t *testing.T) {
+	gr := schema.GroupResource{Group: "test", Resource: "pods"}
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "server timeout",
+			err:  k8serrors.NewServerTimeout(gr, "get", 5),
+			want: true,
+		},
+		{
+			name: "service unavailable",
+			err:  k8serrors.NewServiceUnavailable("service unavailable"),
+			want: true,
+		},
+		{
+			name: "too many requests",
+			err:  k8serrors.NewTooManyRequests("too many requests", 5),
+			want: true,
+		},
+		{
+			name: "timeout error",
+			err:  k8serrors.NewTimeoutError("operation timed out", 5),
+			want: true,
+		},
+		{
+			name: "not found — not retryable",
+			err:  k8serrors.NewNotFound(gr, "my-pod"),
+			want: false,
+		},
+		{
+			name: "already exists — not retryable",
+			err:  k8serrors.NewAlreadyExists(gr, "my-pod"),
+			want: false,
+		},
+		{
+			name: "forbidden — not retryable",
+			err:  k8serrors.NewForbidden(gr, "my-pod", fmt.Errorf("access denied")),
+			want: false,
+		},
+		{
+			name: "nil error — not retryable",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "plain error — not retryable",
+			err:  fmt.Errorf("some generic error"),
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isRetryableAPIError(tc.err)
+			if got != tc.want {
+				t.Errorf("isRetryableAPIError(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
 	}
 }
