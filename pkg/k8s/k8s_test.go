@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"testing"
+	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	snapfake "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
@@ -807,6 +808,128 @@ func TestCreatePodWithPVC_CustomImageAndCommand(t *testing.T) {
 		if pod.Spec.Containers[0].Command[i] != c {
 			t.Errorf("command[%d] = %q, want %q", i, pod.Spec.Containers[0].Command[i], c)
 		}
+	}
+}
+
+func TestWaitForPVCBound_ImmediatelyBound(t *testing.T) {
+	ctx := context.Background()
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pvc", Namespace: "test-ns"},
+		Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+	}
+	client := fake.NewClientset(pvc)
+	if err := WaitForPVCBound(ctx, client, "test-ns", "my-pvc", 5*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWaitForPVCResized_ImmediatelyResized(t *testing.T) {
+	ctx := context.Background()
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pvc", Namespace: "test-ns"},
+		Status: corev1.PersistentVolumeClaimStatus{
+			Capacity: corev1.ResourceList{
+				corev1.ResourceStorage: mustParseQuantity("10Gi"),
+			},
+		},
+	}
+	client := fake.NewClientset(pvc)
+	if err := WaitForPVCResized(ctx, client, "test-ns", "my-pvc", mustParseQuantity("10Gi"), 5*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWaitForNamespaceDeleted_AlreadyGone(t *testing.T) {
+	ctx := context.Background()
+	// Empty clientset — namespace never existed; Get returns NotFound immediately.
+	client := fake.NewClientset()
+	if err := WaitForNamespaceDeleted(ctx, client, "gone-ns", 5*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWaitForSnapshotReady_ImmediatelyReady(t *testing.T) {
+	ctx := context.Background()
+	readyToUse := true
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			ReadyToUse: &readyToUse,
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+	got, err := WaitForSnapshotReady(ctx, client, "test-ns", "my-snap", 5*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil || got.Name != "my-snap" {
+		t.Errorf("expected snapshot %q, got %v", "my-snap", got)
+	}
+}
+
+func TestWaitForSnapshotDeleted_AlreadyGone(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+	if err := WaitForSnapshotDeleted(ctx, client, "test-ns", "gone-snap", 5*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWaitForSnapshotContentDeleted_AlreadyGone(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+	if err := WaitForSnapshotContentDeleted(ctx, client, "gone-content", 5*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWaitForPodRunning_ImmediatelyRunning(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	client := fake.NewClientset(pod)
+	if err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWaitForPodRunning_ImmediatelyFailed(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase:   corev1.PodFailed,
+			Reason:  "OOMKilled",
+			Message: "memory limit exceeded",
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for Failed pod, got nil")
+	}
+}
+
+func TestWaitForPodRunning_ImmediatelySucceeded(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status:     corev1.PodStatus{Phase: corev1.PodSucceeded},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for Succeeded pod, got nil")
+	}
+}
+
+func TestWaitForPodDeleted_AlreadyGone(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	if err := WaitForPodDeleted(ctx, client, "test-ns", "gone-pod", 5*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
