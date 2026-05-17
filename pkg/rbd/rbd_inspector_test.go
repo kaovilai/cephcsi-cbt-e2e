@@ -320,3 +320,161 @@ func TestListImages(t *testing.T) {
 		})
 	}
 }
+
+func TestListSnapshots(t *testing.T) {
+	tests := []struct {
+		name    string
+		execOut string
+		execErr error
+		want    []RBDSnapshot
+		wantErr bool
+	}{
+		{
+			name:    "empty — no snapshots",
+			execOut: "[]",
+			want:    nil,
+		},
+		{
+			name:    "two snapshots",
+			execOut: `[{"id":1,"name":"snap-1","size":1073741824,"protected":"false"},{"id":2,"name":"snap-2","size":1073741824,"protected":"true"}]`,
+			want: []RBDSnapshot{
+				{ID: 1, Name: "snap-1", Size: 1073741824, Protected: "false"},
+				{ID: 2, Name: "snap-2", Size: 1073741824, Protected: "true"},
+			},
+		},
+		{
+			// rbdErrNotFound in the error string → treated as empty, no error.
+			name:    "not-found error treated as empty",
+			execErr: fmt.Errorf("toolbox exec failed (stderr: rbd: No such file or directory): exit status 22"),
+			want:    nil,
+		},
+		{
+			name:    "non-not-found exec error propagated",
+			execErr: fmt.Errorf("toolbox unavailable"),
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestInspector(func(_ context.Context, _ []string) (string, error) {
+				return tc.execOut, tc.execErr
+			})
+			got, err := r.ListSnapshots(context.Background(), "csi-vol-abc")
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("ListSnapshots() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGetChildren(t *testing.T) {
+	tests := []struct {
+		name    string
+		execOut string
+		execErr error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name:    "no children — empty output",
+			execOut: "",
+			want:    nil,
+		},
+		{
+			name:    "two children",
+			execOut: "replicapool/csi-vol-child1\nreplicapool/csi-vol-child2\n",
+			want:    []string{"csi-vol-child1", "csi-vol-child2"},
+		},
+		{
+			// rbdErrNotFound in the error string → treated as no children.
+			name:    "not-found error treated as no children",
+			execErr: fmt.Errorf("toolbox exec failed (stderr: rbd: No such file or directory): exit status 2"),
+			want:    nil,
+		},
+		{
+			name:    "other exec error propagated",
+			execErr: fmt.Errorf("toolbox unavailable"),
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestInspector(func(_ context.Context, _ []string) (string, error) {
+				return tc.execOut, tc.execErr
+			})
+			got, err := r.GetChildren(context.Background(), "csi-vol-parent", "csi-snap-123")
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("GetChildren() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGetCephMajorVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		execOut string
+		execErr error
+		want    int
+		wantErr bool
+	}{
+		{
+			name:    "quincy 17",
+			execOut: "ceph version 17.2.6 (d7ff0d10654d2280e08f1ab989c7cefa3064e5a1) quincy (stable)",
+			want:    17,
+		},
+		{
+			name:    "reef 18",
+			execOut: "ceph version 18.2.0 (abc123) reef (stable)",
+			want:    18,
+		},
+		{
+			name:    "exec error propagated",
+			execErr: fmt.Errorf("toolbox unavailable"),
+			wantErr: true,
+		},
+		{
+			name:    "malformed version string",
+			execOut: "not a version",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestInspector(func(_ context.Context, _ []string) (string, error) {
+				return tc.execOut, tc.execErr
+			})
+			got, err := r.GetCephMajorVersion(context.Background())
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %d", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("GetCephMajorVersion() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
