@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -103,7 +102,7 @@ var _ = BeforeSuite(func() {
 	By("Checking Kubernetes server version >= 1.33")
 	serverVersion, err := clientset.Discovery().ServerVersion()
 	Expect(err).NotTo(HaveOccurred())
-	log.Printf("Kubernetes server version: %s", serverVersion.GitVersion)
+	GinkgoWriter.Printf("Kubernetes server version: %s\n", serverVersion.GitVersion)
 	minor, err := strconv.Atoi(strings.TrimSuffix(serverVersion.Minor, "+"))
 	Expect(err).NotTo(HaveOccurred())
 	// Alpha went in v1.33. Beta is tracked for v1.36 (KEP-3314 kubernetes/enhancements#5877, merged).
@@ -154,7 +153,7 @@ var _ = BeforeSuite(func() {
 			fmt.Sprintf("Cannot resolve snapshot-metadata service address %q. "+
 				"This test must run inside the cluster where in-cluster DNS works. "+
 				"Use ./run-in-cluster.sh to run tests from a pod.", smsAddr))
-		log.Printf("Snapshot-metadata endpoint %s is resolvable", smsAddr)
+		GinkgoWriter.Printf("Snapshot-metadata endpoint %s is resolvable\n", smsAddr)
 	}
 
 	By("Checking CephCSI RBD provisioner pods running")
@@ -171,7 +170,7 @@ var _ = BeforeSuite(func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		if len(pods.Items) > 0 {
-			log.Printf("Found %d RBD provisioner pods with selector %q", len(pods.Items), selector)
+			GinkgoWriter.Printf("Found %d RBD provisioner pods with selector %q\n", len(pods.Items), selector)
 			break
 		}
 	}
@@ -187,7 +186,7 @@ var _ = BeforeSuite(func() {
 		}
 		if len(filteredItems) > 0 {
 			pods.Items = filteredItems
-			log.Printf("Found %d RBD provisioner pods by name pattern", len(filteredItems))
+			GinkgoWriter.Printf("Found %d RBD provisioner pods by name pattern\n", len(filteredItems))
 		}
 	}
 	Expect(pods.Items).NotTo(BeEmpty(),
@@ -208,9 +207,9 @@ var _ = BeforeSuite(func() {
 		}
 	}
 	if !hasSidecar {
-		log.Printf("WARNING: %s sidecar not found in RBD provisioner pods. "+
+		GinkgoWriter.Printf("WARNING: %s sidecar not found in RBD provisioner pods. "+
 			"CBT tests requiring GetMetadataAllocated/GetMetadataDelta will fail. "+
-			"Deploy the %s container as a sidecar in the RBD provisioner pod.",
+			"Deploy the %s container as a sidecar in the RBD provisioner pod.\n",
 			sidecarContainerName, sidecarContainerName)
 	}
 
@@ -226,7 +225,7 @@ var _ = BeforeSuite(func() {
 	rbdInspector = rbd.NewInspector(clientset, kubeConfig, cephcsiNamespace, rbdPool)
 	cephMajor, err := rbdInspector.GetCephMajorVersion(ctx)
 	Expect(err).NotTo(HaveOccurred(), "failed to get Ceph version")
-	log.Printf("Ceph major version: %d", cephMajor)
+	GinkgoWriter.Printf("Ceph major version: %d\n", cephMajor)
 	Expect(cephMajor).To(BeNumerically(">=", 17),
 		"Ceph version must be >= 17 (Quincy) for rbd snap diff support")
 
@@ -278,6 +277,6 @@ var _ = AfterSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	err = k8sutil.WaitForNamespaceDeleted(ctx, clientset, testNamespace, longOperationTimeout)
 	if err != nil {
-		log.Printf("WARNING: namespace %s did not fully delete: %v", testNamespace, err)
+		GinkgoWriter.Printf("WARNING: namespace %s did not fully delete: %v\n", testNamespace, err)
 	}
 })
