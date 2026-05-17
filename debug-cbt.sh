@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-NS="cbt-debug"
-SC="ocs-storagecluster-ceph-rbd"
-SNAPCLASS="ocs-storagecluster-rbdplugin-snapclass"
-POOL="ocs-storagecluster-cephblockpool"
+NS="${NS:-cbt-debug}"
+SC="${SC:-ocs-storagecluster-ceph-rbd}"
+SNAPCLASS="${SNAPCLASS:-ocs-storagecluster-rbdplugin-snapclass}"
+POOL="${POOL:-ocs-storagecluster-cephblockpool}"
 TOOLBOX=""
 
 find_toolbox() {

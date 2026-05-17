@@ -13,8 +13,8 @@
 set -euo pipefail
 
 RUNNER_NS="${RUNNER_NS:-cbt-e2e-runner}"
-RUNNER_SA="cbt-e2e-runner"
-RUNNER_POD="cbt-e2e-runner"
+RUNNER_SA="${RUNNER_SA:-cbt-e2e-runner}"
+RUNNER_POD="${RUNNER_POD:-cbt-e2e-runner}"
 RUNNER_IMAGE="${RUNNER_IMAGE:-registry.access.redhat.com/ubi9/ubi:latest}"
 
 STORAGE_CLASS="${STORAGE_CLASS:-ocs-storagecluster-ceph-rbd}"
