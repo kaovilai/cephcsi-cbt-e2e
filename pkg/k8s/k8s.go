@@ -161,6 +161,11 @@ func CreatePVC(ctx context.Context, clientset kubernetes.Interface, opts PVCOpti
 	} else if opts.DataSource != nil {
 		pvc.Spec.DataSource = opts.DataSource
 	}
+	// DataSourceRef supports cross-namespace and newer group/kind references.
+	// It is independent of DataSource and set separately when provided.
+	if opts.DataSourceRef != nil {
+		pvc.Spec.DataSourceRef = opts.DataSourceRef
+	}
 
 	result, err := clientset.CoreV1().PersistentVolumeClaims(opts.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
 	if err != nil {

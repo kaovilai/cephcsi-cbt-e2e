@@ -252,6 +252,62 @@ func TestCreatePVC_WithPVCCloneSource(t *testing.T) {
 	}
 }
 
+func TestCreatePVC_WithDataSource(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	apiGroup := "snapshot.storage.k8s.io"
+	pvc, err := CreatePVC(ctx, client, PVCOptions{
+		Name:         "ds-pvc",
+		Namespace:    "test-ns",
+		StorageClass: "test-sc",
+		DataSource: &corev1.TypedLocalObjectReference{
+			APIGroup: &apiGroup,
+			Kind:     "VolumeSnapshot",
+			Name:     "direct-snap",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pvc.Spec.DataSource == nil {
+		t.Fatal("expected DataSource to be set")
+	}
+	if pvc.Spec.DataSource.Name != "direct-snap" {
+		t.Errorf("expected DataSource.Name=direct-snap, got %q", pvc.Spec.DataSource.Name)
+	}
+}
+
+func TestCreatePVC_WithDataSourceRef(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	apiGroup := "snapshot.storage.k8s.io"
+	pvc, err := CreatePVC(ctx, client, PVCOptions{
+		Name:         "restored-pvc",
+		Namespace:    "test-ns",
+		StorageClass: "test-sc",
+		Size:         "5Gi",
+		DataSourceRef: &corev1.TypedObjectReference{
+			APIGroup: &apiGroup,
+			Kind:     "VolumeSnapshot",
+			Name:     "my-snapshot",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pvc.Spec.DataSourceRef == nil {
+		t.Fatal("expected DataSourceRef to be set")
+	}
+	if pvc.Spec.DataSourceRef.Kind != "VolumeSnapshot" {
+		t.Errorf("expected Kind=VolumeSnapshot, got %q", pvc.Spec.DataSourceRef.Kind)
+	}
+	if pvc.Spec.DataSourceRef.Name != "my-snapshot" {
+		t.Errorf("expected DataSourceRef.Name=my-snapshot, got %q", pvc.Spec.DataSourceRef.Name)
+	}
+}
+
 func TestDeletePVC_Exists(t *testing.T) {
 	ctx := context.Background()
 	existing := &corev1.PersistentVolumeClaim{
