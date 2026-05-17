@@ -76,6 +76,13 @@ type rbdImageInfo struct {
 // instead of duplicating the literal string across multiple call sites.
 const rbdErrNotFound = "No such file"
 
+// csiImageNameAttr is the key in a CSI PV's VolumeAttributes that holds the RBD image name.
+// CephCSI sets this when provisioning a volume.
+const csiImageNameAttr = "imageName"
+
+// radosCsiVolumePrefix is the RADOS object name prefix used by CephCSI for per-volume omap metadata.
+const radosCsiVolumePrefix = "csi.volume."
+
 // poolImage returns the pool/image path string for use in rbd commands.
 func (r *Inspector) poolImage(imageName string) string {
 	return fmt.Sprintf("%s/%s", r.pool, imageName)
@@ -296,7 +303,7 @@ func (r *Inspector) ListImages(ctx context.Context) ([]string, error) {
 func (r *Inspector) GetOmapData(ctx context.Context, imageName, key string) (string, error) {
 	// Use rados getomapval to read a specific key
 	output, err := r.execInToolbox(ctx, []string{
-		"rados", "-p", r.pool, "getomapval", fmt.Sprintf("csi.volume.%s", imageName), key,
+		"rados", "-p", r.pool, "getomapval", fmt.Sprintf("%s%s", radosCsiVolumePrefix, imageName), key,
 	})
 	if err != nil {
 		return "", fmt.Errorf("rados getomapval failed for %s/%s: %w", imageName, key, err)
@@ -308,7 +315,7 @@ func (r *Inspector) GetOmapData(ctx context.Context, imageName, key string) (str
 // ListOmapKeys lists all omap keys for an RBD image's CSI metadata.
 func (r *Inspector) ListOmapKeys(ctx context.Context, imageName string) ([]string, error) {
 	output, err := r.execInToolbox(ctx, []string{
-		"rados", "-p", r.pool, "listomapkeys", fmt.Sprintf("csi.volume.%s", imageName),
+		"rados", "-p", r.pool, "listomapkeys", fmt.Sprintf("%s%s", radosCsiVolumePrefix, imageName),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("rados listomapkeys failed: %w", err)
@@ -365,9 +372,9 @@ func (r *Inspector) GetRBDImageNameFromPV(ctx context.Context, pvName string) (s
 	}
 
 	// The image name is stored in the volumeAttributes
-	if imageName, ok := pv.Spec.CSI.VolumeAttributes["imageName"]; ok {
+	if imageName, ok := pv.Spec.CSI.VolumeAttributes[csiImageNameAttr]; ok {
 		return imageName, nil
 	}
 
-	return "", fmt.Errorf("PV %s has no imageName attribute", pvName)
+	return "", fmt.Errorf("PV %s has no %s attribute", pvName, csiImageNameAttr)
 }
