@@ -349,3 +349,24 @@ func TestGetRBDImageNameFromPV(t *testing.T) {
 		})
 	}
 }
+
+func TestPoolImage(t *testing.T) {
+	tests := []struct {
+		pool      string
+		imageName string
+		want      string
+	}{
+		{pool: "rbd", imageName: "csi-vol-abc", want: "rbd/csi-vol-abc"},
+		{pool: "replicapool", imageName: "csi-vol-xyz", want: "replicapool/csi-vol-xyz"},
+		{pool: "ocs-storagecluster-cephblockpool", imageName: "csi-vol-123", want: "ocs-storagecluster-cephblockpool/csi-vol-123"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.pool+"/"+tc.imageName, func(t *testing.T) {
+			r := NewInspector(nil, nil, "ns", tc.pool)
+			got := r.poolImage(tc.imageName)
+			if got != tc.want {
+				t.Errorf("poolImage(%q) = %q, want %q", tc.imageName, got, tc.want)
+			}
+		})
+	}
+}
