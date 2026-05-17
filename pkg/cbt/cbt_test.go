@@ -106,6 +106,50 @@ func TestBlocksAreNonOverlapping(t *testing.T) {
 	}
 }
 
+// TestContainsOffset_MultiBlock verifies that ContainsOffset matches in any block,
+// not just the first one.
+func TestContainsOffset_MultiBlock(t *testing.T) {
+	tests := []struct {
+		name   string
+		blocks []BlockMetadata
+		offset int64
+		want   bool
+	}{
+		{
+			name:   "hit: second of two blocks",
+			blocks: []BlockMetadata{block(0, 512), block(4096, 4096)},
+			offset: 4096,
+			want:   true,
+		},
+		{
+			name:   "hit: middle of second block",
+			blocks: []BlockMetadata{block(0, 512), block(4096, 4096)},
+			offset: 5000,
+			want:   true,
+		},
+		{
+			name:   "hit: third of three blocks",
+			blocks: []BlockMetadata{block(0, 512), block(4096, 512), block(16384, 4096)},
+			offset: 16384,
+			want:   true,
+		},
+		{
+			name:   "miss: falls between two blocks",
+			blocks: []BlockMetadata{block(0, 512), block(4096, 512)},
+			offset: 1000,
+			want:   false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := makeResult(tc.blocks...).ContainsOffset(tc.offset)
+			if got != tc.want {
+				t.Errorf("ContainsOffset(%d) = %v, want %v", tc.offset, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestCollectingEmitter_MultiRecord verifies that BlockMetadataType and
 // VolumeCapacityBytes are both updated on every record, not just the first.
 func TestCollectingEmitter_MultiRecord(t *testing.T) {
@@ -134,5 +178,78 @@ func TestCollectingEmitter_MultiRecord(t *testing.T) {
 	}
 	if result.VolumeCapacityBytes != 1073741824 {
 		t.Errorf("VolumeCapacityBytes = %d, want 1073741824", result.VolumeCapacityBytes)
+	}
+}
+
+// TestCollectingEmitter_BlocksAccumulated verifies that blocks from multiple
+// streaming records are all appended to the result, not replaced.
+func TestCollectingEmitter_BlocksAccumulated(t *testing.T) {
+	result := &MetadataResult{}
+	emitter := &collectingEmitter{result: result}
+
+	records := []iterator.IteratorMetadata{
+		{
+			BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+			VolumeCapacityBytes: 1073741824,
+			BlockMetadata: []*api.BlockMetadata{
+				{ByteOffset: 0, SizeBytes: 4096},
+				{ByteOffset: 8192, SizeBytes: 4096},
+			},
+		},
+		{
+			BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+			VolumeCapacityBytes: 1073741824,
+			BlockMetadata: []*api.BlockMetadata{
+				{ByteOffset: 16384, SizeBytes: 4096},
+			},
+		},
+	}
+
+	for i, rec := range records {
+		if err := emitter.SnapshotMetadataIteratorRecord(i, rec); err != nil {
+			t.Fatalf("record %d: unexpected error: %v", i, err)
+		}
+	}
+
+	if len(result.Blocks) != 3 {
+		t.Fatalf("expected 3 accumulated blocks, got %d", len(result.Blocks))
+	}
+	if result.Blocks[0].ByteOffset != 0 {
+		t.Errorf("block[0].ByteOffset = %d, want 0", result.Blocks[0].ByteOffset)
+	}
+	if result.Blocks[1].ByteOffset != 8192 {
+		t.Errorf("block[1].ByteOffset = %d, want 8192", result.Blocks[1].ByteOffset)
+	}
+	if result.Blocks[2].ByteOffset != 16384 {
+		t.Errorf("block[2].ByteOffset = %d, want 16384", result.Blocks[2].ByteOffset)
+	}
+}
+
+// TestCollectingEmitter_LastVolumeCapacityWins documents that VolumeCapacityBytes
+// from the last record overwrites earlier values (last-write-wins).
+func TestCollectingEmitter_LastVolumeCapacityWins(t *testing.T) {
+	result := &MetadataResult{}
+	emitter := &collectingEmitter{result: result}
+
+	records := []iterator.IteratorMetadata{
+		{BlockMetadataType: api.BlockMetadataType_VARIABLE_LENGTH, VolumeCapacityBytes: 1073741824},
+		{BlockMetadataType: api.BlockMetadataType_VARIABLE_LENGTH, VolumeCapacityBytes: 2147483648},
+	}
+	for i, rec := range records {
+		if err := emitter.SnapshotMetadataIteratorRecord(i, rec); err != nil {
+			t.Fatalf("record %d: unexpected error: %v", i, err)
+		}
+	}
+
+	if result.VolumeCapacityBytes != 2147483648 {
+		t.Errorf("VolumeCapacityBytes = %d, want last record's value 2147483648", result.VolumeCapacityBytes)
+	}
+}
+
+// TestCollectingEmitter_Done verifies SnapshotMetadataIteratorDone returns nil.
+func TestCollectingEmitter_Done(t *testing.T) {
+	emitter := &collectingEmitter{result: &MetadataResult{}}
+	if err := emitter.SnapshotMetadataIteratorDone(0); err != nil {
+		t.Errorf("SnapshotMetadataIteratorDone() returned unexpected error: %v", err)
 	}
 }
