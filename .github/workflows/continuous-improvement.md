@@ -10,9 +10,14 @@ permissions:
   issues: read
   pull-requests: read
   actions: read
+network:
+  allowed:
+    - defaults
+    - go
+    - github
 tools:
   edit:
-  bash: ["go build ./...", "go vet ./...", "go test ./...", "golangci-lint run", "git log", "git diff", "git status", "find", "grep", "cat", "ls", "wc", "head", "tail", "make"]
+  bash: ["git log", "git diff", "git status", "find", "grep", "cat", "ls", "wc", "head", "tail"]
   github:
     toolsets: [repos, issues, pull_requests]
 safe-outputs:
@@ -75,8 +80,8 @@ Pick ONE category and find ALL instances:
 ## Step 3: Create PR
 
 1. Create one branch with all fixes of the chosen category
-2. Run `go build ./...` and `go vet ./...` to verify
-3. Create ONE PR with clear description
+2. Review the changes with `git diff` to verify they look correct
+3. Create ONE PR with clear description — CI will run `go build ./...` and `go vet ./...` to verify the build
 
 ## Important Rules
 
