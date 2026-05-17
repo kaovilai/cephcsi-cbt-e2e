@@ -933,6 +933,44 @@ func TestWaitForPodDeleted_AlreadyGone(t *testing.T) {
 	}
 }
 
+func TestCreatePVC_FilesystemMode(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	filesystemMode := corev1.PersistentVolumeFilesystem
+	pvc, err := CreatePVC(ctx, client, PVCOptions{
+		Name:         "fs-pvc",
+		Namespace:    "test-ns",
+		StorageClass: "test-sc",
+		VolumeMode:   &filesystemMode,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pvc.Spec.VolumeMode == nil || *pvc.Spec.VolumeMode != corev1.PersistentVolumeFilesystem {
+		t.Errorf("expected VolumeMode=Filesystem, got %v", pvc.Spec.VolumeMode)
+	}
+}
+
+func TestCreatePodWithPVC_DefaultCommand(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	pod, err := CreatePodWithPVC(ctx, client, PodOptions{
+		Name:       "test-pod",
+		Namespace:  "test-ns",
+		PVCName:    "test-pvc",
+		VolumeMode: corev1.PersistentVolumeBlock,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmd := pod.Spec.Containers[0].Command
+	if len(cmd) != 2 || cmd[0] != "sleep" || cmd[1] != "infinity" {
+		t.Errorf("expected default command [sleep infinity], got %v", cmd)
+	}
+}
+
 func TestRebindPVWithVolumeMode_NonCSISource(t *testing.T) {
 	ctx := context.Background()
 	nonCSIPV := &corev1.PersistentVolume{

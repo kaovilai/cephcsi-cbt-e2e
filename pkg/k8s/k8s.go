@@ -404,7 +404,7 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 		}
 	}
 	if opts.Command == nil {
-		opts.Command = []string{"sleep", "3600"}
+		opts.Command = []string{"sleep", "infinity"}
 	}
 
 	pod := &corev1.Pod{
