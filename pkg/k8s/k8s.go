@@ -4,6 +4,7 @@ package k8s
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -214,9 +215,21 @@ func DeletePVC(ctx context.Context, clientset kubernetes.Interface, namespace, n
 
 // ResizePVC patches a PVC to request a new storage size.
 func ResizePVC(ctx context.Context, clientset kubernetes.Interface, namespace, name, newSize string) error {
-	patchData := fmt.Sprintf(`{"spec":{"resources":{"requests":{"storage":"%s"}}}}`, newSize)
-	_, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Patch(
-		ctx, name, types.MergePatchType, []byte(patchData), metav1.PatchOptions{},
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{
+					"storage": newSize,
+				},
+			},
+		},
+	}
+	patchData, err := json.Marshal(patch)
+	if err != nil {
+		return fmt.Errorf("marshal resize patch for PVC %s/%s: %w", namespace, name, err)
+	}
+	_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Patch(
+		ctx, name, types.MergePatchType, patchData, metav1.PatchOptions{},
 	)
 	if err != nil {
 		return fmt.Errorf("resize PVC %s/%s to %s: %w", namespace, name, newSize, err)
@@ -623,11 +636,13 @@ func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespac
 		"app=" + toolboxPodNameFragment,
 		"app=" + toolboxPodNameFragment + ",app.kubernetes.io/part-of=rook-ceph-operator",
 	}
+	var listErrs []string
 	for _, selector := range selectors {
 		pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 			LabelSelector: selector,
 		})
 		if err != nil {
+			listErrs = append(listErrs, fmt.Sprintf("label %q: %v", selector, err))
 			continue
 		}
 		for i := range pods.Items {
@@ -643,6 +658,9 @@ func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespac
 	// Fall back to name-based matching
 	allPods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
+		if len(listErrs) > 0 {
+			return nil, fmt.Errorf("failed to list pods (prior label errors: %s): %w", strings.Join(listErrs, "; "), err)
+		}
 		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
 	for i := range allPods.Items {
@@ -651,5 +669,8 @@ func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespac
 		}
 	}
 
+	if len(listErrs) > 0 {
+		return nil, fmt.Errorf("no Ceph toolbox pod found in namespace %s (label errors: %s)", namespace, strings.Join(listErrs, "; "))
+	}
 	return nil, fmt.Errorf("no Ceph toolbox pod found in namespace %s (tried labels and name matching)", namespace)
 }
