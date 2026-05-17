@@ -94,6 +94,9 @@ func WaitForNamespaceDeleted(ctx context.Context, clientset kubernetes.Interface
 		if errors.IsNotFound(err) {
 			return true, nil
 		}
+		if err != nil {
+			return false, err
+		}
 		return false, nil
 	}); err != nil {
 		return fmt.Errorf("namespace %s not deleted after %v: %w", name, timeout, err)
@@ -318,6 +321,9 @@ func WaitForSnapshotDeleted(ctx context.Context, snapClient snapclient.Interface
 		if errors.IsNotFound(err) {
 			return true, nil
 		}
+		if err != nil {
+			return false, err
+		}
 		return false, nil
 	}); err != nil {
 		return fmt.Errorf("VolumeSnapshot %s/%s not deleted after %v: %w", namespace, name, timeout, err)
@@ -343,6 +349,9 @@ func WaitForSnapshotContentDeleted(ctx context.Context, snapClient snapclient.In
 		_, err := snapClient.SnapshotV1().VolumeSnapshotContents().Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
+		}
+		if err != nil {
+			return false, err
 		}
 		return false, nil
 	}); err != nil {
@@ -496,6 +505,9 @@ func WaitForPodDeleted(ctx context.Context, clientset kubernetes.Interface, name
 		_, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
+		}
+		if err != nil {
+			return false, err
 		}
 		return false, nil
 	}); err != nil {
