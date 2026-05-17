@@ -84,7 +84,7 @@ func TestMountFilePath(t *testing.T) {
 		{
 			name:     "empty filename",
 			filename: "",
-			want:     DefaultMountPath + "/",
+			want:     DefaultMountPath,
 		},
 		{
 			name:     "nested path",
