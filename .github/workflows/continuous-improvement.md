@@ -12,7 +12,7 @@ permissions:
   actions: read
 tools:
   edit:
-  bash: ["go build ./...", "go vet ./...", "go test ./...", "golangci-lint run", "git log", "git diff", "git status", "find", "grep", "cat", "ls", "wc", "head", "tail", "make"]
+  bash: ["go build ./...", "go vet ./...", "go test ./...", "golangci-lint run", "git log", "git diff", "git status", "find", "grep", "cat", "cd", "ls", "wc", "head", "tail", "make"]
   github:
     toolsets: [repos, issues, pull_requests]
 network:
