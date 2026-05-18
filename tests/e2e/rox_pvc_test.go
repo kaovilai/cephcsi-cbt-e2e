@@ -121,15 +121,8 @@ var _ = Describe("ROX PVC", Ordered, func() {
 		// Note: The source PVC was created from scratch and never had a parent,
 		// so checking it for flattening would be meaningless.
 		By("Verifying the ROX PVC's RBD image is NOT flattened")
-		pvc, err := clientset.CoreV1().PersistentVolumeClaims(testNamespace).Get(ctx, roxPVCName, metav1.GetOptions{})
+		imageName, err := rbdInspector.GetRBDImageNameFromPVC(ctx, testNamespace, roxPVCName)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(pvc.Spec.VolumeName).NotTo(BeEmpty())
-
-		pv, err := clientset.CoreV1().PersistentVolumes().Get(ctx, pvc.Spec.VolumeName, metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(pv.Spec.CSI).NotTo(BeNil())
-
-		imageName := pv.Spec.CSI.VolumeAttributes["imageName"]
 		Expect(imageName).NotTo(BeEmpty(), "PV should have imageName attribute")
 		flattened, err := rbdInspector.IsImageFlattened(ctx, imageName)
 		Expect(err).NotTo(HaveOccurred())

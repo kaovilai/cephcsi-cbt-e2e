@@ -350,7 +350,74 @@ func TestGetRBDImageNameFromPV(t *testing.T) {
 	}
 }
 
-func TestPoolImage(t *testing.T) {
+func TestGetRBDImageNameFromPVC(t *testing.T) {
+	csiPV := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pv"},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver:           "rbd.csi.ceph.com",
+					VolumeHandle:     "0001-0011-rook-ceph-0000000000000001-abc123",
+					VolumeAttributes: map[string]string{csiImageNameAttr: "csi-vol-abc123"},
+				},
+			},
+		},
+	}
+	boundPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pvc", Namespace: "test-ns"},
+		Spec:       corev1.PersistentVolumeClaimSpec{VolumeName: "test-pv"},
+	}
+	unboundPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "unbound-pvc", Namespace: "test-ns"},
+		Spec:       corev1.PersistentVolumeClaimSpec{VolumeName: ""},
+	}
+	tests := []struct {
+		name      string
+		pvcName   string
+		namespace string
+		want      string
+		wantErr   bool
+	}{
+		{
+			name:      "bound PVC with CSI PV",
+			namespace: "test-ns",
+			pvcName:   "test-pvc",
+			want:      "csi-vol-abc123",
+		},
+		{
+			name:      "PVC not found",
+			namespace: "test-ns",
+			pvcName:   "missing-pvc",
+			wantErr:   true,
+		},
+		{
+			name:      "unbound PVC",
+			namespace: "test-ns",
+			pvcName:   "unbound-pvc",
+			wantErr:   true,
+		},
+	}
+
+	clientset := fake.NewClientset(csiPV, boundPVC, unboundPVC)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			inspector := NewInspector(clientset, nil, tc.namespace, "replicapool")
+			got, err := inspector.GetRBDImageNameFromPVC(context.Background(), tc.namespace, tc.pvcName)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got %q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("GetRBDImageNameFromPVC(%q) = %q, want %q", tc.pvcName, got, tc.want)
+			}
+		})
+	}
+}
 	tests := []struct {
 		pool      string
 		imageName string
