@@ -138,9 +138,9 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 		}
 	})
 
-	It("should report FIXED_LENGTH BlockMetadataType", func() {
+	It("should report VARIABLE_LENGTH BlockMetadataType", func() {
 		Expect(allocatedResult.BlockMetadataType).To(Equal(cbt.BlockMetadataTypeAllocated),
-			"CephCSI RBD should report FIXED_LENGTH BlockMetadataType")
+			"CephCSI RBD should report VARIABLE_LENGTH BlockMetadataType")
 	})
 
 	It("should support StartingOffset for resumption", func() {
