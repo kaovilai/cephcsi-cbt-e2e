@@ -7,7 +7,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/cephcsi-cbt-e2e/pkg/data"
 	k8sutil "github.com/cephcsi-cbt-e2e/pkg/k8s"
@@ -110,12 +109,8 @@ var _ = Describe("Flattening Prevention", func() {
 			// Note: The original PVC was created from scratch and never had a parent,
 			// so checking it would be meaningless.
 			By("Verifying restored PVC's RBD image still has parent chain intact")
-			pvc, err := clientset.CoreV1().PersistentVolumeClaims(testNamespace).Get(ctx, restoredPVC, metav1.GetOptions{})
+			imageName, err := rbdInspector.GetRBDImageNameFromPVC(ctx, testNamespace, restoredPVC)
 			Expect(err).NotTo(HaveOccurred())
-			pv, err := clientset.CoreV1().PersistentVolumes().Get(ctx, pvc.Spec.VolumeName, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
-
-			imageName := pv.Spec.CSI.VolumeAttributes["imageName"]
 			Expect(imageName).NotTo(BeEmpty(), "PV should have imageName attribute")
 			flattened, err := rbdInspector.IsImageFlattened(ctx, imageName)
 			Expect(err).NotTo(HaveOccurred())
@@ -228,12 +223,8 @@ var _ = Describe("Flattening Prevention", func() {
 			// The cloned PVC's image should retain its parent chain (not be flattened)
 			// since the clone depth is only 1, well below the soft limit.
 			// Note: The original PVC was created from scratch and never had a parent.
-			pvc, err := clientset.CoreV1().PersistentVolumeClaims(testNamespace).Get(ctx, clonePVCName, metav1.GetOptions{})
+			imageName, err := rbdInspector.GetRBDImageNameFromPVC(ctx, testNamespace, clonePVCName)
 			Expect(err).NotTo(HaveOccurred())
-			pv, err := clientset.CoreV1().PersistentVolumes().Get(ctx, pvc.Spec.VolumeName, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
-
-			imageName := pv.Spec.CSI.VolumeAttributes["imageName"]
 			Expect(imageName).NotTo(BeEmpty(), "PV should have imageName attribute")
 			flattened, err := rbdInspector.IsImageFlattened(ctx, imageName)
 			Expect(err).NotTo(HaveOccurred())

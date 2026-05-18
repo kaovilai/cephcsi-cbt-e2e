@@ -369,6 +369,20 @@ func parseCephMajorVersion(version string) (int, error) {
 	return major, nil
 }
 
+// GetRBDImageNameFromPVC resolves a PVC to its bound PV and returns the RBD image name.
+// It is a convenience wrapper around GetRBDImageNameFromPV for callers that only have
+// a PVC name. Returns an error if the PVC is not yet bound.
+func (r *Inspector) GetRBDImageNameFromPVC(ctx context.Context, namespace, pvcName string) (string, error) {
+	pvc, err := r.clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("get PVC %s/%s: %w", namespace, pvcName, err)
+	}
+	if pvc.Spec.VolumeName == "" {
+		return "", fmt.Errorf("PVC %s/%s is not yet bound to a PV", namespace, pvcName)
+	}
+	return r.GetRBDImageNameFromPV(ctx, pvc.Spec.VolumeName)
+}
+
 // GetRBDImageNameFromPV extracts the RBD image name from a PV's CSI volume attributes.
 func (r *Inspector) GetRBDImageNameFromPV(ctx context.Context, pvName string) (string, error) {
 	pv, err := r.clientset.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{})
