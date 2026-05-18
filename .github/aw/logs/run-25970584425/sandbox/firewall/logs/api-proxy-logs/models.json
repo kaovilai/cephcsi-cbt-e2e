@@ -1,0 +1,149 @@
+{
+  "timestamp": "2026-05-16T19:17:43.399Z",
+  "providers": {
+    "openai": {
+      "configured": false,
+      "models": null,
+      "target": null
+    },
+    "anthropic": {
+      "configured": false,
+      "models": null,
+      "target": null
+    },
+    "copilot": {
+      "configured": true,
+      "models": [
+        "claude-haiku-4.5",
+        "claude-opus-4.5",
+        "claude-opus-4.6",
+        "claude-opus-4.6-fast",
+        "claude-opus-4.7",
+        "claude-sonnet-4.5",
+        "claude-sonnet-4.6",
+        "gemini-2.5-pro",
+        "gpt-3.5-turbo",
+        "gpt-3.5-turbo-0613",
+        "gpt-4.1",
+        "gpt-4.1-2025-04-14",
+        "gpt-4o-mini",
+        "gpt-4o-mini-2024-07-18",
+        "gpt-5-mini",
+        "gpt-5.2",
+        "gpt-5.2-codex",
+        "gpt-5.3-codex",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.4-nano",
+        "gpt-5.5",
+        "text-embedding-3-small",
+        "text-embedding-3-small-inference",
+        "text-embedding-ada-002"
+      ],
+      "target": "api.githubcopilot.com"
+    },
+    "gemini": {
+      "configured": false,
+      "models": null,
+      "target": null
+    },
+    "opencode": {
+      "configured": false,
+      "models": null,
+      "target": null
+    }
+  },
+  "model_aliases": {
+    "auto": [
+      "large"
+    ],
+    "deep-research": [
+      "copilot/deep-research*",
+      "copilot/o3-deep-research*",
+      "copilot/o4-mini-deep-research*",
+      "google/deep-research*",
+      "gemini/deep-research*",
+      "openai/o3-deep-research*",
+      "openai/o4-mini-deep-research*"
+    ],
+    "gemini-flash": [
+      "copilot/gemini-*flash*",
+      "google/gemini-*flash*",
+      "gemini/gemini-*flash*"
+    ],
+    "gemini-flash-lite": [
+      "copilot/gemini-*flash*lite*",
+      "google/gemini-*flash*lite*",
+      "gemini/gemini-*flash*lite*"
+    ],
+    "gemini-pro": [
+      "copilot/gemini-*pro*",
+      "google/gemini-*pro*",
+      "gemini/gemini-*pro*"
+    ],
+    "gemma": [
+      "copilot/gemma*",
+      "google/gemma*",
+      "gemini/gemma*"
+    ],
+    "gpt-4.1": [
+      "copilot/gpt-4.1*",
+      "openai/gpt-4.1*"
+    ],
+    "gpt-5": [
+      "copilot/gpt-5*",
+      "openai/gpt-5*"
+    ],
+    "gpt-5-codex": [
+      "copilot/gpt-5*codex*",
+      "openai/gpt-5*codex*"
+    ],
+    "gpt-5-mini": [
+      "copilot/gpt-5*mini*",
+      "openai/gpt-5*mini*"
+    ],
+    "gpt-5-nano": [
+      "copilot/gpt-5*nano*",
+      "openai/gpt-5*nano*"
+    ],
+    "gpt-5-pro": [
+      "copilot/gpt-5*pro*",
+      "openai/gpt-5*pro*"
+    ],
+    "haiku": [
+      "copilot/*haiku*",
+      "anthropic/*haiku*"
+    ],
+    "large": [
+      "sonnet",
+      "gpt-5-pro",
+      "gpt-5",
+      "gemini-pro"
+    ],
+    "mini": [
+      "haiku",
+      "gpt-5-mini",
+      "gpt-5-nano",
+      "gemini-flash-lite"
+    ],
+    "opus": [
+      "copilot/*opus*",
+      "anthropic/*opus*"
+    ],
+    "reasoning": [
+      "copilot/o1*",
+      "copilot/o3*",
+      "copilot/o4*",
+      "openai/o1*",
+      "openai/o3*",
+      "openai/o4*"
+    ],
+    "small": [
+      "mini"
+    ],
+    "sonnet": [
+      "copilot/*sonnet*",
+      "anthropic/*sonnet*"
+    ]
+  }
+}

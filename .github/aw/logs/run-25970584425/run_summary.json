@@ -1,0 +1,347 @@
+{
+  "cli_version": "v0.74.3",
+  "run_id": 25970584425,
+  "processed_at": "2026-05-18T20:45:56.098162168Z",
+  "run": {
+    "databaseId": 25970584425,
+    "number": 1,
+    "url": "https://github.com/kaovilai/cephcsi-cbt-e2e/actions/runs/25970584425",
+    "status": "completed",
+    "conclusion": "success",
+    "workflowName": "Continuous Improvement — CephCSI CBT E2E",
+    "workflowPath": ".github/workflows/continuous-improvement.lock.yml",
+    "createdAt": "2026-05-16T19:16:38Z",
+    "startedAt": "2026-05-16T19:16:38Z",
+    "updatedAt": "2026-05-16T19:24:00Z",
+    "event": "push",
+    "headBranch": "main",
+    "headSha": "701f5828322e63f487f0387da4eb5678040e8ed2",
+    "displayTitle": "Continuous Improvement — CephCSI CBT E2E",
+    "Duration": 442000000000,
+    "ActionMinutes": 0,
+    "TokenUsage": 0,
+    "EstimatedCost": 0,
+    "Turns": 0,
+    "ErrorCount": 0,
+    "WarningCount": 0,
+    "MissingToolCount": 0,
+    "MissingDataCount": 0,
+    "NoopCount": 0,
+    "SafeItemsCount": 0,
+    "EffectiveTokens": 0,
+    "AvgTimeBetweenTurns": 0,
+    "LogsPath": "/home/runner/work/cephcsi-cbt-e2e/cephcsi-cbt-e2e/.github/aw/logs/run-25970584425"
+  },
+  "metrics": {
+    "TokenUsage": 0,
+    "EstimatedCost": 0,
+    "Turns": 0,
+    "ToolCalls": null,
+    "ToolSequences": null,
+    "AvgTimeBetweenTurns": 0,
+    "MaxTimeBetweenTurns": 0,
+    "MedianTimeBetweenTurns": 0,
+    "StdDevTimeBetweenTurns": 0
+  },
+  "task_domain": {
+    "name": "general_automation",
+    "label": "General Automation",
+    "reason": "The run does not strongly match a narrower workflow domain yet."
+  },
+  "behavior_fingerprint": {
+    "execution_style": "directed",
+    "tool_breadth": "narrow",
+    "actuation_style": "read_only",
+    "resource_profile": "moderate",
+    "dispatch_mode": "standalone",
+    "agentic_fraction": 0
+  },
+  "access_analysis": null,
+  "firewall_analysis": {
+    "allowed_domains": [
+      "api.githubcopilot.com:443"
+    ],
+    "total_requests": 59,
+    "allowed_requests": 59,
+    "blocked_requests": 0,
+    "requests_by_domain": {
+      "api.githubcopilot.com:443": {
+        "allowed": 59,
+        "blocked": 0
+      }
+    }
+  },
+  "policy_analysis": {
+    "policy_summary": "7 rules, SSL Bump disabled, DLP disabled",
+    "rule_hits": [],
+    "total_requests": 0,
+    "allowed_count": 0,
+    "denied_count": 0,
+    "unique_domains": 0
+  },
+  "redacted_domains_analysis": null,
+  "missing_tools": [
+    {
+      "tool": "bash (go build / go vet)",
+      "reason": "security",
+      "alternatives": "Run `go build ./...` and `go vet ./...` manually in the terminal from the project directory.",
+      "timestamp": "",
+      "workflow_name": "Continuous Improvement — CephCSI CBT E2E",
+      "run_id": 25970584425
+    }
+  ],
+  "missing_data": null,
+  "noops": null,
+  "mcp_failures": null,
+  "mcp_tool_usage": {
+    "summary": [
+      {
+        "server_name": "github",
+        "tool_name": "search_issues",
+        "call_count": 1,
+        "total_input_size": 0,
+        "total_output_size": 0,
+        "max_input_size": 0,
+        "max_output_size": 0
+      },
+      {
+        "server_name": "github",
+        "tool_name": "search_pull_requests",
+        "call_count": 1,
+        "total_input_size": 0,
+        "total_output_size": 0,
+        "max_input_size": 0,
+        "max_output_size": 0
+      },
+      {
+        "server_name": "github",
+        "tool_name": "search_repositories",
+        "call_count": 1,
+        "total_input_size": 0,
+        "total_output_size": 0,
+        "max_input_size": 0,
+        "max_output_size": 0
+      },
+      {
+        "server_name": "safeoutputs",
+        "tool_name": "create_pull_request",
+        "call_count": 1,
+        "total_input_size": 0,
+        "total_output_size": 0,
+        "max_input_size": 0,
+        "max_output_size": 0
+      },
+      {
+        "server_name": "safeoutputs",
+        "tool_name": "missing_tool",
+        "call_count": 1,
+        "total_input_size": 0,
+        "total_output_size": 0,
+        "max_input_size": 0,
+        "max_output_size": 0
+      }
+    ],
+    "tool_calls": [
+      {
+        "timestamp": "2026-05-16T19:17:58.242473465Z",
+        "server_name": "github",
+        "tool_name": "search_repositories",
+        "input_size": 0,
+        "output_size": 0,
+        "status": "unknown"
+      },
+      {
+        "timestamp": "2026-05-16T19:17:58.672970301Z",
+        "server_name": "github",
+        "tool_name": "search_issues",
+        "input_size": 0,
+        "output_size": 0,
+        "status": "unknown"
+      },
+      {
+        "timestamp": "2026-05-16T19:17:58.686271597Z",
+        "server_name": "github",
+        "tool_name": "search_pull_requests",
+        "input_size": 0,
+        "output_size": 0,
+        "status": "unknown"
+      },
+      {
+        "timestamp": "2026-05-16T19:21:36.747311367Z",
+        "server_name": "safeoutputs",
+        "tool_name": "missing_tool",
+        "input_size": 0,
+        "output_size": 0,
+        "status": "unknown"
+      },
+      {
+        "timestamp": "2026-05-16T19:22:09.901026725Z",
+        "server_name": "safeoutputs",
+        "tool_name": "create_pull_request",
+        "input_size": 0,
+        "output_size": 0,
+        "status": "unknown"
+      }
+    ],
+    "servers": [
+      {
+        "server_name": "github",
+        "request_count": 3,
+        "tool_call_count": 3,
+        "total_input_size": 0,
+        "total_output_size": 0,
+        "avg_duration": "0ns"
+      },
+      {
+        "server_name": "safeoutputs",
+        "request_count": 2,
+        "tool_call_count": 2,
+        "total_input_size": 0,
+        "total_output_size": 0,
+        "avg_duration": "0ns"
+      }
+    ]
+  },
+  "token_usage_summary": {
+    "total_input_tokens": 2451982,
+    "total_output_tokens": 13699,
+    "total_cache_read_tokens": 2370232,
+    "total_cache_write_tokens": 0,
+    "total_requests": 57,
+    "total_duration_ms": 246688,
+    "total_response_bytes": 997423,
+    "cache_efficiency": 0,
+    "total_effective_tokens": 24694211,
+    "ambient_context": {
+      "input_tokens": 29924,
+      "cached_tokens": 0,
+      "effective_tokens": 29924
+    },
+    "by_model": {
+      "claude-sonnet-4.6": {
+        "provider": "copilot",
+        "input_tokens": 2451982,
+        "output_tokens": 13699,
+        "cache_read_tokens": 2370232,
+        "cache_write_tokens": 0,
+        "requests": 57,
+        "duration_ms": 246688,
+        "response_bytes": 997423,
+        "effective_tokens": 24694211
+      }
+    }
+  },
+  "github_rate_limit_usage": {
+    "total_requests_made": 3,
+    "core_consumed": 17,
+    "core_remaining": 4983,
+    "core_limit": 5000,
+    "resources": [
+      {
+        "resource": "core",
+        "requests_made": 3,
+        "quota_consumed": 17,
+        "final_remaining": 4983,
+        "limit": 5000
+      }
+    ]
+  },
+  "artifacts_list": [
+    "agent-stdio.log",
+    "agent_output.json",
+    "agent_usage.json",
+    "aw-improve-cbt-code-quality.bundle",
+    "aw-improve-cbt-code-quality.patch",
+    "aw-prompts/prompt.txt",
+    "awf-config.json",
+    "detection.log",
+    "github_rate_limits.jsonl",
+    "mcp-logs/gateway.md",
+    "mcp-logs/github.log",
+    "mcp-logs/mcp-gateway.log",
+    "mcp-logs/rpc-messages.jsonl",
+    "mcp-logs/safeoutputs/server.log",
+    "mcp-logs/safeoutputs.log",
+    "mcp-logs/start-gateway.log",
+    "mcp-logs/stderr.log",
+    "mcp-logs/tools.json",
+    "mcp-logs/wazero-cache/wazero-v1.11.0-amd64-linux/649b0fe98dd9ce1f1bd015428552d1d33f7c18bfd355553a9cae61bd46db8f7c",
+    "pre-agent-audit.txt",
+    "safe-outputs-items/safe-output-items.jsonl",
+    "safe-outputs-items/temporary-id-map.json",
+    "safeoutputs.jsonl",
+    "sandbox/agent/logs/process-1778959073531-160.log",
+    "sandbox/firewall/audit/docker-compose.redacted.yml",
+    "sandbox/firewall/audit/iptables-audit.txt",
+    "sandbox/firewall/audit/policy-manifest.json",
+    "sandbox/firewall/audit/squid.conf",
+    "sandbox/firewall/awf-reflect.json",
+    "sandbox/firewall/logs/access.log",
+    "sandbox/firewall/logs/api-proxy-logs/models.json",
+    "sandbox/firewall/logs/api-proxy-logs/token-usage.jsonl",
+    "sandbox/firewall/logs/audit.jsonl",
+    "sandbox/firewall/logs/cache.log",
+    "workflow-logs/0_conclusion.txt",
+    "workflow-logs/1_safe_outputs.txt",
+    "workflow-logs/2_detection.txt",
+    "workflow-logs/3_agent.txt",
+    "workflow-logs/4_activation.txt",
+    "workflow-logs/5_pre_activation.txt",
+    "workflow-logs/activation/system.txt",
+    "workflow-logs/agent/system.txt",
+    "workflow-logs/conclusion/system.txt",
+    "workflow-logs/detection/system.txt",
+    "workflow-logs/pre_activation/system.txt",
+    "workflow-logs/safe_outputs/system.txt"
+  ],
+  "job_details": [
+    {
+      "name": "pre_activation",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-05-16T19:16:41Z",
+      "completed_at": "2026-05-16T19:16:48Z",
+      "Duration": 7000000000
+    },
+    {
+      "name": "activation",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-05-16T19:16:50Z",
+      "completed_at": "2026-05-16T19:17:00Z",
+      "Duration": 10000000000
+    },
+    {
+      "name": "agent",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-05-16T19:17:03Z",
+      "completed_at": "2026-05-16T19:22:27Z",
+      "Duration": 324000000000
+    },
+    {
+      "name": "detection",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-05-16T19:22:30Z",
+      "completed_at": "2026-05-16T19:23:22Z",
+      "Duration": 52000000000
+    },
+    {
+      "name": "safe_outputs",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-05-16T19:23:25Z",
+      "completed_at": "2026-05-16T19:23:47Z",
+      "Duration": 22000000000
+    },
+    {
+      "name": "conclusion",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-05-16T19:23:49Z",
+      "completed_at": "2026-05-16T19:23:59Z",
+      "Duration": 10000000000
+    }
+  ]
+}

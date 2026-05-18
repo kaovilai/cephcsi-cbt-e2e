@@ -1,0 +1,9 @@
+2026-05-16T19:22:28.5100000Z Evaluating detection.if
+2026-05-16T19:22:28.5100000Z Evaluating: (always() && (needs.agent.result != 'skipped') && (((needs.agent.outputs.output_types != '') || (needs.agent.outputs.has_patch == 'true'))))
+2026-05-16T19:22:28.5100000Z Expanded: (true && ('success' != 'skipped') && (('missing_tool,create_pull_request' != '') || (needs.agent.outputs.has_patch == 'true')))
+2026-05-16T19:22:28.5100000Z Result: true
+2026-05-16T19:22:28.9990000Z Job is about to start running on the hosted runner: GitHub Actions 1000168373
+2026-05-16T19:22:28.9960000Z Requested labels: ubuntu-latest
+2026-05-16T19:22:28.9960000Z Job defined at: kaovilai/cephcsi-cbt-e2e/.github/workflows/continuous-improvement.lock.yml@refs/heads/main
+2026-05-16T19:22:28.9960000Z Waiting for a runner to pick up this job...
+2026-05-16T19:22:28.9990000Z Job is waiting for a hosted runner to come online.
