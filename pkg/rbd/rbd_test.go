@@ -418,6 +418,8 @@ func TestGetRBDImageNameFromPVC(t *testing.T) {
 		})
 	}
 }
+
+func TestPoolImage(t *testing.T) {
 	tests := []struct {
 		pool      string
 		imageName string
