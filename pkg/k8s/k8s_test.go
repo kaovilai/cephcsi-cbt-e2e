@@ -936,6 +936,19 @@ func TestWaitForPodDeleted_AlreadyGone(t *testing.T) {
 	}
 }
 
+func TestWaitForSnapshotContentDeleted_Timeout(t *testing.T) {
+	ctx := context.Background()
+	// Content exists and is not deleted — should time out.
+	vsc := &snapshotv1.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{Name: "live-content"},
+	}
+	client := snapfake.NewSimpleClientset(vsc)
+	err := WaitForSnapshotContentDeleted(ctx, client, "live-content", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for existing snapshot content, got nil")
+	}
+}
+
 func TestWaitForPVCBound_Timeout(t *testing.T) {
 	ctx := context.Background()
 	// PVC exists but stays in Pending — should time out.
