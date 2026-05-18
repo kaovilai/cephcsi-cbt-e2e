@@ -1,0 +1,35 @@
+[2026-05-16T19:17:26Z] [INFO] [difc] Guard policy: {"allow-only":{"min-integrity":"approved","repos":"all"}}
+[2026-05-16T19:17:27Z] [INFO] [difc] Loaded discovered WASM guard from file: 00-github-guard.wasm
+[2026-05-16T19:17:27Z] [INFO] [difc] Registered guard 'github'
+[2026-05-16T19:17:27Z] [DEBUG] [backend] GetOrLaunch called for server: github
+[2026-05-16T19:17:27Z] [INFO] [backend] Launching MCP backend server: server=github, command=docker, args=[run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e GITHUB_HOST=http... -e GITHUB_PERSONAL_ACCESS_TOKEN=ghs_... -e GITHUB_READ_ONLY=... -e GITHUB_TOOLSETS=repo... ghcr.io/github/github-mcp-server:v1.0.4]
+[2026-05-16T19:17:29Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:29.750Z level=INFO msg="starting server" version=v1.0.4 host=https://github.com dynamicToolsets=false readOnly=true lockdownEnabled=false
+[2026-05-16T19:17:29Z] [INFO] [backend] [stderr] GitHub MCP Server running on stdio
+[2026-05-16T19:17:29Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:29.841Z level=INFO msg="server run start"
+[2026-05-16T19:17:29Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:29.841Z level=INFO msg="server connecting"
+[2026-05-16T19:17:29Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:29.842Z level=INFO msg="server session connected" session_id=""
+[2026-05-16T19:17:29Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:29.853Z level=INFO msg="session initialized"
+[2026-05-16T19:17:29Z] [INFO] [backend] Successfully launched MCP backend server: server=github
+[2026-05-16T19:17:29Z] [INFO] [backend] Backend server info: name=github-mcp-server, version=v1.0.4
+[2026-05-16T19:17:29Z] [INFO] [backend] Successfully registered tools from github (took 2.955849549s)
+[2026-05-16T19:17:58Z] [INFO] [difc] Initializing guard session state: session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG, policy_source=server
+[2026-05-16T19:17:58Z] [INFO] [difc] Calling label_agent: session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG, guard=github, policy={"allow-only":{"repos":"all","min-integrity":"approved"}}
+[2026-05-16T19:17:58Z] [INFO] [difc] Initializing guard session state: session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG, policy_source=server
+[2026-05-16T19:17:58Z] [INFO] [difc] Calling label_agent: session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG, guard=github, policy={"allow-only":{"repos":"all","min-integrity":"approved"}}
+[2026-05-16T19:17:58Z] [INFO] [difc] label_agent response: session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG, guard=github, response={"agent":{"secrecy":[],"integrity":["none:all","unapproved:all","approved:all"]},"difc_mode":"filter","normalized_policy":{"min-integrity":"approved","scope_kind":"All"}}
+[2026-05-16T19:17:58Z] [INFO] [difc] Guard policy initialized: session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG, guard_policy.source=server, difc_mode=filter, guard_policy.normalized=map[min-integrity:approved scope_kind:all]
+[2026-05-16T19:17:58Z] [INFO] [difc] label_agent response: session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG, guard=github, response={"agent":{"secrecy":[],"integrity":["none:all","unapproved:all","approved:all"]},"difc_mode":"filter","normalized_policy":{"min-integrity":"approved","scope_kind":"All"}}
+[2026-05-16T19:17:58Z] [INFO] [difc] Guard policy initialized: session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG, guard_policy.source=server, difc_mode=filter, guard_policy.normalized=map[min-integrity:approved scope_kind:all]
+[2026-05-16T19:17:58Z] [DEBUG] [backend] GetOrLaunchForSession called: server=github, session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG
+[2026-05-16T19:17:58Z] [INFO] [backend] Launching MCP backend server for session '3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG': server=github for session '3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG', command=docker, args=[run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e GITHUB_HOST=http... -e GITHUB_PERSONAL_ACCESS_TOKEN=ghs_... -e GITHUB_READ_ONLY=... -e GITHUB_TOOLSETS=repo... ghcr.io/github/github-mcp-server:v1.0.4]
+[2026-05-16T19:17:58Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:58.236Z level=INFO msg="starting server" version=v1.0.4 host=https://github.com dynamicToolsets=false readOnly=true lockdownEnabled=false
+[2026-05-16T19:17:58Z] [INFO] [backend] [stderr] GitHub MCP Server running on stdio
+[2026-05-16T19:17:58Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:58.238Z level=INFO msg="server run start"
+[2026-05-16T19:17:58Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:58.238Z level=INFO msg="server connecting"
+[2026-05-16T19:17:58Z] [INFO] [backend] Successfully launched MCP backend server for session '3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG': server=github for session '3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG'
+[2026-05-16T19:17:58Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:58.238Z level=INFO msg="server session connected" session_id=""
+[2026-05-16T19:17:58Z] [INFO] [backend] [stderr] time=2026-05-16T19:17:58.239Z level=INFO msg="session initialized"
+[2026-05-16T19:17:58Z] [DEBUG] [backend] GetOrLaunchForSession called: server=github, session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG
+[2026-05-16T19:17:58Z] [DEBUG] [backend] Reusing session connection: server=github, session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG
+[2026-05-16T19:17:58Z] [DEBUG] [backend] GetOrLaunchForSession called: server=github, session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG
+[2026-05-16T19:17:58Z] [DEBUG] [backend] Reusing session connection: server=github, session=3KaK7U2c1heCYAwlyM2HQib3UOrALZuS99dt7irAY7blNUIemzYWaKD7dKG

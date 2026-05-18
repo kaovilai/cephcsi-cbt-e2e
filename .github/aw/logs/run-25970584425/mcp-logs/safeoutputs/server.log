@@ -1,0 +1,151 @@
+Safe Outputs MCP Server Log
+Start time: Sat May 16 19:17:25 UTC 2026
+===========================================
+
+[2026-05-16T19:17:25.575Z] [safe-outputs-entry] Entry point script executing
+[2026-05-16T19:17:25.583Z] [safe_outputs_mcp_server_http] Module is being loaded
+[2026-05-16T19:17:25.584Z] [mcp_http_transport] Module is being loaded
+[2026-05-16T19:17:25.590Z] [mcp_server_core] Module is being loaded
+[2026-05-16T19:17:25.591Z] [safe_outputs_mcp_server_http] Loaded mcp_http_transport.cjs
+[2026-05-16T19:17:25.591Z] [safe_outputs_mcp_server_http] Loaded mcp_logger.cjs
+[2026-05-16T19:17:25.594Z] [safe_outputs_mcp_server_http] Loaded safe_outputs_bootstrap.cjs
+[2026-05-16T19:17:25.594Z] [safe_outputs_mcp_server_http] Loaded safe_outputs_append.cjs
+[2026-05-16T19:17:25.601Z] [safe_outputs_mcp_server_http] Loaded safe_outputs_handlers.cjs
+[2026-05-16T19:17:25.601Z] [safe_outputs_mcp_server_http] Loaded safe_outputs_tools_loader.cjs
+[2026-05-16T19:17:25.601Z] [safe_outputs_mcp_server_http] All modules loaded successfully
+[2026-05-16T19:17:25.601Z] [safe-outputs-entry] Successfully required safe_outputs_mcp_server_http.cjs
+[2026-05-16T19:17:25.601Z] [safe-outputs-entry] In require.main === module block
+[2026-05-16T19:17:25.601Z] [safe-outputs-entry] Port: 3001, LogDir: /tmp/gh-aw/mcp-logs/safeoutputs
+[2026-05-16T19:17:25.601Z] [safe-outputs-entry] Calling startHttpServer...
+[2026-05-16T19:17:25.601Z] [safe-outputs-startup] startHttpServer called with port=3001
+[2026-05-16T19:17:25.601Z] [safe-outputs-startup] === Starting Safe Outputs MCP HTTP Server ===
+[2026-05-16T19:17:25.601Z] [safe-outputs-startup] Port: 3001
+[2026-05-16T19:17:25.601Z] [safe-outputs-startup] Mode: stateless
+[2026-05-16T19:17:25.601Z] [safe-outputs-startup] Environment: NODE_VERSION=v20.20.2, PLATFORM=linux
+[2026-05-16T19:17:25.601Z] [safe-outputs-startup] About to call createMCPServer...
+[2026-05-16T19:17:25.602Z] [safeoutputs] === Creating MCP Server ===
+[2026-05-16T19:17:25.602Z] [safeoutputs] Loading safe-outputs configuration
+[2026-05-16T19:17:25.602Z] [safeoutputs] Reading config from file: /home/runner/work/_temp/gh-aw/safeoutputs/config.json
+[2026-05-16T19:17:25.602Z] [safeoutputs] Config file exists at: /home/runner/work/_temp/gh-aw/safeoutputs/config.json
+[2026-05-16T19:17:25.602Z] [safeoutputs] Config file content length: 1118 characters
+[2026-05-16T19:17:25.602Z] [safeoutputs] Config file read successfully, attempting to parse JSON
+[2026-05-16T19:17:25.602Z] [safeoutputs] Successfully parsed config from file with 8 configuration keys
+[2026-05-16T19:17:25.602Z] [safeoutputs] Final processed config: {"add_comment":{"max":10},"create_issue":{"labels":["automation","improvement"],"max":5,"title_prefix":"[improve] "},"create_pull_request":{"labels":["automation","improvement"],"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"reviewers":["kaovilai"],"title_prefix":"[improve] "},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"report_incomplete":{}}
+[2026-05-16T19:17:25.602Z] [safeoutputs] Loading safe-outputs tools
+[2026-05-16T19:17:25.603Z] [safeoutputs] Reading tools from file: /home/runner/work/_temp/gh-aw/safeoutputs/tools.json
+[2026-05-16T19:17:25.603Z] [safeoutputs] Tools file exists at: /home/runner/work/_temp/gh-aw/safeoutputs/tools.json
+[2026-05-16T19:17:25.603Z] [safeoutputs] Tools file content length: 14833 characters
+[2026-05-16T19:17:25.603Z] [safeoutputs] Tools file read successfully, attempting to parse JSON
+[2026-05-16T19:17:25.603Z] [safeoutputs] Successfully parsed 7 tools from file
+[2026-05-16T19:17:25.603Z] [safeoutputs] Server name: safeoutputs
+[2026-05-16T19:17:25.603Z] [safeoutputs] Server version: 1.0.0
+[2026-05-16T19:17:25.603Z] [safeoutputs] Output file: /home/runner/work/_temp/gh-aw/safeoutputs/outputs.jsonl
+[2026-05-16T19:17:25.603Z] [safeoutputs] Config: {"add_comment":{"max":10},"create_issue":{"labels":["automation","improvement"],"max":5,"title_prefix":"[improve] "},"create_pull_request":{"labels":["automation","improvement"],"max":1,"max_patch_files":100,"max_patch_size":1024,"protect_top_level_dot_folders":true,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS","DESIGN.md","README.md","CONTRIBUTING.md","CHANGELOG.md","SECURITY.md","CODE_OF_CONDUCT.md","AGENTS.md","CLAUDE.md","GEMINI.md"],"reviewers":["kaovilai"],"title_prefix":"[improve] "},"create_report_incomplete_issue":{},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"report_incomplete":{}}
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering predefined tools...
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering tool: create_issue
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registered tool: create_issue
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering tool: add_comment
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registered tool: add_comment
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering tool: create_pull_request
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registered tool: create_pull_request
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering tool: missing_tool
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registered tool: missing_tool
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering tool: noop
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registered tool: noop
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering tool: missing_data
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registered tool: missing_data
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering tool: report_incomplete
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registered tool: report_incomplete
+[2026-05-16T19:17:25.604Z] [safeoutputs] Registering dynamic tools...
+[2026-05-16T19:17:25.604Z] [safeoutputs] Tool registration complete: 7 registered
+[2026-05-16T19:17:25.604Z] [safeoutputs] === MCP Server Creation Complete ===
+[2026-05-16T19:17:25.604Z] [safeoutputs] MCP server created successfully
+[2026-05-16T19:17:25.604Z] [safeoutputs] Server name: safeoutputs
+[2026-05-16T19:17:25.604Z] [safeoutputs] Server version: 1.0.0
+[2026-05-16T19:17:25.604Z] [safeoutputs] Tools configured: 8
+[2026-05-16T19:17:25.604Z] [safeoutputs] Creating HTTP transport...
+[2026-05-16T19:17:25.604Z] [safeoutputs] HTTP transport created
+[2026-05-16T19:17:25.604Z] [safeoutputs] Connecting server to transport...
+[2026-05-16T19:17:25.604Z] [safeoutputs] About to call server.connect(transport)...
+[2026-05-16T19:17:25.604Z] [MCPServer] Starting connect...
+[2026-05-16T19:17:25.604Z] [MCPServer] Set transport
+[2026-05-16T19:17:25.604Z] [MCPServer] Called setServer
+[2026-05-16T19:17:25.604Z] [MCPHTTPTransport] Called, started=false
+[2026-05-16T19:17:25.604Z] [MCPHTTPTransport] Set started=true
+[2026-05-16T19:17:25.604Z] [safe-outputs-entry] startHttpServer call initiated (async)
+[2026-05-16T19:17:25.605Z] [MCPServer] Transport.start() completed
+[2026-05-16T19:17:25.605Z] [safeoutputs] server.connect(transport) completed successfully
+[2026-05-16T19:17:25.605Z] [safeoutputs] Server connected to transport successfully
+[2026-05-16T19:17:25.605Z] [safeoutputs] Creating HTTP server...
+[2026-05-16T19:17:25.605Z] [safeoutputs] Attempting to bind to port 3001...
+[2026-05-16T19:17:25.607Z] [safeoutputs] === Safe Outputs MCP HTTP Server Started Successfully ===
+[2026-05-16T19:17:25.607Z] [safeoutputs] HTTP server listening on http://localhost:3001
+[2026-05-16T19:17:25.607Z] [safeoutputs] MCP endpoint: POST http://localhost:3001/
+[2026-05-16T19:17:25.607Z] [safeoutputs] Server is ready to accept requests
+[2026-05-16T19:21:36.749Z] [safeoutputs] Calling handler for tool: missing_tool
+[2026-05-16T19:21:36.750Z] [safeoutputs] Handler returned for tool: missing_tool
+[2026-05-16T19:22:09.903Z] [safeoutputs] Calling handler for tool: create_pull_request
+[2026-05-16T19:22:09.904Z] [safeoutputs] Generating patch for create_pull_request with branch: improve/cbt-code-quality
+[generate_git_patch] Starting patch generation: mode=full, branch=improve/cbt-code-quality, defaultBranch=main
+[generate_git_patch] Environment: cwd=/home/runner/work/cephcsi-cbt-e2e/cephcsi-cbt-e2e, GITHUB_SHA=701f5828322e63f487f0387da4eb5678040e8ed2
+[generate_git_patch] Strategy 1: Checking if branch 'improve/cbt-code-quality' exists locally
+[debug] Executing git command: git show-ref --verify --quiet refs/heads/improve/cbt-code-quality
+[debug] Git command completed successfully with no output
+[generate_git_patch] Strategy 1: Branch 'improve/cbt-code-quality' exists locally
+[generate_git_patch] Strategy 1 (full): Computing merge-base with main (ignoring any stale origin/improve/cbt-code-quality)
+[debug] Executing git command: git show-ref --verify --quiet refs/remotes/origin/main
+[debug] Git command completed successfully with no output
+[generate_git_patch] Strategy 1 (full): origin/main exists locally
+[debug] Executing git command: git merge-base -- origin/main improve/cbt-code-quality
+[debug] Git command output: 701f5828322e63f487f0387da4eb5678040e8ed2
+
+[generate_git_patch] Strategy 1 (full): Computed merge-base: 701f5828322e63f487f0387da4eb5678040e8ed2
+[debug] Executing git command: git rev-parse 701f5828322e63f487f0387da4eb5678040e8ed2
+[debug] Git command output: 701f5828322e63f487f0387da4eb5678040e8ed2
+
+[generate_git_patch] Strategy 1: Resolved baseRef 701f5828322e63f487f0387da4eb5678040e8ed2 to SHA 701f5828322e63f487f0387da4eb5678040e8ed2
+[debug] Executing git command: git rev-list --count 701f5828322e63f487f0387da4eb5678040e8ed2..improve/cbt-code-quality
+[debug] Git command output: 1
+
+[generate_git_patch] Strategy 1: Found 1 commits between 701f5828322e63f487f0387da4eb5678040e8ed2 and improve/cbt-code-quality
+[debug] Executing git command: git format-patch 701f5828322e63f487f0387da4eb5678040e8ed2..improve/cbt-code-quality --stdout
+[debug] Git command output: From fbe49ada5344e0b3856d77857e71173f63b620f5 Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Sat, 16 May 2026 19:21:56 +0000
+Subject: [PATCH]...
+[generate_git_patch] Strategy 1: SUCCESS - Generated patch with 206 lines
+[generate_git_patch] Final: SUCCESS - patchSize=8328 bytes, patchLines=206, diffSize=(n/a) bytes, baseCommit=701f5828322e63f487f0387da4eb5678040e8ed2
+[2026-05-16T19:22:09.922Z] [safeoutputs] Patch generated successfully: /tmp/gh-aw/aw-improve-cbt-code-quality.patch (8328 bytes, 206 lines)
+[2026-05-16T19:22:09.922Z] [safeoutputs] Generating bundle for create_pull_request with branch: improve/cbt-code-quality
+[generate_git_bundle] Starting bundle generation: mode=full, branch=improve/cbt-code-quality, defaultBranch=main
+[generate_git_bundle] Environment: cwd=/home/runner/work/cephcsi-cbt-e2e/cephcsi-cbt-e2e, GITHUB_SHA=701f5828322e63f487f0387da4eb5678040e8ed2
+[generate_git_bundle] Strategy 1: Checking if branch 'improve/cbt-code-quality' exists locally
+[debug] Executing git command: git show-ref --verify --quiet refs/heads/improve/cbt-code-quality
+[debug] Git command completed successfully with no output
+[generate_git_bundle] Strategy 1: Branch 'improve/cbt-code-quality' exists locally
+[generate_git_bundle] Strategy 1 (full): Checking if origin/improve/cbt-code-quality exists
+[debug] Executing git command: git show-ref --verify --quiet refs/remotes/origin/improve/cbt-code-quality
+[error] Git command failed: git show-ref --verify --quiet refs/remotes/origin/improve/cbt-code-quality
+[error] Exit status: 1
+[generate_git_bundle] Strategy 1 (full): origin/improve/cbt-code-quality not found, trying merge-base with main
+[debug] Executing git command: git show-ref --verify --quiet refs/remotes/origin/main
+[debug] Git command completed successfully with no output
+[generate_git_bundle] Strategy 1 (full): origin/main exists locally
+[debug] Executing git command: git merge-base -- origin/main improve/cbt-code-quality
+[debug] Git command output: 701f5828322e63f487f0387da4eb5678040e8ed2
+
+[generate_git_bundle] Strategy 1 (full): Computed merge-base: 701f5828322e63f487f0387da4eb5678040e8ed2
+[debug] Executing git command: git rev-parse 701f5828322e63f487f0387da4eb5678040e8ed2
+[debug] Git command output: 701f5828322e63f487f0387da4eb5678040e8ed2
+
+[generate_git_bundle] Strategy 1: Resolved baseRef 701f5828322e63f487f0387da4eb5678040e8ed2 to SHA 701f5828322e63f487f0387da4eb5678040e8ed2
+[debug] Executing git command: git rev-list --count 701f5828322e63f487f0387da4eb5678040e8ed2..improve/cbt-code-quality
+[debug] Git command output: 1
+
+[generate_git_bundle] Strategy 1: Found 1 commits between 701f5828322e63f487f0387da4eb5678040e8ed2 and improve/cbt-code-quality
+[debug] Executing git command: git bundle create /tmp/gh-aw/aw-improve-cbt-code-quality.bundle 701f5828322e63f487f0387da4eb5678040e8ed2..improve/cbt-code-quality
+[debug] Git command completed successfully with no output
+[generate_git_bundle] Strategy 1: SUCCESS - Generated bundle of 1443 bytes
+[generate_git_bundle] Final: SUCCESS - bundleSize=1443 bytes, baseCommit=701f5828322e63f487f0387da4eb5678040e8ed2
+[2026-05-16T19:22:09.946Z] [safeoutputs] Bundle generated successfully: /tmp/gh-aw/aw-improve-cbt-code-quality.bundle (1443 bytes)
+[2026-05-16T19:22:09.946Z] [safeoutputs] Handler returned for tool: create_pull_request
