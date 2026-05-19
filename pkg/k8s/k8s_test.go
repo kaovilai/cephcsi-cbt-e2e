@@ -1203,3 +1203,47 @@ func TestIsRetryableAPIError(t *testing.T) {
 		})
 	}
 }
+
+// TestWaitForPVCBound_NotFound verifies that WaitForPVCBound fails immediately
+// (not after timeout) when the PVC does not exist, because NotFound is not retryable.
+func TestWaitForPVCBound_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	err := WaitForPVCBound(ctx, client, "test-ns", "nonexistent-pvc", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for nonexistent PVC, got nil")
+	}
+}
+
+// TestWaitForSnapshotReady_NotFound verifies that WaitForSnapshotReady fails immediately
+// when the VolumeSnapshot does not exist, because NotFound is not retryable.
+func TestWaitForSnapshotReady_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "nonexistent-snap", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for nonexistent VolumeSnapshot, got nil")
+	}
+}
+
+// TestWaitForPodRunning_NotFound verifies that WaitForPodRunning fails immediately
+// when the pod does not exist, because NotFound is not retryable.
+func TestWaitForPodRunning_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	err := WaitForPodRunning(ctx, client, "test-ns", "nonexistent-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for nonexistent pod, got nil")
+	}
+}
+
+// TestWaitForPVCResized_NotFound verifies that WaitForPVCResized fails immediately
+// when the PVC does not exist, because NotFound is not retryable.
+func TestWaitForPVCResized_NotFound(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	err := WaitForPVCResized(ctx, client, "test-ns", "nonexistent-pvc", mustParseQuantity("10Gi"), 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for nonexistent PVC, got nil")
+	}
+}
