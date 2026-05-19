@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -688,10 +689,10 @@ func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespac
 			listErrs = append(listErrs, fmt.Sprintf("label %q: %v", selector, err))
 			continue
 		}
-		for i := range pods.Items {
-			if pods.Items[i].Status.Phase == corev1.PodRunning {
-				return &pods.Items[i], nil
-			}
+		if idx := slices.IndexFunc(pods.Items, func(p corev1.Pod) bool {
+			return p.Status.Phase == corev1.PodRunning
+		}); idx >= 0 {
+			return &pods.Items[idx], nil
 		}
 		if len(pods.Items) > 0 {
 			return &pods.Items[0], nil
@@ -706,10 +707,10 @@ func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespac
 		}
 		return nil, fmt.Errorf("list pods: %w", err)
 	}
-	for i := range allPods.Items {
-		if strings.Contains(allPods.Items[i].Name, toolboxPodNameFragment) {
-			return &allPods.Items[i], nil
-		}
+	if idx := slices.IndexFunc(allPods.Items, func(p corev1.Pod) bool {
+		return strings.Contains(p.Name, toolboxPodNameFragment)
+	}); idx >= 0 {
+		return &allPods.Items[idx], nil
 	}
 
 	if len(listErrs) > 0 {
