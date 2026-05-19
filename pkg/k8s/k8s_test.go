@@ -12,8 +12,10 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
+	clientgotesting "k8s.io/client-go/testing"
 )
 
 func TestGetToolboxPod_FoundByLabel(t *testing.T) {
@@ -1107,6 +1109,33 @@ func TestRebindPVWithVolumeMode_NonCSISource(t *testing.T) {
 		blockMode, nil)
 	if err == nil {
 		t.Fatal("expected error for non-CSI source PV, got nil")
+	}
+}
+
+// TestRebindPVWithVolumeMode_PVCCreateFailCleansUpPV verifies that when PVC creation
+// fails after the PV was already created, the PV is cleaned up to avoid leaking it.
+func TestRebindPVWithVolumeMode_PVCCreateFailCleansUpPV(t *testing.T) {
+	ctx := context.Background()
+	sourcePV := makeCSIPV("source-pv")
+	client := fake.NewClientset(sourcePV)
+
+	// Inject a failure for PVC create only.
+	client.Fake.PrependReactor("create", "persistentvolumeclaims",
+		func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, nil, k8serrors.NewInternalError(errors.New("injected PVC create failure"))
+		})
+
+	blockMode := corev1.PersistentVolumeBlock
+	err := RebindPVWithVolumeMode(ctx, client, "source-pv", "new-pv", "new-pvc", "test-ns",
+		blockMode, nil)
+	if err == nil {
+		t.Fatal("expected error when PVC creation fails, got nil")
+	}
+
+	// The PV that was created before the PVC failure should have been deleted.
+	_, getErr := client.CoreV1().PersistentVolumes().Get(ctx, "new-pv", metav1.GetOptions{})
+	if !k8serrors.IsNotFound(getErr) {
+		t.Errorf("expected orphaned PV to be cleaned up after PVC create failure, got: %v", getErr)
 	}
 }
 
