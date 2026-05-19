@@ -6,6 +6,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 // newTestInspector returns an Inspector with a fake toolbox executor for unit tests.
@@ -13,6 +17,14 @@ func newTestInspector(execFn func(ctx context.Context, command []string) (string
 	return &Inspector{
 		pool:         "replicapool",
 		execOverride: execFn,
+	}
+}
+
+// newTestInspectorWithClient returns an Inspector with a fake Kubernetes clientset.
+func newTestInspectorWithClient(clientset *fake.Clientset) *Inspector {
+	return &Inspector{
+		pool:      "replicapool",
+		clientset: clientset,
 	}
 }
 
@@ -627,6 +639,132 @@ func TestFlattenImage(t *testing.T) {
 			}
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func makePV(name string, csiDriver string, volumeHandle string, attrs map[string]string) *corev1.PersistentVolume {
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+	}
+	if csiDriver != "" {
+		pv.Spec.CSI = &corev1.CSIPersistentVolumeSource{
+			Driver:           csiDriver,
+			VolumeHandle:     volumeHandle,
+			VolumeAttributes: attrs,
+		}
+	}
+	return pv
+}
+
+func makeBoundPVC(name, namespace, pvName string) *corev1.PersistentVolumeClaim {
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec:       corev1.PersistentVolumeClaimSpec{VolumeName: pvName},
+	}
+}
+
+func TestGetRBDImageNameFromPV(t *testing.T) {
+	tests := []struct {
+		name    string
+		pv      *corev1.PersistentVolume
+		pvName  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "success: PV with imageName attribute",
+			pvName: "pv-abc",
+			pv:     makePV("pv-abc", "rbd.csi.ceph.com", "handle-1", map[string]string{"imageName": "csi-vol-abc"}),
+			want:   "csi-vol-abc",
+		},
+		{
+			name:    "error: PV not found",
+			pvName:  "pv-missing",
+			pv:      makePV("pv-other", "rbd.csi.ceph.com", "handle-1", map[string]string{"imageName": "x"}),
+			wantErr: true,
+		},
+		{
+			name:    "error: PV is not a CSI volume",
+			pvName:  "pv-noncsi",
+			pv:      makePV("pv-noncsi", "", "", nil),
+			wantErr: true,
+		},
+		{
+			name:    "error: PV has no imageName attribute",
+			pvName:  "pv-noattr",
+			pv:      makePV("pv-noattr", "rbd.csi.ceph.com", "handle-1", map[string]string{"other": "value"}),
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewClientset(tc.pv)
+			r := newTestInspectorWithClient(client)
+			got, err := r.GetRBDImageNameFromPV(context.Background(), tc.pvName)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("GetRBDImageNameFromPV() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGetRBDImageNameFromPVC(t *testing.T) {
+	const ns = "test-ns"
+	pv := makePV("pv-abc", "rbd.csi.ceph.com", "handle-1", map[string]string{"imageName": "csi-vol-abc"})
+
+	tests := []struct {
+		name    string
+		pvc     *corev1.PersistentVolumeClaim
+		pvcName string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "success: PVC bound to PV with imageName",
+			pvcName: "pvc-abc",
+			pvc:     makeBoundPVC("pvc-abc", ns, "pv-abc"),
+			want:    "csi-vol-abc",
+		},
+		{
+			name:    "error: PVC not found",
+			pvcName: "pvc-missing",
+			pvc:     makeBoundPVC("pvc-other", ns, "pv-abc"),
+			wantErr: true,
+		},
+		{
+			name:    "error: PVC not yet bound",
+			pvcName: "pvc-unbound",
+			pvc:     makeBoundPVC("pvc-unbound", ns, ""),
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewClientset(pv, tc.pvc)
+			r := newTestInspectorWithClient(client)
+			got, err := r.GetRBDImageNameFromPVC(context.Background(), ns, tc.pvcName)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("GetRBDImageNameFromPVC() = %q, want %q", got, tc.want)
 			}
 		})
 	}
