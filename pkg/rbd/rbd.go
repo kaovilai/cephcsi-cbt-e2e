@@ -380,7 +380,11 @@ func (r *Inspector) GetRBDImageNameFromPVC(ctx context.Context, namespace, pvcNa
 	if pvc.Spec.VolumeName == "" {
 		return "", fmt.Errorf("PVC %s/%s is not yet bound to a PV", namespace, pvcName)
 	}
-	return r.GetRBDImageNameFromPV(ctx, pvc.Spec.VolumeName)
+	imageName, err := r.GetRBDImageNameFromPV(ctx, pvc.Spec.VolumeName)
+	if err != nil {
+		return "", fmt.Errorf("get RBD image name from PVC %s/%s: %w", namespace, pvcName, err)
+	}
+	return imageName, nil
 }
 
 // GetRBDImageNameFromPV extracts the RBD image name from a PV's CSI volume attributes.
