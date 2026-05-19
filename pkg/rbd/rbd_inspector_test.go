@@ -9,6 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -765,6 +766,62 @@ func TestGetRBDImageNameFromPVC(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("GetRBDImageNameFromPVC() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestGetRBDImageNameFromPVC_PVErrors verifies that PV-level errors are propagated
+// correctly through GetRBDImageNameFromPVC. The PVC-level tests above only cover PVC
+// lookup failures; these tests cover cases where the PVC is found and bound but the
+// referenced PV has its own problems.
+func TestGetRBDImageNameFromPVC_PVErrors(t *testing.T) {
+	const ns = "test-ns"
+
+	tests := []struct {
+		name    string
+		pvs     []*corev1.PersistentVolume
+		pvc     *corev1.PersistentVolumeClaim
+		pvcName string
+		wantErr bool
+	}{
+		{
+			name:    "error: bound PV not found in cluster",
+			pvs:     nil,
+			pvc:     makeBoundPVC("pvc-dangling", ns, "pv-missing"),
+			pvcName: "pvc-dangling",
+			wantErr: true,
+		},
+		{
+			name:    "error: bound PV is not a CSI volume",
+			pvs:     []*corev1.PersistentVolume{makePV("pv-noncsi", "", "", nil)},
+			pvc:     makeBoundPVC("pvc-noncsi", ns, "pv-noncsi"),
+			pvcName: "pvc-noncsi",
+			wantErr: true,
+		},
+		{
+			name:    "error: bound PV has no imageName attribute",
+			pvs:     []*corev1.PersistentVolume{makePV("pv-noattr", "rbd.csi.ceph.com", "handle-1", map[string]string{"other": "value"})},
+			pvc:     makeBoundPVC("pvc-noattr", ns, "pv-noattr"),
+			pvcName: "pvc-noattr",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			objs := make([]runtime.Object, 0, len(tc.pvs)+1)
+			for _, pv := range tc.pvs {
+				objs = append(objs, pv)
+			}
+			objs = append(objs, tc.pvc)
+			client := fake.NewClientset(objs...)
+			r := newTestInspectorWithClient(client)
+			_, err := r.GetRBDImageNameFromPVC(context.Background(), ns, tc.pvcName)
+			if tc.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}
