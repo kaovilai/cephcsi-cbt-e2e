@@ -10,9 +10,13 @@ permissions:
   issues: read
   pull-requests: read
   actions: read
+runtimes:
+  go:
+    version: "stable"
+    if: "hashFiles('go.mod') != ''"
 tools:
   edit:
-  bash: ["go build ./...", "go vet ./...", "go test ./...", "golangci-lint run", "git log", "git diff", "git status", "find", "grep", "cat", "cd", "ls", "wc", "head", "tail", "make"]
+  bash: ["*"]
   github:
     toolsets: [repos, issues, pull_requests]
 network:
@@ -89,5 +93,5 @@ Pick ONE category and find ALL instances:
 
 - **One category per PR** — bundle all fixes of the same type
 - **Never break the build** — `go build ./...` must pass
-- **Never break tests** — `go test ./...` must pass
+- **Never break tests** — `go test ./cmd/... ./pkg/...` must pass (avoid `go test ./...` which requires a live cluster)
 - **Never include `Closes #N` or `Fixes #N` in issue bodies** — only in PR descriptions
