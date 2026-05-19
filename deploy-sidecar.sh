@@ -16,12 +16,12 @@
 
 set -euo pipefail
 
-NAMESPACE="openshift-storage"
-DEPLOYMENT="openshift-storage.rbd.csi.ceph.com-ctrlplugin"
-SERVICE_ACCOUNT="ceph-csi-rbd-ctrlplugin-sa"
-DRIVER_NAME="openshift-storage.rbd.csi.ceph.com"
-OPERATOR_DEPLOYMENT="ceph-csi-controller-manager"
-SCC_NAME="ceph-csi-op-scc"
+NAMESPACE="${NAMESPACE:-openshift-storage}"
+DEPLOYMENT="${DEPLOYMENT:-openshift-storage.rbd.csi.ceph.com-ctrlplugin}"
+SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-ceph-csi-rbd-ctrlplugin-sa}"
+DRIVER_NAME="${DRIVER_NAME:-openshift-storage.rbd.csi.ceph.com}"
+OPERATOR_DEPLOYMENT="${OPERATOR_DEPLOYMENT:-ceph-csi-controller-manager}"
+SCC_NAME="${SCC_NAME:-ceph-csi-op-scc}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
