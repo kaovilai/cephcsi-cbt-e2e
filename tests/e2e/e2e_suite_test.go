@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -171,7 +172,7 @@ var _ = BeforeSuite(func() {
 	if len(pods.Items) == 0 {
 		allPods, listErr := clientset.CoreV1().Pods(cephcsiNamespace).List(ctx, metav1.ListOptions{})
 		Expect(listErr).NotTo(HaveOccurred())
-		filteredItems := make([]corev1.Pod, 0)
+		var filteredItems []corev1.Pod
 		for _, p := range allPods.Items {
 			if strings.Contains(p.Name, "rbd") && strings.Contains(p.Name, "ctrlplugin") {
 				filteredItems = append(filteredItems, p)
@@ -187,18 +188,11 @@ var _ = BeforeSuite(func() {
 			"Tried label selectors and name pattern matching.", cephcsiNamespace)
 
 	By("Checking for snapshot-metadata sidecar")
-	hasSidecar := false
-	for _, pod := range pods.Items {
-		for _, container := range pod.Spec.Containers {
-			if container.Name == sidecarContainerName {
-				hasSidecar = true
-				break
-			}
-		}
-		if hasSidecar {
-			break
-		}
-	}
+	hasSidecar := slices.ContainsFunc(pods.Items, func(pod corev1.Pod) bool {
+		return slices.ContainsFunc(pod.Spec.Containers, func(c corev1.Container) bool {
+			return c.Name == sidecarContainerName
+		})
+	})
 	if !hasSidecar {
 		GinkgoWriter.Printf("WARNING: %s sidecar not found in RBD provisioner pods. "+
 			"CBT tests requiring GetMetadataAllocated/GetMetadataDelta will fail. "+
