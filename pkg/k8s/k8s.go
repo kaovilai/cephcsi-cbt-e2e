@@ -394,7 +394,7 @@ func WaitForSnapshotContentDeleted(ctx context.Context, snapClient snapclient.In
 func GetSnapshotHandle(ctx context.Context, snapClient snapclient.Interface, namespace, name string) (string, error) {
 	vscName, err := GetSnapshotContentName(ctx, snapClient, namespace, name)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get snapshot handle for %s/%s: %w", namespace, name, err)
 	}
 
 	vsc, err := snapClient.SnapshotV1().VolumeSnapshotContents().Get(ctx, vscName, metav1.GetOptions{})
