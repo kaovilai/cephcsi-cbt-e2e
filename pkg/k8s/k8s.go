@@ -603,7 +603,7 @@ func RebindPVWithVolumeMode(ctx context.Context, clientset kubernetes.Interface,
 		return fmt.Errorf("create rebound PV %s: %w", newPVName, err)
 	}
 
-	// Create PVC that binds to the new PV
+	// Create PVC that binds to the new PV; delete the PV on failure to avoid leaking it.
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newPVCName,
@@ -622,6 +622,8 @@ func RebindPVWithVolumeMode(ctx context.Context, clientset kubernetes.Interface,
 
 	_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, pvc, metav1.CreateOptions{})
 	if err != nil {
+		// Clean up the PV we just created to avoid leaving it orphaned.
+		_ = clientset.CoreV1().PersistentVolumes().Delete(ctx, newPVName, metav1.DeleteOptions{})
 		return fmt.Errorf("create rebound PVC %s: %w", newPVCName, err)
 	}
 
