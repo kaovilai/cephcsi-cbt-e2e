@@ -283,6 +283,20 @@ func TestDeletePod_NotFound(t *testing.T) {
 	}
 }
 
+// TestDeletePod_Error verifies that a non-NotFound delete error is propagated.
+func TestDeletePod_Error(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	gr := schema.GroupResource{Group: "", Resource: "pods"}
+	client.Fake.PrependReactor("delete", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
+	})
+
+	if err := DeletePod(ctx, client, "test-ns", "my-pod"); err == nil {
+		t.Fatal("expected error from Delete failure, got nil")
+	}
+}
+
 func TestCreatePVC_Defaults(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
@@ -421,6 +435,21 @@ func TestCreatePVC_WithDataSourceRef(t *testing.T) {
 	}
 }
 
+// TestCreatePVC_CreateError verifies that a Create failure is returned as a wrapped error.
+func TestCreatePVC_CreateError(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
+	client.Fake.PrependReactor("create", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "create", 0)
+	})
+
+	_, err := CreatePVC(ctx, client, PVCOptions{Name: "fail-pvc", Namespace: "test-ns"})
+	if err == nil {
+		t.Fatal("expected error from Create failure, got nil")
+	}
+}
+
 func TestDeletePVC_Exists(t *testing.T) {
 	ctx := context.Background()
 	existing := &corev1.PersistentVolumeClaim{
@@ -445,6 +474,20 @@ func TestDeletePVC_NotFound(t *testing.T) {
 	// Should not return an error when PVC does not exist.
 	if err := DeletePVC(ctx, client, "test-ns", "missing-pvc"); err != nil {
 		t.Fatalf("unexpected error for NotFound: %v", err)
+	}
+}
+
+// TestDeletePVC_Error verifies that a non-NotFound delete error is propagated.
+func TestDeletePVC_Error(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
+	client.Fake.PrependReactor("delete", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
+	})
+
+	if err := DeletePVC(ctx, client, "test-ns", "my-pvc"); err == nil {
+		t.Fatal("expected error from Delete failure, got nil")
 	}
 }
 
@@ -498,6 +541,41 @@ func TestCreatePodWithPVC_FilesystemMode(t *testing.T) {
 	}
 	if len(container.VolumeDevices) != 0 {
 		t.Errorf("expected no VolumeDevices for Filesystem mode, got %d", len(container.VolumeDevices))
+	}
+}
+
+// TestCreatePodWithPVC_CreateError verifies that a Create failure is returned as an error.
+func TestCreatePodWithPVC_CreateError(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	gr := schema.GroupResource{Group: "", Resource: "pods"}
+	client.Fake.PrependReactor("create", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "create", 0)
+	})
+
+	_, err := CreatePodWithPVC(ctx, client, PodOptions{
+		Name:       "fail-pod",
+		Namespace:  "test-ns",
+		PVCName:    "my-pvc",
+		VolumeMode: corev1.PersistentVolumeBlock,
+	})
+	if err == nil {
+		t.Fatal("expected error from Create failure, got nil")
+	}
+}
+
+// TestResizePVC_Error verifies that a Patch failure is returned as a wrapped error.
+func TestResizePVC_Error(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
+	client.Fake.PrependReactor("patch", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "patch", 0)
+	})
+
+	err := ResizePVC(ctx, client, "test-ns", "missing-pvc", "10Gi")
+	if err == nil {
+		t.Fatal("expected error from Patch failure, got nil")
 	}
 }
 
@@ -587,6 +665,21 @@ func TestDeleteSnapshot_NotFound(t *testing.T) {
 	// Should not return an error when snapshot does not exist.
 	if err := DeleteSnapshot(ctx, client, "test-ns", "missing-snap"); err != nil {
 		t.Fatalf("unexpected error for NotFound: %v", err)
+	}
+}
+
+// TestCreateSnapshot_Error verifies that a Create failure is returned as a wrapped error.
+func TestCreateSnapshot_Error(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"}
+	client.Fake.PrependReactor("create", "volumesnapshots", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "create", 0)
+	})
+
+	_, err := CreateSnapshot(ctx, client, "fail-snap", "test-ns", "my-pvc", "csi-snapclass")
+	if err == nil {
+		t.Fatal("expected error from Create failure, got nil")
 	}
 }
 
