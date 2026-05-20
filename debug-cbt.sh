@@ -15,15 +15,15 @@ echo "=== Setting up debug namespace ==="
 oc create ns "$NS" --dry-run=client -o yaml | oc apply -f -
 
 echo "=== Creating PVC ==="
-oc apply -f - <<'EOF'
+oc apply -f - <<EOF
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: debug-pvc
-  namespace: cbt-debug
+  namespace: ${NS}
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: ocs-storagecluster-ceph-rbd
+  storageClassName: ${SC}
   volumeMode: Block
   resources:
     requests:
@@ -34,12 +34,12 @@ echo "Waiting for PVC to be bound..."
 oc wait -n "$NS" pvc/debug-pvc --for=jsonpath='{.status.phase}'=Bound --timeout=120s
 
 echo "=== Creating pod to write data ==="
-oc apply -f - <<'EOF'
+oc apply -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
   name: debug-writer
-  namespace: cbt-debug
+  namespace: ${NS}
 spec:
   containers:
   - name: writer
@@ -65,14 +65,14 @@ echo "=== Deleting pod before snapshot ==="
 oc delete pod -n "$NS" debug-writer --wait=true
 
 echo "=== Creating snapshot ==="
-oc apply -f - <<'EOF'
+oc apply -f - <<EOF
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshot
 metadata:
   name: debug-snap1
-  namespace: cbt-debug
+  namespace: ${NS}
 spec:
-  volumeSnapshotClassName: ocs-storagecluster-rbdplugin-snapclass
+  volumeSnapshotClassName: ${SNAPCLASS}
   source:
     persistentVolumeClaimName: debug-pvc
 EOF
