@@ -140,7 +140,7 @@ func rbdInfoChainExec(depth int) func(context.Context, []string) (string, error)
 	}
 
 	names := make([]string, depth+1)
-	for i := 0; i <= depth; i++ {
+	for i := range depth + 1 {
 		if i == 0 {
 			names[i] = "csi-vol-root"
 		} else {
@@ -148,7 +148,7 @@ func rbdInfoChainExec(depth int) func(context.Context, []string) (string, error)
 		}
 	}
 	entries := make(map[string]string, depth+1)
-	for i := 0; i <= depth; i++ {
+	for i := range depth + 1 {
 		parent := ""
 		if i > 0 {
 			parent = names[i-1]

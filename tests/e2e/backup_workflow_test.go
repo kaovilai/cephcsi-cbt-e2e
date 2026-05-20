@@ -65,12 +65,12 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 
 		// Write initial data: blocks 0, 1, 2
 		By("Writing initial data for full backup (blocks 0, 1, 2)")
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, i, byte(0x10+i))).To(Succeed())
 		}
 
 		// Record hashes at snap1 point
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			h, hashErr := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
 			Expect(hashErr).NotTo(HaveOccurred(), "reading block hash at index %d before snap1", i)
 			hashesAtSnap1[i] = h
@@ -87,7 +87,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 1, 0xA1)).To(Succeed())
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 3, 0xA3)).To(Succeed())
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			h, hashErr := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
 			Expect(hashErr).NotTo(HaveOccurred(), "reading block hash at index %d before snap2", i)
 			hashesAtSnap2[i] = h
@@ -104,7 +104,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 2, 0xB2)).To(Succeed())
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 4, 0xB4)).To(Succeed())
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			h, hashErr := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
 			Expect(hashErr).NotTo(HaveOccurred(), "reading block hash at index %d before snap3", i)
 			hashesAtSnap3[i] = h
@@ -133,7 +133,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		Expect(result.Blocks).NotTo(BeEmpty())
 
 		By("Verifying all written blocks are in the full backup")
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			offset := int64(i) * data.DefaultBlockSize
 			Expect(result.ContainsOffset(offset)).To(BeTrue(),
 				fmt.Sprintf("full backup should include block %d (offset %d)", i, offset))
@@ -208,7 +208,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, restorePod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Verifying restored data matches final snapshot state")
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			hash, err := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, restorePod, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(hash).To(Equal(hashesAtSnap3[i]),
@@ -225,7 +225,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Verifying all five written blocks are reported as allocated")
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			offset := int64(i) * data.DefaultBlockSize
 			Expect(result.ContainsOffset(offset)).To(BeTrue(),
 				fmt.Sprintf("block %d (offset %d) was written but not reported as allocated", i, offset))
@@ -252,7 +252,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, roxPod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Reading data from ROX PVC (simulating backup data reader)")
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			hash, err := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, roxPod, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(hash).To(Equal(hashesAtSnap3[i]),
