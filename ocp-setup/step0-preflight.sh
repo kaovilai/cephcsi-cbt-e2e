@@ -43,7 +43,9 @@ OCP_VERSION=$(oc get clusterversion version -o jsonpath='{.status.desired.versio
 K8S_VERSION=$(oc version -o json | jq -r '.serverVersion.gitVersion')
 echo "  OCP: $OCP_VERSION / K8s: $K8S_VERSION"
 
-K8S_MINOR=$(echo "$K8S_VERSION" | sed 's/v1\.\([0-9]*\).*/\1/')
+_k8s_tmp=${K8S_VERSION#v1.}
+K8S_MINOR=${_k8s_tmp%%[^0-9]*}
+unset _k8s_tmp
 if [ "$K8S_MINOR" -ge 33 ]; then
     pass "Kubernetes >= 1.33 (required for CBT API)"
 else
@@ -87,7 +89,7 @@ for node in $WORKERS; do
 
     # Normalize CPU: handle millicores (e.g., "7500m") and integer formats
     if echo "$CPU_RAW" | grep -q 'm$'; then
-        CPU_MILLI=$(echo "$CPU_RAW" | sed 's/m$//')
+        CPU_MILLI=${CPU_RAW%m}
         CPU=$((CPU_MILLI / 1000))
     else
         CPU="$CPU_RAW"
