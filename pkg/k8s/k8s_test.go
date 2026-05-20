@@ -1606,3 +1606,76 @@ func TestWaitForPVCResized_RetryableError(t *testing.T) {
 		t.Fatalf("expected success after transient error, got: %v", err)
 	}
 }
+
+// TestWaitForSnapshotReady_NilStatus verifies that a snapshot whose Status is nil
+// is treated as not-yet-ready and the function eventually times out.
+func TestWaitForSnapshotReady_NilStatus(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "nil-status-snap", Namespace: "test-ns"},
+		// Status deliberately left nil
+	}
+	client := snapfake.NewSimpleClientset(vs)
+	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "nil-status-snap", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for snapshot with nil Status, got nil")
+	}
+}
+
+// TestWaitForSnapshotReady_NilReadyToUse verifies that a snapshot whose Status is
+// present but ReadyToUse is nil is treated as not-yet-ready and times out.
+func TestWaitForSnapshotReady_NilReadyToUse(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "nil-ready-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			// ReadyToUse deliberately left nil
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "nil-ready-snap", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for snapshot with nil ReadyToUse, got nil")
+	}
+}
+
+// TestGetSnapshotHandle_NonNilStatusNilHandle verifies that a VSC with a non-nil
+// Status but a nil SnapshotHandle pointer is correctly detected and returns an error.
+func TestGetSnapshotHandle_NonNilStatusNilHandle(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: ptr("my-content"),
+		},
+	}
+	vsc := &snapshotv1.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-content"},
+		Status: &snapshotv1.VolumeSnapshotContentStatus{
+			// SnapshotHandle deliberately left nil (pointer is nil)
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs, vsc)
+
+	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
+	if err == nil {
+		t.Fatal("expected error for VSC with non-nil Status but nil SnapshotHandle, got nil")
+	}
+}
+
+// TestWaitForPVCResized_NilCapacity verifies that a PVC whose Status.Capacity is nil
+// is treated as not-yet-resized and the function eventually times out.
+func TestWaitForPVCResized_NilCapacity(t *testing.T) {
+	ctx := context.Background()
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "nil-cap-pvc", Namespace: "test-ns"},
+		Status: corev1.PersistentVolumeClaimStatus{
+			// Capacity deliberately left nil
+		},
+	}
+	client := fake.NewClientset(pvc)
+	err := WaitForPVCResized(ctx, client, "test-ns", "nil-cap-pvc", mustParseQuantity("10Gi"), 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for PVC with nil Status.Capacity, got nil")
+	}
+}
