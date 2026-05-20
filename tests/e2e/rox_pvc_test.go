@@ -40,7 +40,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 			Name:         pvcName,
 			Namespace:    testNamespace,
 			StorageClass: storageClass,
-			Size:         "1Gi",
+			Size:         defaultPVCSize,
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -79,7 +79,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 
 	It("should create a ROX PVC from snapshot in Bound state with ReadOnlyMany", func() {
 		var err error
-		_, err = k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVCName, testNamespace, storageClass, snapName, "1Gi")
+		_, err = k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVCName, testNamespace, storageClass, snapName, defaultPVCSize)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVCName, pvcPodReadyTimeout)).To(Succeed())
 
@@ -111,7 +111,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 
 	It("should not flatten ROX PVC despite multiple ROX PVCs from same snapshot", func() {
 		By("Creating a second ROX PVC from the same snapshot")
-		_, err := k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVC2Name, testNamespace, storageClass, snapName, "1Gi")
+		_, err := k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVC2Name, testNamespace, storageClass, snapName, defaultPVCSize)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVC2Name, pvcPodReadyTimeout)).To(Succeed())
 
@@ -135,7 +135,7 @@ var _ = Describe("ROX PVC", Ordered, func() {
 			Name:           clonePVCName,
 			Namespace:      testNamespace,
 			StorageClass:   storageClass,
-			Size:           "1Gi",
+			Size:           defaultPVCSize,
 			AccessModes:    []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			PVCCloneSource: roxPVCName,
 		})

@@ -48,7 +48,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 			Name:         pvcName,
 			Namespace:    testNamespace,
 			StorageClass: storageClass,
-			Size:         "1Gi",
+			Size:         defaultPVCSize,
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -191,7 +191,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 			Name:           restorePVC,
 			Namespace:      testNamespace,
 			StorageClass:   storageClass,
-			Size:           "1Gi",
+			Size:           defaultPVCSize,
 			AccessModes:    []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			SnapshotSource: snap3Name,
 		})
@@ -237,7 +237,7 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		roxPVC := "backup-wf-rox-pvc"
 		roxPod := "backup-wf-rox-pod"
 
-		_, err := k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVC, testNamespace, storageClass, snap3Name, "1Gi")
+		_, err := k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVC, testNamespace, storageClass, snap3Name, defaultPVCSize)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVC, pvcPodReadyTimeout)).To(Succeed())
 

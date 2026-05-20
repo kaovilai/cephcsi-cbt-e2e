@@ -36,7 +36,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 			Name:         pvcName,
 			Namespace:    testNamespace,
 			StorageClass: storageClass,
-			Size:         "1Gi",
+			Size:         defaultPVCSize,
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())

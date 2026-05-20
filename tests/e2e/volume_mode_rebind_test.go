@@ -44,7 +44,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			Name:         fsPVC,
 			Namespace:    testNamespace,
 			StorageClass: storageClass,
-			Size:         "1Gi",
+			Size:         defaultPVCSize,
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			VolumeMode:   &fsMode,
 		})
@@ -139,7 +139,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			Name:           blockRestorePVC,
 			Namespace:      testNamespace,
 			StorageClass:   storageClass,
-			Size:           "1Gi",
+			Size:           defaultPVCSize,
 			AccessModes:    []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			SnapshotSource: snapName,
 			// VolumeMode defaults to Block
@@ -178,7 +178,7 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 			Name:           restorePVC,
 			Namespace:      testNamespace,
 			StorageClass:   storageClass,
-			Size:           "1Gi",
+			Size:           defaultPVCSize,
 			AccessModes:    []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			SnapshotSource: snapName,
 		})
