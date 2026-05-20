@@ -1109,6 +1109,30 @@ func TestWaitForSnapshotReady_ImmediatelyReady(t *testing.T) {
 	}
 }
 
+// TestWaitForSnapshotReady_ErrorStatus verifies that WaitForSnapshotReady fails fast
+// when the VolumeSnapshot has an error in its status, mirroring the fast-fail
+// behaviour of WaitForPVCBound on the Lost phase.
+func TestWaitForSnapshotReady_ErrorStatus(t *testing.T) {
+	ctx := context.Background()
+	errMsg := "failed to create snapshot on storage backend"
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "broken-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			Error: &snapshotv1.VolumeSnapshotError{
+				Message: &errMsg,
+			},
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "broken-snap", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for snapshot with error status, got nil")
+	}
+	if !strings.Contains(err.Error(), errMsg) {
+		t.Errorf("error %q does not contain driver error message %q", err.Error(), errMsg)
+	}
+}
+
 func TestWaitForSnapshotDeleted_AlreadyGone(t *testing.T) {
 	ctx := context.Background()
 	client := snapfake.NewSimpleClientset()
