@@ -1500,3 +1500,71 @@ func TestWaitForSnapshotContentDeleted_RetryableError(t *testing.T) {
 		t.Fatalf("expected success after transient error, got: %v", err)
 	}
 }
+
+// TestWaitForSnapshotReady_RetryableError verifies that a transient server-timeout
+// error does not abort WaitForSnapshotReady; the function should retry and succeed
+// once the VolumeSnapshot becomes ready.
+func TestWaitForSnapshotReady_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"}
+	ready := true
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-snap", Namespace: "test-ns"},
+		Status:     &snapshotv1.VolumeSnapshotStatus{ReadyToUse: &ready},
+	}
+	snapClient := snapfake.NewSimpleClientset(vs)
+	called := false
+	snapClient.Fake.PrependReactor("get", "volumesnapshots",
+		func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+			if !called {
+				called = true
+				return true, nil, k8serrors.NewServerTimeout(gr, "get", 0)
+			}
+			return false, nil, nil
+		},
+	)
+
+	if _, err := WaitForSnapshotReady(ctx, snapClient, "test-ns", "test-snap", 10*time.Second); err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
+
+// TestWaitForPodRunning_RetryableError verifies that a transient server-timeout
+// error does not abort WaitForPodRunning; the function should retry and succeed
+// once the pod enters Running phase.
+func TestWaitForPodRunning_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "pods"}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "test-ns"},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	client := fake.NewClientset(pod)
+	prependOnceReactor(client, "get", "pods", k8serrors.NewServerTimeout(gr, "get", 0))
+
+	if err := WaitForPodRunning(ctx, client, "test-ns", "test-pod", 10*time.Second); err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
+
+// TestWaitForPVCResized_RetryableError verifies that a transient server-timeout
+// error does not abort WaitForPVCResized; the function should retry and succeed
+// once the PVC capacity reflects the expected size.
+func TestWaitForPVCResized_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pvc", Namespace: "test-ns"},
+		Status: corev1.PersistentVolumeClaimStatus{
+			Capacity: corev1.ResourceList{
+				corev1.ResourceStorage: mustParseQuantity("10Gi"),
+			},
+		},
+	}
+	client := fake.NewClientset(pvc)
+	prependOnceReactor(client, "get", "persistentvolumeclaims", k8serrors.NewServerTimeout(gr, "get", 0))
+
+	if err := WaitForPVCResized(ctx, client, "test-ns", "test-pvc", mustParseQuantity("10Gi"), 10*time.Second); err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
