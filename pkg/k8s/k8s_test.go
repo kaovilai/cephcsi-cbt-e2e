@@ -1547,6 +1547,44 @@ func TestWaitForPodRunning_RetryableError(t *testing.T) {
 	}
 }
 
+// TestWaitForPVCDeleted_AlreadyGone verifies that WaitForPVCDeleted succeeds immediately
+// when the PVC does not exist.
+func TestWaitForPVCDeleted_AlreadyGone(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	if err := WaitForPVCDeleted(ctx, client, "test-ns", "gone-pvc", 5*time.Second); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestWaitForPVCDeleted_Timeout verifies that WaitForPVCDeleted returns an error
+// when the PVC still exists after the timeout elapses.
+func TestWaitForPVCDeleted_Timeout(t *testing.T) {
+	ctx := context.Background()
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "live-pvc", Namespace: "test-ns"},
+	}
+	client := fake.NewClientset(pvc)
+	err := WaitForPVCDeleted(ctx, client, "test-ns", "live-pvc", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error for existing PVC, got nil")
+	}
+}
+
+// TestWaitForPVCDeleted_RetryableError verifies that a transient server-timeout error
+// does not abort WaitForPVCDeleted; the function should retry and succeed once the
+// PVC is gone.
+func TestWaitForPVCDeleted_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
+	client := fake.NewClientset() // PVC does not exist after the first (failing) call
+	prependOnceReactor(client, "get", "persistentvolumeclaims", k8serrors.NewServerTimeout(gr, "get", 0))
+
+	if err := WaitForPVCDeleted(ctx, client, "test-ns", "test-pvc", 10*time.Second); err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
+
 // TestWaitForPVCResized_RetryableError verifies that a transient server-timeout
 // error does not abort WaitForPVCResized; the function should retry and succeed
 // once the PVC capacity reflects the expected size.
