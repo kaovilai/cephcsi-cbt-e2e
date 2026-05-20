@@ -98,7 +98,7 @@ echo "--- Ceph Toolbox ---"
 if oc get pods -n "$NAMESPACE" -l app=rook-ceph-tools --no-headers 2>/dev/null | grep -q "Running"; then
     echo "  PASS: Ceph toolbox pod is running"
     PASS=$((PASS + 1))
-    CEPH_VERSION=$(oc exec -n "$NAMESPACE" $(oc get pods -n "$NAMESPACE" -l app=rook-ceph-tools -o jsonpath='{.items[0].metadata.name}') -- ceph version 2>/dev/null | head -1 || echo "unknown")
+    CEPH_VERSION=$(oc exec -n "$NAMESPACE" "$(oc get pods -n "$NAMESPACE" -l app=rook-ceph-tools -o jsonpath='{.items[0].metadata.name}')" -- ceph version 2>/dev/null | head -1 || echo "unknown")
     echo "  Ceph version: $CEPH_VERSION"
 else
     echo "  FAIL: Ceph toolbox pod not running (required for e2e Ceph version check and RBD introspection)"
