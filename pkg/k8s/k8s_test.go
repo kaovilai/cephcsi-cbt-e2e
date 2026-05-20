@@ -569,6 +569,22 @@ func TestGetSnapshotContentName_NilContentName(t *testing.T) {
 	}
 }
 
+func TestGetSnapshotContentName_EmptyContentName(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: ptr(""),
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+
+	_, err := GetSnapshotContentName(ctx, client, "test-ns", "my-snap")
+	if err == nil {
+		t.Fatal("expected error when BoundVolumeSnapshotContentName is empty string, got nil")
+	}
+}
+
 func TestGetSnapshotHandle_Success(t *testing.T) {
 	ctx := context.Background()
 	vs := &snapshotv1.VolumeSnapshot{
@@ -652,6 +668,28 @@ func TestGetSnapshotHandle_NoHandle(t *testing.T) {
 	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
 	if err == nil {
 		t.Fatal("expected error for missing snapshot handle, got nil")
+	}
+}
+
+func TestGetSnapshotHandle_EmptyHandle(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			BoundVolumeSnapshotContentName: ptr("my-content"),
+		},
+	}
+	vsc := &snapshotv1.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-content"},
+		Status: &snapshotv1.VolumeSnapshotContentStatus{
+			SnapshotHandle: ptr(""),
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs, vsc)
+
+	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
+	if err == nil {
+		t.Fatal("expected error for empty snapshot handle, got nil")
 	}
 }
 
