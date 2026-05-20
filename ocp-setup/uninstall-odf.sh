@@ -50,8 +50,6 @@ echo "--- Phase 1: Check for consumers of ODF storage ---"
 ODF_STORAGE_CLASSES="ocs-storagecluster-ceph-rbd ocs-storagecluster-cephfs ocs-storagecluster-ceph-rgw openshift-storage.noobaa.io"
 HAS_CONSUMERS=false
 
-CRITICAL_NS="openshift-monitoring openshift-logging openshift-image-registry"
-
 for sc in $ODF_STORAGE_CLASSES; do
     PVCS=$(oc get pvc -A -o jsonpath="{range .items[?(@.spec.storageClassName==\"$sc\")]}{.metadata.namespace}/{.metadata.name}{\"\\n\"}{end}" 2>/dev/null || echo "")
     if [ -n "$PVCS" ]; then

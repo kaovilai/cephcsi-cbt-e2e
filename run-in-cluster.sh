@@ -74,7 +74,7 @@ else
     echo "Creating runner pod..."
     oc delete pod "$RUNNER_POD" -n "$RUNNER_NS" --ignore-not-found 2>/dev/null || true
     # Wait for old pod to be fully gone
-    for i in {1..30}; do
+    for _ in {1..30}; do
         oc get pod "$RUNNER_POD" -n "$RUNNER_NS" &>/dev/null || break
         sleep 2
     done
