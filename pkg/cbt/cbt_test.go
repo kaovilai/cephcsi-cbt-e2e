@@ -150,6 +150,44 @@ func TestContainsOffset_MultiBlock(t *testing.T) {
 	}
 }
 
+// TestContainsOffset_BinarySearch verifies that ContainsOffset correctly handles
+// edge cases that exercise the binary-search boundary conditions: offset at the
+// last byte of a block (end-exclusive), offset in a gap between many blocks, and
+// hits at the very end of a large result set.
+func TestContainsOffset_BinarySearch(t *testing.T) {
+	// Build a sorted sequence of non-overlapping blocks to stress the search.
+	// Blocks: [0,4096), [8192,12288), [16384,20480), [32768,36864), [65536,69632)
+	blocks := []BlockMetadata{
+		block(0, 4096),
+		block(8192, 4096),
+		block(16384, 4096),
+		block(32768, 4096),
+		block(65536, 4096),
+	}
+	tests := []struct {
+		name   string
+		offset int64
+		want   bool
+	}{
+		{"hit: first byte of first block", 0, true},
+		{"hit: last byte of first block", 4095, true},
+		{"miss: first byte past first block", 4096, false},
+		{"miss: gap between first and second block", 6000, false},
+		{"hit: first byte of second block", 8192, true},
+		{"hit: last byte of last block", 69631, true},
+		{"miss: first byte past last block", 69632, false},
+		{"miss: before all blocks (negative would wrap, but offset after all)", 100000, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := makeResult(blocks...).ContainsOffset(tc.offset)
+			if got != tc.want {
+				t.Errorf("ContainsOffset(%d) = %v, want %v", tc.offset, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestCollectingEmitter_MultiRecord verifies that BlockMetadataType and
 // VolumeCapacityBytes are both updated on every record, not just the first.
 func TestCollectingEmitter_MultiRecord(t *testing.T) {

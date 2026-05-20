@@ -4,6 +4,7 @@ package cbt
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/api"
 	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/iterator"
@@ -176,13 +177,20 @@ func (r *MetadataResult) TotalChangedBytes() int64 {
 }
 
 // ContainsOffset returns true if any block covers the given byte offset.
+// It assumes Blocks are sorted in ascending ByteOffset order (as guaranteed
+// by the CBT API), and uses binary search for O(log n) lookup.
 func (r *MetadataResult) ContainsOffset(offset int64) bool {
-	for _, b := range r.Blocks {
-		if offset >= b.ByteOffset && offset < b.ByteOffset+b.SizeBytes {
-			return true
-		}
+	// Find the last block whose ByteOffset is <= offset.
+	// sort.Search returns the smallest i where Blocks[i].ByteOffset > offset,
+	// so the candidate block (if any) is at index i-1.
+	i := sort.Search(len(r.Blocks), func(i int) bool {
+		return r.Blocks[i].ByteOffset > offset
+	})
+	if i == 0 {
+		return false
 	}
-	return false
+	b := r.Blocks[i-1]
+	return offset < b.ByteOffset+b.SizeBytes
 }
 
 // BlocksAreSorted returns true if blocks are in ascending ByteOffset order.
