@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,6 +105,111 @@ func TestGetToolboxPod_NotFound(t *testing.T) {
 	_, err := GetToolboxPod(ctx, client, "rook-ceph")
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+// TestGetToolboxPod_NonRunningPodByLabel verifies that a pod found by label
+// selector but not in Running phase is still returned (non-running fallback).
+func TestGetToolboxPod_NonRunningPodByLabel(t *testing.T) {
+	ctx := context.Background()
+	ns := "rook-ceph"
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rook-ceph-tools-pending",
+			Namespace: ns,
+			Labels:    map[string]string{"app": toolboxPodNameFragment},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodPending},
+	}
+	client := fake.NewClientset(pod)
+
+	got, err := GetToolboxPod(ctx, client, ns)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Name != pod.Name {
+		t.Errorf("expected pod %q, got %q", pod.Name, got.Name)
+	}
+}
+
+// TestGetToolboxPod_LabelListError_FallsBackToName verifies that when label-selector
+// list calls fail, GetToolboxPod falls back to name-based matching and succeeds.
+func TestGetToolboxPod_LabelListError_FallsBackToName(t *testing.T) {
+	ctx := context.Background()
+	ns := "rook-ceph"
+	gr := schema.GroupResource{Group: "", Resource: "pods"}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      toolboxPodNameFragment + "-xyz",
+			Namespace: ns,
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	client := fake.NewClientset(pod)
+
+	// Fail the first two list calls (label-selector paths); let the third
+	// (all-pods fallback) proceed normally so the pod is found by name.
+	callCount := 0
+	client.Fake.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		callCount++
+		if callCount <= 2 {
+			return true, nil, k8serrors.NewServerTimeout(gr, "list", 0)
+		}
+		return false, nil, nil // fall through to default
+	})
+
+	got, err := GetToolboxPod(ctx, client, ns)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Name != pod.Name {
+		t.Errorf("expected pod %q, got %q", pod.Name, got.Name)
+	}
+}
+
+// TestGetToolboxPod_AllPodsListError verifies that when the all-pods fallback
+// list call fails (with no prior label errors), GetToolboxPod returns an error.
+func TestGetToolboxPod_AllPodsListError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "pods"}
+	client := fake.NewClientset()
+
+	// Let the first two list calls (label selectors) succeed with empty results,
+	// then fail the third all-pods call.
+	callCount := 0
+	client.Fake.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		callCount++
+		if callCount == 3 {
+			return true, nil, k8serrors.NewServerTimeout(gr, "list", 0)
+		}
+		return false, nil, nil
+	})
+
+	_, err := GetToolboxPod(ctx, client, "rook-ceph")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// TestGetToolboxPod_AllListsFail verifies that when all list calls fail,
+// the error message mentions the prior label-selector errors.
+func TestGetToolboxPod_AllListsFail(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "pods"}
+	client := fake.NewClientset()
+
+	client.Fake.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "list", 0)
+	})
+
+	_, err := GetToolboxPod(ctx, client, "rook-ceph")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "prior label errors") {
+		t.Errorf("expected error to mention prior label errors, got: %v", err)
 	}
 }
 
