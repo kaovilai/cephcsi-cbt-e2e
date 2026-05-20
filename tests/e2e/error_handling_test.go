@@ -188,7 +188,7 @@ var _ = Describe("Error Handling", func() {
 		By("Running concurrent CBT GetAllocated calls")
 		var wg sync.WaitGroup
 		errs := make([]error, 5)
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
@@ -235,7 +235,7 @@ var _ = Describe("Error Handling", func() {
 		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, podName, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Writing data to multiple blocks across the volume")
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, i*100, byte(i+1))).To(Succeed())
 		}
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, podName)).To(Succeed())
