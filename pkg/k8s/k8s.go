@@ -367,6 +367,9 @@ func GetSnapshotContentName(ctx context.Context, snapClient snapclient.Interface
 	if vs.Status == nil || vs.Status.BoundVolumeSnapshotContentName == nil {
 		return "", fmt.Errorf("VolumeSnapshot %s/%s not bound", namespace, name)
 	}
+	if *vs.Status.BoundVolumeSnapshotContentName == "" {
+		return "", fmt.Errorf("VolumeSnapshot %s/%s bound to empty content name", namespace, name)
+	}
 	return *vs.Status.BoundVolumeSnapshotContentName, nil
 }
 
@@ -404,6 +407,9 @@ func GetSnapshotHandle(ctx context.Context, snapClient snapclient.Interface, nam
 
 	if vsc.Status == nil || vsc.Status.SnapshotHandle == nil {
 		return "", fmt.Errorf("VolumeSnapshotContent %s has no snapshot handle", vscName)
+	}
+	if *vsc.Status.SnapshotHandle == "" {
+		return "", fmt.Errorf("VolumeSnapshotContent %s has empty snapshot handle", vscName)
 	}
 
 	return *vsc.Status.SnapshotHandle, nil
