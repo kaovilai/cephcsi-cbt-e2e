@@ -228,9 +228,13 @@ func (r *Inspector) ListSnapshots(ctx context.Context, imageName string) ([]RBDS
 		if strings.Contains(err.Error(), rbdErrNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("rbd snap ls failed: %w", err)
+		return nil, fmt.Errorf("rbd snap ls failed for %s: %w", imageName, err)
 	}
-	return parseSnapshotsJSON(output)
+	snaps, err := parseSnapshotsJSON(output)
+	if err != nil {
+		return nil, fmt.Errorf("parse snapshots for %s: %w", imageName, err)
+	}
+	return snaps, nil
 }
 
 // splitLines splits newline-delimited command output into trimmed, non-empty lines.
@@ -273,7 +277,7 @@ func (r *Inspector) GetChildren(ctx context.Context, imageName, snapName string)
 		if strings.Contains(err.Error(), rbdErrNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("rbd children failed: %w", err)
+		return nil, fmt.Errorf("rbd children failed for %s@%s: %w", imageName, snapName, err)
 	}
 
 	if output == "" {
@@ -323,7 +327,7 @@ func (r *Inspector) ListOmapKeys(ctx context.Context, imageName string) ([]strin
 		"rados", "-p", r.pool, "listomapkeys", fmt.Sprintf("%s%s", radosCsiVolumePrefix, imageName),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("rados listomapkeys failed: %w", err)
+		return nil, fmt.Errorf("rados listomapkeys failed for %s: %w", imageName, err)
 	}
 
 	lines := splitLines(output)
