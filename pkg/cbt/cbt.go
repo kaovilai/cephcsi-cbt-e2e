@@ -208,4 +208,4 @@ func (r *MetadataResult) BlocksAreNonOverlapping() bool {
 
 // BlockMetadataTypeAllocated is the expected type for CephCSI RBD block metadata.
 // CephCSI reports VARIABLE_LENGTH because rbd snap diff returns variable-size extents.
-var BlockMetadataTypeAllocated = api.BlockMetadataType_VARIABLE_LENGTH
+const BlockMetadataTypeAllocated = api.BlockMetadataType_VARIABLE_LENGTH

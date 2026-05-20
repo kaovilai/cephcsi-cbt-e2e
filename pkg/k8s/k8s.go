@@ -234,6 +234,26 @@ func DeletePVC(ctx context.Context, clientset kubernetes.Interface, namespace, n
 	return nil
 }
 
+// WaitForPVCDeleted waits until a PVC no longer exists.
+func WaitForPVCDeleted(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		_, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return false, nil
+	}); err != nil {
+		return fmt.Errorf("PVC %s/%s still exists after %v: %w", namespace, name, timeout, err)
+	}
+	return nil
+}
+
 // ResizePVC patches a PVC to request a new storage size.
 func ResizePVC(ctx context.Context, clientset kubernetes.Interface, namespace, name, newSize string) error {
 	patch := map[string]interface{}{
