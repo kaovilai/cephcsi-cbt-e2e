@@ -29,6 +29,9 @@ import (
 )
 
 const (
+	// defaultPVCSize is the standard PVC size used across most e2e tests.
+	defaultPVCSize = "1Gi"
+
 	// cbtSAName is the ServiceAccount created for CBT client authentication.
 	cbtSAName = "cbt-e2e-client"
 	// cbtClusterRoleBindingName is the ClusterRoleBinding granting CBT access to the SA.

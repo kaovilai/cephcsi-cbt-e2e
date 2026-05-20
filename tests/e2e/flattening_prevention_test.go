@@ -38,7 +38,7 @@ var _ = Describe("Flattening Prevention", func() {
 				Name:         origPVCName,
 				Namespace:    testNamespace,
 				StorageClass: storageClass,
-				Size:         "1Gi",
+				Size:         defaultPVCSize,
 				AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -67,7 +67,7 @@ var _ = Describe("Flattening Prevention", func() {
 				Name:           restoredPVC,
 				Namespace:      testNamespace,
 				StorageClass:   storageClass,
-				Size:           "1Gi",
+				Size:           defaultPVCSize,
 				AccessModes:    []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 				SnapshotSource: snap1Name,
 			})
@@ -161,7 +161,7 @@ var _ = Describe("Flattening Prevention", func() {
 				Name:         origPVCName,
 				Namespace:    testNamespace,
 				StorageClass: storageClass,
-				Size:         "1Gi",
+				Size:         defaultPVCSize,
 				AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -184,7 +184,7 @@ var _ = Describe("Flattening Prevention", func() {
 				Name:           clonePVCName,
 				Namespace:      testNamespace,
 				StorageClass:   storageClass,
-				Size:           "1Gi",
+				Size:           defaultPVCSize,
 				AccessModes:    []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 				PVCCloneSource: origPVCName,
 			})

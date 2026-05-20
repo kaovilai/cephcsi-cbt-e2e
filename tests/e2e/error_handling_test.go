@@ -54,14 +54,14 @@ var _ = Describe("Error Handling", func() {
 
 		By("Creating two independent PVCs with snapshots")
 		_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
-			Name: pvc1Name, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
+			Name: pvc1Name, Namespace: testNamespace, StorageClass: storageClass, Size: defaultPVCSize,
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, pvc1Name, pvcPodReadyTimeout)).To(Succeed())
 
 		_, err = k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
-			Name: pvc2Name, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
+			Name: pvc2Name, Namespace: testNamespace, StorageClass: storageClass, Size: defaultPVCSize,
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -117,7 +117,7 @@ var _ = Describe("Error Handling", func() {
 		})
 
 		_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
-			Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
+			Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: defaultPVCSize,
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -162,7 +162,7 @@ var _ = Describe("Error Handling", func() {
 		})
 
 		_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
-			Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
+			Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: defaultPVCSize,
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -269,7 +269,7 @@ var _ = Describe("Error Handling", func() {
 
 			By("Creating PVC and waiting for it to be bound")
 			_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
-				Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
+				Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: defaultPVCSize,
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -320,7 +320,7 @@ var _ = Describe("Error Handling", func() {
 
 			By("Creating first PVC and waiting for it to be bound")
 			_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
-				Name: pvc1Name, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
+				Name: pvc1Name, Namespace: testNamespace, StorageClass: storageClass, Size: defaultPVCSize,
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -347,7 +347,7 @@ var _ = Describe("Error Handling", func() {
 
 			By("Creating second PVC and waiting for it to be bound")
 			_, err = k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
-				Name: pvc2Name, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
+				Name: pvc2Name, Namespace: testNamespace, StorageClass: storageClass, Size: defaultPVCSize,
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -387,7 +387,7 @@ var _ = Describe("Error Handling", func() {
 
 			By("Creating PVC and waiting for it to be bound")
 			_, err := k8sutil.CreatePVC(ctx, clientset, k8sutil.PVCOptions{
-				Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: "1Gi",
+				Name: pvcName, Namespace: testNamespace, StorageClass: storageClass, Size: defaultPVCSize,
 				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
 			Expect(err).NotTo(HaveOccurred())

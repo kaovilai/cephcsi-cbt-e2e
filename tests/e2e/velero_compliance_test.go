@@ -43,7 +43,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			Name:         pvcName,
 			Namespace:    testNamespace,
 			StorageClass: storageClass,
-			Size:         "1Gi",
+			Size:         defaultPVCSize,
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -149,7 +149,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			Name:         delPVC,
 			Namespace:    testNamespace,
 			StorageClass: storageClass,
-			Size:         "1Gi",
+			Size:         defaultPVCSize,
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -288,7 +288,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			Name:           restorePVC,
 			Namespace:      testNamespace,
 			StorageClass:   storageClass,
-			Size:           "1Gi",
+			Size:           defaultPVCSize,
 			AccessModes:    []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			SnapshotSource: snap3Name,
 		})

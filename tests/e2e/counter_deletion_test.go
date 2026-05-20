@@ -36,7 +36,7 @@ var _ = Describe("Counter-based Deletion", Ordered, func() {
 			Name:         pvcName,
 			Namespace:    testNamespace,
 			StorageClass: storageClass,
-			Size:         "1Gi",
+			Size:         defaultPVCSize,
 			AccessModes:  []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -64,7 +64,7 @@ var _ = Describe("Counter-based Deletion", Ordered, func() {
 		roxPVCNames = make([]string, numROXPVCs)
 		for i := 0; i < numROXPVCs; i++ {
 			roxPVCNames[i] = fmt.Sprintf("counter-del-rox-%d", i)
-			_, err = k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVCNames[i], testNamespace, storageClass, snapName, "1Gi")
+			_, err = k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVCNames[i], testNamespace, storageClass, snapName, defaultPVCSize)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(k8sutil.WaitForPVCBound(ctx, clientset, testNamespace, roxPVCNames[i], pvcPodReadyTimeout)).To(Succeed())
 		}
