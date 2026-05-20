@@ -1285,3 +1285,112 @@ func TestWaitForPVCResized_NotFound(t *testing.T) {
 		t.Fatal("expected error for nonexistent PVC, got nil")
 	}
 }
+
+// prependOnceReactor injects err on the first matching action, then falls through
+// to the default fake behaviour for all subsequent calls.
+func prependOnceReactor(client *fake.Clientset, verb, resource string, err error) {
+	called := false
+	client.Fake.PrependReactor(verb, resource, func(action clientgotesting.Action) (bool, runtime.Object, error) {
+		if !called {
+			called = true
+			return true, nil, err
+		}
+		return false, nil, nil // fall through to default
+	})
+}
+
+// TestWaitForNamespaceDeleted_RetryableError verifies that a transient server-timeout
+// error does not abort WaitForNamespaceDeleted; the function should retry and succeed
+// once the namespace is gone.
+func TestWaitForNamespaceDeleted_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "namespaces"}
+	client := fake.NewClientset() // namespace does not exist after the first (failing) call
+	prependOnceReactor(client, "get", "namespaces", k8serrors.NewServerTimeout(gr, "get", 0))
+
+	err := WaitForNamespaceDeleted(ctx, client, "test-ns", 10*time.Second)
+	if err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
+
+// TestWaitForPVCBound_RetryableError verifies that a transient server-timeout error
+// does not abort WaitForPVCBound; the function should retry and succeed once the
+// PVC is bound.
+func TestWaitForPVCBound_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pvc", Namespace: "test-ns"},
+		Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+	}
+	client := fake.NewClientset(pvc)
+	prependOnceReactor(client, "get", "persistentvolumeclaims", k8serrors.NewServerTimeout(gr, "get", 0))
+
+	err := WaitForPVCBound(ctx, client, "test-ns", "test-pvc", 10*time.Second)
+	if err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
+
+// TestWaitForPodDeleted_RetryableError verifies that a transient server-timeout error
+// does not abort WaitForPodDeleted; the function should retry and succeed once the
+// pod is gone.
+func TestWaitForPodDeleted_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "pods"}
+	client := fake.NewClientset() // pod does not exist after the first (failing) call
+	prependOnceReactor(client, "get", "pods", k8serrors.NewServerTimeout(gr, "get", 0))
+
+	err := WaitForPodDeleted(ctx, client, "test-ns", "test-pod", 10*time.Second)
+	if err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
+
+// TestWaitForSnapshotDeleted_RetryableError verifies that a transient server-timeout
+// error does not abort WaitForSnapshotDeleted; the function should retry and succeed
+// once the VolumeSnapshot is gone.
+func TestWaitForSnapshotDeleted_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"}
+	snapClient := snapfake.NewSimpleClientset() // snapshot absent after the first (failing) call
+	called := false
+	snapClient.Fake.PrependReactor("get", "volumesnapshots",
+		func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+			if !called {
+				called = true
+				return true, nil, k8serrors.NewServerTimeout(gr, "get", 0)
+			}
+			return false, nil, nil
+		},
+	)
+
+	err := WaitForSnapshotDeleted(ctx, snapClient, "test-ns", "test-snap", 10*time.Second)
+	if err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
+
+// TestWaitForSnapshotContentDeleted_RetryableError verifies that a transient
+// server-timeout error does not abort WaitForSnapshotContentDeleted.
+func TestWaitForSnapshotContentDeleted_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshotcontents"}
+	snapClient := snapfake.NewSimpleClientset()
+	called := false
+	snapClient.Fake.PrependReactor("get", "volumesnapshotcontents",
+		func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+			if !called {
+				called = true
+				return true, nil, k8serrors.NewServerTimeout(gr, "get", 0)
+			}
+			return false, nil, nil
+		},
+	)
+
+	err := WaitForSnapshotContentDeleted(ctx, snapClient, "test-content", 10*time.Second)
+	if err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
