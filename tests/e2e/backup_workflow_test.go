@@ -71,7 +71,8 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 
 		// Record hashes at snap1 point
 		for i := 0; i < 5; i++ {
-			h, _ := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
+			h, hashErr := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
+			Expect(hashErr).NotTo(HaveOccurred(), "reading block hash at index %d before snap1", i)
 			hashesAtSnap1[i] = h
 		}
 
@@ -87,7 +88,8 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 3, 0xA3)).To(Succeed())
 
 		for i := 0; i < 5; i++ {
-			h, _ := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
+			h, hashErr := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
+			Expect(hashErr).NotTo(HaveOccurred(), "reading block hash at index %d before snap2", i)
 			hashesAtSnap2[i] = h
 		}
 
@@ -103,7 +105,8 @@ var _ = Describe("Backup Workflow", Ordered, func() {
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 4, 0xB4)).To(Succeed())
 
 		for i := 0; i < 5; i++ {
-			h, _ := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
+			h, hashErr := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
+			Expect(hashErr).NotTo(HaveOccurred(), "reading block hash at index %d before snap3", i)
 			hashesAtSnap3[i] = h
 		}
 
