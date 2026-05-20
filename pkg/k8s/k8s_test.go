@@ -1452,6 +1452,24 @@ func TestWaitForPVCBound_NotFound(t *testing.T) {
 	}
 }
 
+// TestWaitForPVCBound_LostPhase verifies that WaitForPVCBound fails immediately
+// (not after timeout) when the PVC enters Lost phase, which is a terminal state.
+func TestWaitForPVCBound_LostPhase(t *testing.T) {
+	ctx := context.Background()
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "lost-pvc", Namespace: "test-ns"},
+		Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimLost},
+	}
+	client := fake.NewClientset(pvc)
+	err := WaitForPVCBound(ctx, client, "test-ns", "lost-pvc", 30*time.Second)
+	if err == nil {
+		t.Fatal("expected error for PVC in Lost phase, got nil")
+	}
+	if !strings.Contains(err.Error(), "Lost") {
+		t.Errorf("expected error message to mention Lost phase, got: %v", err)
+	}
+}
+
 // TestWaitForSnapshotReady_NotFound verifies that WaitForSnapshotReady fails immediately
 // when the VolumeSnapshot does not exist, because NotFound is not retryable.
 func TestWaitForSnapshotReady_NotFound(t *testing.T) {

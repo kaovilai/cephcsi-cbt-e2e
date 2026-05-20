@@ -206,6 +206,8 @@ func CreateROXPVCFromSnapshot(ctx context.Context, clientset kubernetes.Interfac
 }
 
 // WaitForPVCBound waits until a PVC reaches Bound phase.
+// It fails immediately if the PVC enters Lost phase, which is a terminal state
+// indicating that the bound PV was manually deleted and the PVC can never recover.
 func WaitForPVCBound(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
@@ -214,6 +216,9 @@ func WaitForPVCBound(ctx context.Context, clientset kubernetes.Interface, namesp
 				return false, nil
 			}
 			return false, err
+		}
+		if pvc.Status.Phase == corev1.ClaimLost {
+			return false, fmt.Errorf("PVC %s/%s entered Lost phase (bound PV was deleted)", namespace, name)
 		}
 		return pvc.Status.Phase == corev1.ClaimBound, nil
 	}); err != nil {
