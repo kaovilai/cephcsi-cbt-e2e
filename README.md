@@ -94,6 +94,7 @@ make e2e-errors         # Error Handling (30m)
 make e2e-backup         # Backup Workflow (1h)
 make e2e-compliance     # Velero Compliance, Block Metadata Properties, Error Compliance, Volume Resize (1h)
 make e2e-resize         # Volume Resize (30m)
+make e2e-rebind         # Volume Mode Rebind (30m)
 ```
 
 #### In-Cluster Execution
@@ -104,6 +105,9 @@ make cluster-e2e
 
 # Run compliance tests inside the cluster
 make cluster-compliance
+
+# Run volume mode rebind tests inside the cluster
+make cluster-rebind
 
 # Run specific tests
 ./run-in-cluster.sh -ginkgo.focus='Basic CBT'

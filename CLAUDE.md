@@ -24,12 +24,14 @@ make e2e-errors         # Error handling tests (30m)
 make e2e-backup         # Backup workflow tests (1h)
 make e2e-compliance     # Velero/block metadata/error compliance + volume resize (1h)
 make e2e-resize         # Volume resize tests (30m)
+make e2e-rebind         # Volume mode rebind tests (30m)
 ```
 
 In-cluster execution (tests must run inside the cluster to reach the gRPC service):
 ```bash
 make cluster-e2e            # Full suite in-cluster
 make cluster-compliance     # Compliance tests in-cluster
+make cluster-rebind         # Volume mode rebind tests in-cluster
 ./run-in-cluster.sh -ginkgo.focus='Basic CBT'  # Specific tests
 make cluster-clean          # Remove runner pod
 ```
