@@ -327,6 +327,9 @@ func CreateSnapshot(ctx context.Context, snapClient snapclient.Interface, name, 
 }
 
 // WaitForSnapshotReady waits until a VolumeSnapshot is ReadyToUse.
+// It fails immediately if the VolumeSnapshot reports an error in its status,
+// since a snapshot with a driver-reported error will never become ready without
+// manual intervention (e.g. the snapshot was rejected by the storage backend).
 func WaitForSnapshotReady(ctx context.Context, snapClient snapclient.Interface, namespace, name string, timeout time.Duration) (*snapshotv1.VolumeSnapshot, error) {
 	var result *snapshotv1.VolumeSnapshot
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
@@ -336,6 +339,9 @@ func WaitForSnapshotReady(ctx context.Context, snapClient snapclient.Interface, 
 				return false, nil
 			}
 			return false, err
+		}
+		if vs.Status != nil && vs.Status.Error != nil && vs.Status.Error.Message != nil {
+			return false, fmt.Errorf("VolumeSnapshot %s/%s has error: %s", namespace, name, *vs.Status.Error.Message)
 		}
 		if vs.Status == nil || vs.Status.ReadyToUse == nil {
 			return false, nil
