@@ -137,7 +137,7 @@ func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.
 	namespace, basePod, targetPod string, result *cbt.MetadataResult, volumeSize int64) error {
 
 	numBlocks := int(volumeSize / DefaultBlockSize)
-	for i := 0; i < numBlocks; i++ {
+	for i := range numBlocks {
 		offset := int64(i) * DefaultBlockSize
 		if result.ContainsOffset(offset) {
 			continue // This block was reported as changed, skip

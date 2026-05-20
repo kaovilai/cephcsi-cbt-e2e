@@ -62,7 +62,7 @@ var _ = Describe("Counter-based Deletion", Ordered, func() {
 
 		By("Creating multiple ROX PVCs from the snapshot")
 		roxPVCNames = make([]string, numROXPVCs)
-		for i := 0; i < numROXPVCs; i++ {
+		for i := range numROXPVCs {
 			roxPVCNames[i] = fmt.Sprintf("counter-del-rox-%d", i)
 			_, err = k8sutil.CreateROXPVCFromSnapshot(ctx, clientset, roxPVCNames[i], testNamespace, storageClass, snapName, defaultPVCSize)
 			Expect(err).NotTo(HaveOccurred())

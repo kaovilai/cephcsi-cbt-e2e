@@ -87,7 +87,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 		By("Writing block 2 (0xCC) and recording hashes")
 		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, podName, 2, 0xCC)).To(Succeed())
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			h, err := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, podName, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
 			Expect(err).NotTo(HaveOccurred())
 			hashesAtSnap3[i] = h
@@ -305,7 +305,7 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, restorePod, pvcPodReadyTimeout)).To(Succeed())
 
 		By("Verifying restored data matches snap3 state")
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			hash, err := data.ReadBlockHash(ctx, clientset, kubeConfig, testNamespace, restorePod, int64(i)*data.DefaultBlockSize, data.DefaultBlockSize)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(hash).To(Equal(hashesAtSnap3[i]),

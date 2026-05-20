@@ -62,7 +62,7 @@ func TestZeroBlockHashDifferentSizes(t *testing.T) {
 func TestZeroBlockHashDeterministic(t *testing.T) {
 	for _, size := range []int64{0, 4096, DefaultBlockSize} {
 		first := zeroBlockHash(size)
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			if got := zeroBlockHash(size); got != first {
 				t.Errorf("zeroBlockHash(%d) is not deterministic: call 0 = %q, call %d = %q", size, first, i+1, got)
 			}
