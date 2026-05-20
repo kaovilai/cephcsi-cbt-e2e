@@ -158,11 +158,11 @@ func TestCollectingEmitter_MultiRecord(t *testing.T) {
 
 	records := []iterator.IteratorMetadata{
 		{
-			BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+			BlockMetadataType:   BlockMetadataTypeAllocated,
 			VolumeCapacityBytes: 1073741824,
 		},
 		{
-			BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+			BlockMetadataType:   BlockMetadataTypeAllocated,
 			VolumeCapacityBytes: 1073741824,
 		},
 	}
@@ -173,7 +173,7 @@ func TestCollectingEmitter_MultiRecord(t *testing.T) {
 		}
 	}
 
-	if result.BlockMetadataType != api.BlockMetadataType_VARIABLE_LENGTH {
+	if result.BlockMetadataType != BlockMetadataTypeAllocated {
 		t.Errorf("BlockMetadataType = %v, want VARIABLE_LENGTH", result.BlockMetadataType)
 	}
 	if result.VolumeCapacityBytes != 1073741824 {
@@ -189,7 +189,7 @@ func TestCollectingEmitter_BlocksAccumulated(t *testing.T) {
 
 	records := []iterator.IteratorMetadata{
 		{
-			BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+			BlockMetadataType:   BlockMetadataTypeAllocated,
 			VolumeCapacityBytes: 1073741824,
 			BlockMetadata: []*api.BlockMetadata{
 				{ByteOffset: 0, SizeBytes: 4096},
@@ -197,7 +197,7 @@ func TestCollectingEmitter_BlocksAccumulated(t *testing.T) {
 			},
 		},
 		{
-			BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+			BlockMetadataType:   BlockMetadataTypeAllocated,
 			VolumeCapacityBytes: 1073741824,
 			BlockMetadata: []*api.BlockMetadata{
 				{ByteOffset: 16384, SizeBytes: 4096},
@@ -232,8 +232,8 @@ func TestCollectingEmitter_LastVolumeCapacityWins(t *testing.T) {
 	emitter := &collectingEmitter{result: result}
 
 	records := []iterator.IteratorMetadata{
-		{BlockMetadataType: api.BlockMetadataType_VARIABLE_LENGTH, VolumeCapacityBytes: 1073741824},
-		{BlockMetadataType: api.BlockMetadataType_VARIABLE_LENGTH, VolumeCapacityBytes: 2147483648},
+		{BlockMetadataType: BlockMetadataTypeAllocated, VolumeCapacityBytes: 1073741824},
+		{BlockMetadataType: BlockMetadataTypeAllocated, VolumeCapacityBytes: 2147483648},
 	}
 	for i, rec := range records {
 		if err := emitter.SnapshotMetadataIteratorRecord(i, rec); err != nil {
