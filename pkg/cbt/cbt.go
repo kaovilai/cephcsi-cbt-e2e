@@ -150,6 +150,22 @@ func (c *Client) GetChangedBlocksWithOptions(ctx context.Context, prevSnapshotNa
 	return result, nil
 }
 
+// GetChangedBlocksByIDWithOptions returns blocks changed using a CSI snapshot handle as the base,
+// with pagination options. This combines the handle-based lookup of GetChangedBlocksByID with
+// the pagination controls of GetChangedBlocksWithOptions.
+func (c *Client) GetChangedBlocksByIDWithOptions(ctx context.Context, prevSnapshotID, snapshotName string, startingOffset int64, maxResults int32) (*MetadataResult, error) {
+	result, args := c.newResultAndArgs()
+	args.SnapshotName = snapshotName
+	args.PrevSnapshotID = prevSnapshotID
+	args.StartingOffset = startingOffset
+	args.MaxResults = maxResults
+
+	if err := iterator.GetSnapshotMetadata(ctx, args); err != nil {
+		return nil, fmt.Errorf("GetMetadataDelta (ID) %s -> %s (offset=%d, max=%d): %w", prevSnapshotID, snapshotName, startingOffset, maxResults, err)
+	}
+	return result, nil
+}
+
 // TotalChangedBytes returns the total byte count across all blocks.
 func (r *MetadataResult) TotalChangedBytes() int64 {
 	var total int64
