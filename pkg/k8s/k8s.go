@@ -68,23 +68,44 @@ func isRetryableAPIError(err error) bool {
 		errors.IsTimeout(err)
 }
 
-// CreateNamespace creates a namespace, ignoring AlreadyExists.
-// Sets PodSecurity labels to "privileged" to allow block device access in test pods.
+// podSecurityLabels are the PodSecurity labels applied to test namespaces.
+// They allow block-device access and privileged containers required by the e2e tests.
+var podSecurityLabels = map[string]string{
+	"pod-security.kubernetes.io/enforce": "privileged",
+	"pod-security.kubernetes.io/audit":   "privileged",
+	"pod-security.kubernetes.io/warn":    "privileged",
+}
+
+// CreateNamespace creates a namespace and ensures PodSecurity labels are set to
+// "privileged" to allow block device access in test pods.
+// If the namespace already exists the labels are patched onto it, so that
+// namespaces left over from a previous failed run always have the required
+// security policy before the new run begins.
 func CreateNamespace(ctx context.Context, clientset kubernetes.Interface, name string) error {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-		Name: name,
-		Labels: map[string]string{
-			"pod-security.kubernetes.io/enforce": "privileged",
-			"pod-security.kubernetes.io/audit":   "privileged",
-			"pod-security.kubernetes.io/warn":    "privileged",
-		},
+		Name:   name,
+		Labels: podSecurityLabels,
 	}}
 	_, err := clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-	if errors.IsAlreadyExists(err) {
+	if err == nil {
 		return nil
 	}
-	if err != nil {
+	if !errors.IsAlreadyExists(err) {
 		return fmt.Errorf("create namespace %s: %w", name, err)
+	}
+
+	// Namespace already exists — patch the security labels so that leftover
+	// namespaces from a previous run always have the required policy.
+	patch, marshalErr := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{"labels": podSecurityLabels},
+	})
+	if marshalErr != nil {
+		return fmt.Errorf("marshal label patch for namespace %s: %w", name, marshalErr)
+	}
+	if _, patchErr := clientset.CoreV1().Namespaces().Patch(
+		ctx, name, types.MergePatchType, patch, metav1.PatchOptions{},
+	); patchErr != nil {
+		return fmt.Errorf("patch labels on existing namespace %s: %w", name, patchErr)
 	}
 	return nil
 }
