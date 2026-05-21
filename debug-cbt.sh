@@ -5,10 +5,11 @@ NS="${NS:-cbt-debug}"
 SC="${SC:-ocs-storagecluster-ceph-rbd}"
 SNAPCLASS="${SNAPCLASS:-ocs-storagecluster-rbdplugin-snapclass}"
 POOL="${POOL:-ocs-storagecluster-cephblockpool}"
+CEPHCSI_NS="${CEPHCSI_NS:-openshift-storage}"
 TOOLBOX=""
 
 find_toolbox() {
-    TOOLBOX=$(oc get pods -n openshift-storage -l app=rook-ceph-tools -o jsonpath='{.items[0].metadata.name}')
+    TOOLBOX=$(oc get pods -n "$CEPHCSI_NS" -l app=rook-ceph-tools -o jsonpath='{.items[0].metadata.name}')
 }
 
 echo "=== Setting up debug namespace ==="
@@ -114,27 +115,27 @@ find_toolbox
 
 echo ""
 echo "=== RBD images in pool ==="
-oc exec -n openshift-storage "$TOOLBOX" -- rbd ls "$POOL"
+oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd ls "$POOL"
 
 echo ""
 echo "=== RBD info + snap ls for each image ==="
-for img in $(oc exec -n openshift-storage "$TOOLBOX" -- rbd ls "$POOL"); do
+for img in $(oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd ls "$POOL"); do
     echo ""
     echo "--- Image: $img ---"
-    oc exec -n openshift-storage "$TOOLBOX" -- rbd info "$POOL/$img" 2>/dev/null | grep -E 'size|features|parent|block_name_prefix'
+    oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd info "$POOL/$img" 2>/dev/null | grep -E 'size|features|parent|block_name_prefix'
     echo "Snapshots:"
-    oc exec -n openshift-storage "$TOOLBOX" -- rbd snap ls "$POOL/$img" 2>/dev/null || echo "(none)"
+    oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd snap ls "$POOL/$img" 2>/dev/null || echo "(none)"
 done
 
 echo ""
 echo "=== rbd snap diff on source image ==="
-SNAP_JSON=$(oc exec -n openshift-storage "$TOOLBOX" -- rbd snap ls "$POOL/$RBD_IMAGE" --format json 2>/dev/null)
+SNAP_JSON=$(oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd snap ls "$POOL/$RBD_IMAGE" --format json 2>/dev/null)
 echo "Snap list JSON: $SNAP_JSON"
 SNAP_NAME=$(echo "$SNAP_JSON" | python3 -c "import json,sys; snaps=json.load(sys.stdin); print(snaps[-1]['name'])" 2>/dev/null || echo "")
 if [ -n "$SNAP_NAME" ]; then
     echo ""
     echo "Running: rbd snap diff $POOL/$RBD_IMAGE@$SNAP_NAME --format json"
-    DIFF_OUT=$(oc exec -n openshift-storage "$TOOLBOX" -- rbd snap diff "$POOL/$RBD_IMAGE@$SNAP_NAME" --format json 2>&1)
+    DIFF_OUT=$(oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd snap diff "$POOL/$RBD_IMAGE@$SNAP_NAME" --format json 2>&1)
     echo "$DIFF_OUT" | head -c 3000
     echo ""
     echo "Diff entry count: $(echo "$DIFF_OUT" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "parse error")"
@@ -145,17 +146,17 @@ fi
 echo ""
 echo "=== Check snapshot clone image for snap diff ==="
 # CephCSI creates a clone image for the snapshot (csi-snap-*)
-for img in $(oc exec -n openshift-storage "$TOOLBOX" -- rbd ls "$POOL"); do
+for img in $(oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd ls "$POOL"); do
     if [[ "$img" == csi-snap-* ]]; then
         echo ""
         echo "--- Snapshot clone: $img ---"
-        oc exec -n openshift-storage "$TOOLBOX" -- rbd info "$POOL/$img" 2>/dev/null | grep -E 'size|features|parent'
-        CLONE_SNAPS=$(oc exec -n openshift-storage "$TOOLBOX" -- rbd snap ls "$POOL/$img" --format json 2>/dev/null)
+        oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd info "$POOL/$img" 2>/dev/null | grep -E 'size|features|parent'
+        CLONE_SNAPS=$(oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd snap ls "$POOL/$img" --format json 2>/dev/null)
         echo "Snapshots: $CLONE_SNAPS"
         CLONE_SNAP=$(echo "$CLONE_SNAPS" | python3 -c "import json,sys; snaps=json.load(sys.stdin); print(snaps[-1]['name'])" 2>/dev/null || echo "")
         if [ -n "$CLONE_SNAP" ]; then
             echo "Running: rbd snap diff $POOL/$img@$CLONE_SNAP --format json"
-            oc exec -n openshift-storage "$TOOLBOX" -- rbd snap diff "$POOL/$img@$CLONE_SNAP" --format json 2>&1 | head -c 3000
+            oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- rbd snap diff "$POOL/$img@$CLONE_SNAP" --format json 2>&1 | head -c 3000
             echo ""
         fi
     fi
@@ -163,12 +164,12 @@ done
 
 echo ""
 echo "=== Done. Now check CephCSI driver version ==="
-oc exec -n openshift-storage "$TOOLBOX" -- ceph version
+oc exec -n "$CEPHCSI_NS" "$TOOLBOX" -- ceph version
 echo ""
 echo "=== CephCSI image version ==="
-CTRLPLUGIN_POD=$(oc get pods -n openshift-storage -l "app=openshift-storage.rbd.csi.ceph.com-ctrlplugin" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | head -1)
+CTRLPLUGIN_POD=$(oc get pods -n "$CEPHCSI_NS" -l "app=openshift-storage.rbd.csi.ceph.com-ctrlplugin" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | head -1)
 if [ -n "$CTRLPLUGIN_POD" ]; then
-    oc get pod -n openshift-storage "$CTRLPLUGIN_POD" -o jsonpath='{range .spec.containers[*]}{.name}: {.image}{"\n"}{end}' 2>/dev/null
+    oc get pod -n "$CEPHCSI_NS" "$CTRLPLUGIN_POD" -o jsonpath='{range .spec.containers[*]}{.name}: {.image}{"\n"}{end}' 2>/dev/null
 else
     echo "(ctrlplugin pod not found)"
 fi
