@@ -532,7 +532,9 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 }
 
 // WaitForPodRunning waits until a pod reaches Running phase.
-// Returns immediately with an error if the pod enters a terminal failure state.
+// Returns immediately with an error if the pod enters a terminal failure state
+// (PodFailed, PodSucceeded) or if any container reports ErrImagePull or
+// ImagePullBackOff, which will never self-recover.
 func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
 	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
@@ -551,6 +553,18 @@ func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, name
 		case corev1.PodSucceeded:
 			// Succeeded without ever entering Running — treat as failure for test pods
 			return false, fmt.Errorf("pod %s/%s exited unexpectedly with Succeeded phase", namespace, name)
+		}
+		// Check for image pull failures in init and regular containers.
+		// These are terminal within a scheduling attempt and will not self-recover,
+		// so fail fast rather than waiting for the full timeout.
+		for _, cs := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
+			if cs.State.Waiting != nil {
+				switch cs.State.Waiting.Reason {
+				case "ErrImagePull", "ImagePullBackOff":
+					return false, fmt.Errorf("pod %s/%s container %s cannot pull image (%s): %s",
+						namespace, name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				}
+			}
 		}
 		return false, nil
 	}); err != nil {

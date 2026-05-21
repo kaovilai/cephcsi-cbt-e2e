@@ -1214,6 +1214,100 @@ func TestWaitForPodRunning_ImmediatelySucceeded(t *testing.T) {
 	}
 }
 
+// TestWaitForPodRunning_ErrImagePull verifies that WaitForPodRunning fails
+// immediately when a container reports ErrImagePull, rather than waiting for
+// the full timeout.
+func TestWaitForPodRunning_ErrImagePull(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "ErrImagePull",
+							Message: "failed to pull image: not found",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for ErrImagePull container, got nil")
+	}
+	if !strings.Contains(err.Error(), "ErrImagePull") {
+		t.Errorf("expected error to mention ErrImagePull, got: %v", err)
+	}
+}
+
+// TestWaitForPodRunning_ImagePullBackOff verifies that WaitForPodRunning fails
+// immediately when a container reports ImagePullBackOff.
+func TestWaitForPodRunning_ImagePullBackOff(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "ImagePullBackOff",
+							Message: "Back-off pulling image",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for ImagePullBackOff container, got nil")
+	}
+	if !strings.Contains(err.Error(), "ImagePullBackOff") {
+		t.Errorf("expected error to mention ImagePullBackOff, got: %v", err)
+	}
+}
+
+// TestWaitForPodRunning_InitContainerErrImagePull verifies that ErrImagePull
+// on an init container also triggers a fast failure.
+func TestWaitForPodRunning_InitContainerErrImagePull(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			InitContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "init",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "ErrImagePull",
+							Message: "manifest unknown",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for init container ErrImagePull, got nil")
+	}
+	if !strings.Contains(err.Error(), "ErrImagePull") {
+		t.Errorf("expected error to mention ErrImagePull, got: %v", err)
+	}
+}
+
 func TestWaitForPodDeleted_AlreadyGone(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
