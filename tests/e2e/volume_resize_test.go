@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -10,6 +11,15 @@ import (
 
 	"github.com/cephcsi-cbt-e2e/pkg/data"
 	k8sutil "github.com/cephcsi-cbt-e2e/pkg/k8s"
+)
+
+const (
+	// resizedPVCSize is the expanded size used by Volume Resize tests.
+	resizedPVCSize = "2Gi"
+	// resizedPVCSizeBytes is the byte equivalent of resizedPVCSize, used in capacity assertions.
+	resizedPVCSizeBytes = int64(2 * 1024 * 1024 * 1024)
+	// expandedBlockIndex is the block index written into the expanded PVC region.
+	expandedBlockIndex = 1024
 )
 
 var _ = Describe("Volume Resize", Ordered, func() {
@@ -63,11 +73,11 @@ var _ = Describe("Volume Resize", Ordered, func() {
 		_, err = k8sutil.WaitForSnapshotReady(ctx, snapClient, testNamespace, snap1Name, snapshotReadyTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Resizing PVC to 2Gi")
-		Expect(k8sutil.ResizePVC(ctx, clientset, testNamespace, pvcName, "2Gi")).To(Succeed())
+		By("Resizing PVC to " + resizedPVCSize)
+		Expect(k8sutil.ResizePVC(ctx, clientset, testNamespace, pvcName, resizedPVCSize)).To(Succeed())
 
 		By("Waiting for PVC resize to complete")
-		Expect(k8sutil.WaitForPVCResized(ctx, clientset, testNamespace, pvcName, resource.MustParse("2Gi"), longOperationTimeout)).To(Succeed())
+		Expect(k8sutil.WaitForPVCResized(ctx, clientset, testNamespace, pvcName, resource.MustParse(resizedPVCSize), longOperationTimeout)).To(Succeed())
 
 		By("Creating a second pod with the resized PVC")
 		_, err = k8sutil.CreatePodWithPVC(ctx, clientset, k8sutil.PodOptions{
@@ -79,8 +89,8 @@ var _ = Describe("Volume Resize", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(k8sutil.WaitForPodRunning(ctx, clientset, testNamespace, pod2Name, pvcPodReadyTimeout)).To(Succeed())
 
-		By("Writing known pattern to block 1024 in the expanded region")
-		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, pod2Name, 1024, 0xBB)).To(Succeed())
+		By(fmt.Sprintf("Writing known pattern to block %d in the expanded region", expandedBlockIndex))
+		Expect(data.WriteBlockPattern(ctx, clientset, kubeConfig, testNamespace, pod2Name, expandedBlockIndex, 0xBB)).To(Succeed())
 
 		By("Deleting the second pod before snapshot")
 		Expect(k8sutil.DeletePod(ctx, clientset, testNamespace, pod2Name)).To(Succeed())
@@ -103,7 +113,7 @@ var _ = Describe("Volume Resize", Ordered, func() {
 	It("should report updated VolumeCapacityBytes after expansion", func() {
 		result, err := cbtClient.GetAllocatedBlocks(ctx, snap2Name)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result.VolumeCapacityBytes).To(BeNumerically(">=", 2*1024*1024*1024),
+		Expect(result.VolumeCapacityBytes).To(BeNumerically(">=", resizedPVCSizeBytes),
 			"VolumeCapacityBytes should reflect expanded 2Gi size")
 		GinkgoWriter.Printf("Expanded volume capacity: %d bytes\n", result.VolumeCapacityBytes)
 	})
@@ -113,10 +123,10 @@ var _ = Describe("Volume Resize", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.Blocks).NotTo(BeEmpty())
 
-		expandedBlockOffset := int64(1024) * int64(data.DefaultBlockSize)
+		expandedBlockOffset := int64(expandedBlockIndex) * int64(data.DefaultBlockSize)
 		Expect(result.ContainsOffset(expandedBlockOffset)).To(BeTrue(),
 			"delta should include block written in expanded region")
-		Expect(result.VolumeCapacityBytes).To(BeNumerically(">=", 2*1024*1024*1024),
+		Expect(result.VolumeCapacityBytes).To(BeNumerically(">=", resizedPVCSizeBytes),
 			"delta VolumeCapacityBytes should reflect expanded size")
 		GinkgoWriter.Printf("Delta blocks after resize: %d\n", len(result.Blocks))
 	})
@@ -127,7 +137,7 @@ var _ = Describe("Volume Resize", Ordered, func() {
 		Expect(result.Blocks).NotTo(BeEmpty())
 
 		block0Offset := int64(0)
-		block1024Offset := int64(1024) * int64(data.DefaultBlockSize)
+		block1024Offset := int64(expandedBlockIndex) * int64(data.DefaultBlockSize)
 		Expect(result.ContainsOffset(block0Offset)).To(BeTrue(),
 			"should include original block 0")
 		Expect(result.ContainsOffset(block1024Offset)).To(BeTrue(),

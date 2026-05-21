@@ -122,8 +122,8 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 
 	It("should report consistent VolumeCapacityBytes across calls", func() {
 		Expect(allocatedResult.VolumeCapacityBytes).To(BeNumerically(">", 0))
-		Expect(allocatedResult.VolumeCapacityBytes).To(BeNumerically(">=", int64(1073741824)),
-			"VolumeCapacityBytes should be at least 1Gi (1073741824)")
+		Expect(allocatedResult.VolumeCapacityBytes).To(BeNumerically(">=", int64(1024*1024*1024)),
+			"VolumeCapacityBytes should be at least 1Gi")
 		Expect(deltaResult.VolumeCapacityBytes).To(Equal(allocatedResult.VolumeCapacityBytes),
 			"VolumeCapacityBytes should be consistent between allocated and delta calls")
 	})
