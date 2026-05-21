@@ -1935,6 +1935,48 @@ func TestWaitForPVCResized_LostPhase(t *testing.T) {
 	}
 }
 
+// TestDeleteNamespace_Error verifies that a non-NotFound delete error is propagated.
+func TestDeleteNamespace_Error(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	gr := schema.GroupResource{Group: "", Resource: "namespaces"}
+	client.Fake.PrependReactor("delete", "namespaces", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
+	})
+
+	if err := DeleteNamespace(ctx, client, "test-ns"); err == nil {
+		t.Fatal("expected error from Delete failure, got nil")
+	}
+}
+
+// TestDeletePV_Error verifies that a non-NotFound delete error is propagated.
+func TestDeletePV_Error(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+	gr := schema.GroupResource{Group: "", Resource: "persistentvolumes"}
+	client.Fake.PrependReactor("delete", "persistentvolumes", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
+	})
+
+	if err := DeletePV(ctx, client, "my-pv"); err == nil {
+		t.Fatal("expected error from Delete failure, got nil")
+	}
+}
+
+// TestDeleteSnapshot_Error verifies that a non-NotFound delete error is propagated.
+func TestDeleteSnapshot_Error(t *testing.T) {
+	ctx := context.Background()
+	client := snapfake.NewSimpleClientset()
+	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"}
+	client.Fake.PrependReactor("delete", "volumesnapshots", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
+	})
+
+	if err := DeleteSnapshot(ctx, client, "test-ns", "my-snap"); err == nil {
+		t.Fatal("expected error from Delete failure, got nil")
+	}
+}
+
 // TestWaitForPVCResized_NilCapacity verifies that a PVC whose Status.Capacity is nil
 // is treated as not-yet-resized and the function eventually times out.
 func TestWaitForPVCResized_NilCapacity(t *testing.T) {
