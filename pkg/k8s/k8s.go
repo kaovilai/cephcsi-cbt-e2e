@@ -343,8 +343,11 @@ func WaitForSnapshotReady(ctx context.Context, snapClient snapclient.Interface, 
 			}
 			return false, err
 		}
-		if vs.Status != nil && vs.Status.Error != nil && vs.Status.Error.Message != nil {
-			return false, fmt.Errorf("VolumeSnapshot %s/%s has error: %s", namespace, name, *vs.Status.Error.Message)
+		if vs.Status != nil && vs.Status.Error != nil {
+			if vs.Status.Error.Message != nil {
+				return false, fmt.Errorf("VolumeSnapshot %s/%s has error: %s", namespace, name, *vs.Status.Error.Message)
+			}
+			return false, fmt.Errorf("VolumeSnapshot %s/%s has an error condition with no message", namespace, name)
 		}
 		if vs.Status == nil || vs.Status.ReadyToUse == nil {
 			return false, nil

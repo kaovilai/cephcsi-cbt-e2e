@@ -1133,6 +1133,29 @@ func TestWaitForSnapshotReady_ErrorStatus(t *testing.T) {
 	}
 }
 
+// TestWaitForSnapshotReady_ErrorStatusNilMessage verifies that WaitForSnapshotReady
+// fails fast when Status.Error is non-nil but Message is nil (defensive check: the
+// error condition is real but the driver omitted the message string).
+func TestWaitForSnapshotReady_ErrorStatusNilMessage(t *testing.T) {
+	ctx := context.Background()
+	vs := &snapshotv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{Name: "broken-snap-no-msg", Namespace: "test-ns"},
+		Status: &snapshotv1.VolumeSnapshotStatus{
+			Error: &snapshotv1.VolumeSnapshotError{
+				// Message deliberately left nil
+			},
+		},
+	}
+	client := snapfake.NewSimpleClientset(vs)
+	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "broken-snap-no-msg", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for snapshot with non-nil Error but nil Message, got nil")
+	}
+	if !strings.Contains(err.Error(), "error condition") {
+		t.Errorf("error %q should mention 'error condition'", err.Error())
+	}
+}
+
 func TestWaitForSnapshotDeleted_AlreadyGone(t *testing.T) {
 	ctx := context.Background()
 	client := snapfake.NewSimpleClientset()
