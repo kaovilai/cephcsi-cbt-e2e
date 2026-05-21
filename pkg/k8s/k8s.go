@@ -293,6 +293,9 @@ func WaitForPVCResized(ctx context.Context, clientset kubernetes.Interface, name
 			}
 			return false, err
 		}
+		if pvc.Status.Phase == corev1.ClaimLost {
+			return false, fmt.Errorf("PVC %s/%s entered Lost phase during resize (bound PV was deleted)", namespace, name)
+		}
 		if pvc.Status.Capacity == nil {
 			return false, nil
 		}
