@@ -1308,6 +1308,99 @@ func TestWaitForPodRunning_InitContainerErrImagePull(t *testing.T) {
 	}
 }
 
+// TestWaitForPodRunning_InitContainerImagePullBackOff verifies that ImagePullBackOff
+// on an init container also triggers a fast failure.
+func TestWaitForPodRunning_InitContainerImagePullBackOff(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			InitContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "init",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "ImagePullBackOff",
+							Message: "Back-off pulling image",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for init container ImagePullBackOff, got nil")
+	}
+	if !strings.Contains(err.Error(), "ImagePullBackOff") {
+		t.Errorf("expected error to mention ImagePullBackOff, got: %v", err)
+	}
+}
+
+// TestWaitForPodRunning_InvalidImageName verifies that InvalidImageName (a terminal
+// image reference error) on a regular container triggers a fast failure.
+func TestWaitForPodRunning_InvalidImageName(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "InvalidImageName",
+							Message: "invalid reference format",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for InvalidImageName container, got nil")
+	}
+	if !strings.Contains(err.Error(), "InvalidImageName") {
+		t.Errorf("expected error to mention InvalidImageName, got: %v", err)
+	}
+}
+
+// TestWaitForPodRunning_InitContainerInvalidImageName verifies that InvalidImageName
+// on an init container also triggers a fast failure.
+func TestWaitForPodRunning_InitContainerInvalidImageName(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			InitContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "init",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "InvalidImageName",
+							Message: "invalid reference format",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for init container InvalidImageName, got nil")
+	}
+	if !strings.Contains(err.Error(), "InvalidImageName") {
+		t.Errorf("expected error to mention InvalidImageName, got: %v", err)
+	}
+}
+
 func TestWaitForPodDeleted_AlreadyGone(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()

@@ -560,7 +560,7 @@ func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, name
 		for _, cs := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
 			if cs.State.Waiting != nil {
 				switch cs.State.Waiting.Reason {
-				case "ErrImagePull", "ImagePullBackOff":
+				case "ErrImagePull", "ImagePullBackOff", "InvalidImageName":
 					return false, fmt.Errorf("pod %s/%s container %s cannot pull image (%s): %s",
 						namespace, name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
 				}
