@@ -28,7 +28,9 @@ import (
 const (
 	// pollInterval is the default polling interval for Wait* functions.
 	pollInterval = 5 * time.Second
-	// fastPollInterval is used for short-lived resources like pods.
+	// fastPollInterval is used for time-sensitive wait operations: pod phase
+	// transitions (Running, Deleted) and PVC binding, where polling too slowly
+	// would add unnecessary latency to test runs.
 	fastPollInterval = 2 * time.Second
 
 	// DefaultPodImage is the default container image used for test pods.
@@ -209,7 +211,7 @@ func CreateROXPVCFromSnapshot(ctx context.Context, clientset kubernetes.Interfac
 // It fails immediately if the PVC enters Lost phase, which is a terminal state
 // indicating that the bound PV was manually deleted and the PVC can never recover.
 func WaitForPVCBound(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pvc, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if isRetryableAPIError(err) {
@@ -536,7 +538,7 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 // (PodFailed, PodSucceeded) or if any container reports ErrImagePull or
 // ImagePullBackOff, which will never self-recover.
 func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
-	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if isRetryableAPIError(err) {
@@ -557,7 +559,17 @@ func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, name
 		// Check for image pull failures in init and regular containers.
 		// These are terminal within a scheduling attempt and will not self-recover,
 		// so fail fast rather than waiting for the full timeout.
-		for _, cs := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
+		// Iterate over both slices separately to avoid a per-poll heap allocation.
+		for _, cs := range pod.Status.InitContainerStatuses {
+			if cs.State.Waiting != nil {
+				switch cs.State.Waiting.Reason {
+				case "ErrImagePull", "ImagePullBackOff", "InvalidImageName":
+					return false, fmt.Errorf("pod %s/%s init container %s cannot pull image (%s): %s",
+						namespace, name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				}
+			}
+		}
+		for _, cs := range pod.Status.ContainerStatuses {
 			if cs.State.Waiting != nil {
 				switch cs.State.Waiting.Reason {
 				case "ErrImagePull", "ImagePullBackOff", "InvalidImageName":
