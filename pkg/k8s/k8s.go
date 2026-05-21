@@ -535,8 +535,9 @@ func CreatePodWithPVC(ctx context.Context, clientset kubernetes.Interface, opts 
 
 // WaitForPodRunning waits until a pod reaches Running phase.
 // Returns immediately with an error if the pod enters a terminal failure state
-// (PodFailed, PodSucceeded) or if any container reports ErrImagePull or
-// ImagePullBackOff, which will never self-recover.
+// (PodFailed, PodSucceeded) or if any container reports an unrecoverable state:
+// ErrImagePull, ImagePullBackOff, InvalidImageName, CrashLoopBackOff,
+// CreateContainerError, or CreateContainerConfigError.
 func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, namespace, name string, timeout time.Duration) error {
 	if err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
@@ -547,8 +548,6 @@ func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, name
 			return false, err
 		}
 		switch pod.Status.Phase {
-		case corev1.PodRunning:
-			return true, nil
 		case corev1.PodFailed:
 			return false, fmt.Errorf("pod %s/%s entered Failed phase (reason: %s, message: %s)",
 				namespace, name, pod.Status.Reason, pod.Status.Message)
@@ -556,15 +555,18 @@ func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, name
 			// Succeeded without ever entering Running — treat as failure for test pods
 			return false, fmt.Errorf("pod %s/%s exited unexpectedly with Succeeded phase", namespace, name)
 		}
-		// Check for image pull failures in init and regular containers.
-		// These are terminal within a scheduling attempt and will not self-recover,
-		// so fail fast rather than waiting for the full timeout.
+		// Check for unrecoverable container states in init and regular containers.
+		// These checks run before the PodRunning success return because CrashLoopBackOff
+		// can occur while the pod phase is still Running.
 		// Iterate over both slices separately to avoid a per-poll heap allocation.
 		for _, cs := range pod.Status.InitContainerStatuses {
 			if cs.State.Waiting != nil {
 				switch cs.State.Waiting.Reason {
 				case "ErrImagePull", "ImagePullBackOff", "InvalidImageName":
 					return false, fmt.Errorf("pod %s/%s init container %s cannot pull image (%s): %s",
+						namespace, name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				case "CrashLoopBackOff", "CreateContainerError", "CreateContainerConfigError":
+					return false, fmt.Errorf("pod %s/%s init container %s is in an unrecoverable state (%s): %s",
 						namespace, name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
 				}
 			}
@@ -575,8 +577,14 @@ func WaitForPodRunning(ctx context.Context, clientset kubernetes.Interface, name
 				case "ErrImagePull", "ImagePullBackOff", "InvalidImageName":
 					return false, fmt.Errorf("pod %s/%s container %s cannot pull image (%s): %s",
 						namespace, name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				case "CrashLoopBackOff", "CreateContainerError", "CreateContainerConfigError":
+					return false, fmt.Errorf("pod %s/%s container %s is in an unrecoverable state (%s): %s",
+						namespace, name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
 				}
 			}
+		}
+		if pod.Status.Phase == corev1.PodRunning {
+			return true, nil
 		}
 		return false, nil
 	}); err != nil {
