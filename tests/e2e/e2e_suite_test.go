@@ -211,13 +211,13 @@ var _ = BeforeSuite(func() {
 	_, err = snapClient.SnapshotV1().VolumeSnapshotClasses().Get(ctx, snapshotClass, metav1.GetOptions{})
 	Expect(err).NotTo(HaveOccurred(), "VolumeSnapshotClass %s not found", snapshotClass)
 
-	By("Checking Ceph version >= 17 (Quincy)")
+	By(fmt.Sprintf("Checking Ceph version >= %d (Quincy)", rbd.MinCephMajorVersionForCBT))
 	rbdInspector = rbd.NewInspector(clientset, kubeConfig, cephcsiNamespace, rbdPool)
 	cephMajor, err := rbdInspector.GetCephMajorVersion(ctx)
 	Expect(err).NotTo(HaveOccurred(), "failed to get Ceph version")
 	GinkgoWriter.Printf("Ceph major version: %d\n", cephMajor)
-	Expect(cephMajor).To(BeNumerically(">=", 17),
-		"Ceph version must be >= 17 (Quincy) for rbd snap diff support")
+	Expect(cephMajor).To(BeNumerically(">=", rbd.MinCephMajorVersionForCBT),
+		"Ceph version must be >= %d (Quincy) for rbd snap diff support", rbd.MinCephMajorVersionForCBT)
 
 	By(fmt.Sprintf("Creating test namespace %s", testNamespace))
 	err = k8sutil.CreateNamespace(ctx, clientset, testNamespace)

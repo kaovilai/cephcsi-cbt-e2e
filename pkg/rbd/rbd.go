@@ -81,6 +81,22 @@ type rbdImageInfo struct {
 // instead of duplicating the literal string across multiple call sites.
 const rbdErrNotFound = "No such file"
 
+// Ceph release major version numbers.
+// Use these instead of bare integer literals when comparing GetCephMajorVersion output.
+const (
+	// CephQuincyMajorVersion is the major version number for Ceph 17.x (Quincy).
+	// Quincy introduced rbd_diff_iterate3 / DiffIterateByID used by the CBT sidecar.
+	CephQuincyMajorVersion = 17
+	// CephReefMajorVersion is the major version number for Ceph 18.x (Reef).
+	CephReefMajorVersion = 18
+	// CephSquidMajorVersion is the major version number for Ceph 19.x (Squid).
+	CephSquidMajorVersion = 19
+
+	// MinCephMajorVersionForCBT is the minimum Ceph major version required for
+	// Changed Block Tracking via rbd snap diff / DiffIterateByID.
+	MinCephMajorVersionForCBT = CephQuincyMajorVersion
+)
+
 // csiImageNameAttr is the key in a CSI PV's VolumeAttributes that holds the RBD image name.
 // CephCSI sets this when provisioning a volume.
 const csiImageNameAttr = "imageName"
