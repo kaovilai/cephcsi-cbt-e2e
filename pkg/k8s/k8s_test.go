@@ -1993,3 +1993,92 @@ func TestWaitForPVCResized_NilCapacity(t *testing.T) {
 		t.Fatal("expected timeout error for PVC with nil Status.Capacity, got nil")
 	}
 }
+
+// TestRebindPVWithVolumeMode_PVCreateFail verifies that when the new PV creation
+// fails, the error is propagated immediately with no cleanup side-effects (since
+// the PV was never created, there is nothing to delete).
+func TestRebindPVWithVolumeMode_PVCreateFail(t *testing.T) {
+	ctx := context.Background()
+	sourcePV := makeCSIPV("source-pv")
+	client := fake.NewClientset(sourcePV)
+
+	// Inject a failure for PV create only.
+	client.Fake.PrependReactor("create", "persistentvolumes",
+		func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, nil, k8serrors.NewInternalError(errors.New("injected PV create failure"))
+		})
+
+	blockMode := corev1.PersistentVolumeBlock
+	err := RebindPVWithVolumeMode(ctx, client, "source-pv", "new-pv", "new-pvc", "test-ns",
+		blockMode, nil)
+	if err == nil {
+		t.Fatal("expected error when PV creation fails, got nil")
+	}
+
+	// The PVC should not have been created, since we failed before that step.
+	_, getErr := client.CoreV1().PersistentVolumeClaims("test-ns").Get(ctx, "new-pvc", metav1.GetOptions{})
+	if !k8serrors.IsNotFound(getErr) {
+		t.Errorf("expected PVC to not exist after PV create failure, got: %v", getErr)
+	}
+}
+
+// TestRebindPVWithVolumeMode_CSIFieldsCopied verifies that Driver, VolumeAttributes,
+// NodeStageSecretRef, and NodePublishSecretRef are all copied from the source PV to
+// the new PV, ensuring the new PV can be mounted by the CSI driver.
+func TestRebindPVWithVolumeMode_CSIFieldsCopied(t *testing.T) {
+	ctx := context.Background()
+	secretRef := &corev1.SecretReference{Name: "csi-secret", Namespace: "rook-ceph"}
+	sourcePV := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "source-pv"},
+		Spec: corev1.PersistentVolumeSpec{
+			StorageClassName: "rbd-sc",
+			Capacity: corev1.ResourceList{
+				corev1.ResourceStorage: mustParseQuantity("1Gi"),
+			},
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver:       "rbd.csi.ceph.com",
+					VolumeHandle: "csi-handle-abc123",
+					VolumeAttributes: map[string]string{
+						"imageName": "csi-vol-abc123",
+						"pool":      "ocs-storagecluster-cephblockpool",
+					},
+					NodeStageSecretRef:   secretRef,
+					NodePublishSecretRef: secretRef,
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(sourcePV)
+
+	blockMode := corev1.PersistentVolumeBlock
+	err := RebindPVWithVolumeMode(ctx, client, "source-pv", "new-pv", "new-pvc", "test-ns",
+		blockMode, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	newPV, err := client.CoreV1().PersistentVolumes().Get(ctx, "new-pv", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("new PV not found: %v", err)
+	}
+	csi := newPV.Spec.CSI
+	if csi == nil {
+		t.Fatal("new PV has no CSI source")
+	}
+	if csi.Driver != sourcePV.Spec.CSI.Driver {
+		t.Errorf("Driver: got %q, want %q", csi.Driver, sourcePV.Spec.CSI.Driver)
+	}
+	if csi.VolumeHandle != sourcePV.Spec.CSI.VolumeHandle {
+		t.Errorf("VolumeHandle: got %q, want %q", csi.VolumeHandle, sourcePV.Spec.CSI.VolumeHandle)
+	}
+	if csi.VolumeAttributes["imageName"] != "csi-vol-abc123" {
+		t.Errorf("VolumeAttributes[imageName]: got %q, want %q", csi.VolumeAttributes["imageName"], "csi-vol-abc123")
+	}
+	if csi.NodeStageSecretRef == nil || csi.NodeStageSecretRef.Name != secretRef.Name {
+		t.Errorf("NodeStageSecretRef: got %v, want %v", csi.NodeStageSecretRef, secretRef)
+	}
+	if csi.NodePublishSecretRef == nil || csi.NodePublishSecretRef.Name != secretRef.Name {
+		t.Errorf("NodePublishSecretRef: got %v, want %v", csi.NodePublishSecretRef, secretRef)
+	}
+}
