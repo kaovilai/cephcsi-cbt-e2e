@@ -74,6 +74,7 @@ func main() {
 	defer cancel()
 
 	var result *cbt.MetadataResult
+	isDelta := *prevSnapshotID != "" || *prevSnapshot != ""
 	switch {
 	case *prevSnapshotID != "":
 		log.Printf("Calling GetChangedBlocksByID(namespace=%s, prevID=%s, snapshot=%s, sa=%s/%s)",
@@ -104,8 +105,11 @@ func main() {
 		log.Printf("  block[%d]: offset=%d size=%d", i, b.ByteOffset, b.SizeBytes)
 	}
 	if len(result.Blocks) == 0 {
-		// 0 blocks is a valid CBT result (e.g. snapshot of an unwritten device).
-		// Print a notice but exit 0 — the API call succeeded.
-		log.Println("NOTICE: 0 blocks returned — snapshot may be empty or unwritten")
+		// 0 blocks is a valid CBT result. Print a mode-specific notice but exit 0.
+		if isDelta {
+			log.Println("NOTICE: 0 blocks returned — no blocks changed between the two snapshots")
+		} else {
+			log.Println("NOTICE: 0 blocks returned — snapshot may be empty or unwritten")
+		}
 	}
 }
