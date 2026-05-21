@@ -243,6 +243,38 @@ func TestCreateNamespace_AlreadyExists(t *testing.T) {
 	}
 }
 
+// TestCreateNamespace_AlreadyExists_PatchesLabels verifies that when a namespace
+// already exists without the PodSecurity labels (e.g. leftover from a prior run),
+// CreateNamespace patches them onto the namespace so privileged pods can run.
+func TestCreateNamespace_AlreadyExists_PatchesLabels(t *testing.T) {
+	ctx := context.Background()
+	existing := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "test-ns",
+			Labels: map[string]string{"some-other-label": "value"},
+		},
+	}
+	client := fake.NewClientset(existing)
+
+	if err := CreateNamespace(ctx, client, "test-ns"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ns, err := client.CoreV1().Namespaces().Get(ctx, "test-ns", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("namespace not found: %v", err)
+	}
+	for _, key := range []string{
+		"pod-security.kubernetes.io/enforce",
+		"pod-security.kubernetes.io/audit",
+		"pod-security.kubernetes.io/warn",
+	} {
+		if ns.Labels[key] != "privileged" {
+			t.Errorf("expected label %s=privileged after patch, got %q", key, ns.Labels[key])
+		}
+	}
+}
+
 func TestDeleteNamespace_Exists(t *testing.T) {
 	ctx := context.Background()
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns"}}
