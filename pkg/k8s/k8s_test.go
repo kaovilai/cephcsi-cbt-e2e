@@ -1443,6 +1443,100 @@ func TestWaitForPodRunning_InitContainerInvalidImageName(t *testing.T) {
 	}
 }
 
+// TestWaitForPodRunning_CrashLoopBackOff verifies that WaitForPodRunning fails
+// immediately when a container reports CrashLoopBackOff, rather than waiting for
+// the full timeout.
+func TestWaitForPodRunning_CrashLoopBackOff(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "CrashLoopBackOff",
+							Message: "back-off 5m0s restarting failed container",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for CrashLoopBackOff container, got nil")
+	}
+	if !strings.Contains(err.Error(), "CrashLoopBackOff") {
+		t.Errorf("expected error to mention CrashLoopBackOff, got: %v", err)
+	}
+}
+
+// TestWaitForPodRunning_CreateContainerError verifies that WaitForPodRunning
+// fails immediately when a container reports CreateContainerError.
+func TestWaitForPodRunning_CreateContainerError(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "CreateContainerError",
+							Message: "failed to create container: OCI runtime error",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for CreateContainerError container, got nil")
+	}
+	if !strings.Contains(err.Error(), "CreateContainerError") {
+		t.Errorf("expected error to mention CreateContainerError, got: %v", err)
+	}
+}
+
+// TestWaitForPodRunning_InitContainerCrashLoopBackOff verifies that CrashLoopBackOff
+// on an init container also triggers a fast failure.
+func TestWaitForPodRunning_InitContainerCrashLoopBackOff(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "test-ns"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			InitContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "init",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "CrashLoopBackOff",
+							Message: "back-off 5m0s restarting failed container",
+						},
+					},
+				},
+			},
+		},
+	}
+	client := fake.NewClientset(pod)
+	err := WaitForPodRunning(ctx, client, "test-ns", "my-pod", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected error for init container CrashLoopBackOff, got nil")
+	}
+	if !strings.Contains(err.Error(), "CrashLoopBackOff") {
+		t.Errorf("expected error to mention CrashLoopBackOff, got: %v", err)
+	}
+}
+
 func TestWaitForPodDeleted_AlreadyGone(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
