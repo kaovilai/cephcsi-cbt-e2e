@@ -1798,6 +1798,26 @@ func TestGetSnapshotHandle_NonNilStatusNilHandle(t *testing.T) {
 	}
 }
 
+// TestWaitForPVCResized_LostPhase verifies that WaitForPVCResized fails immediately
+// when the PVC enters the Lost phase, consistent with the fast-fail in WaitForPVCBound.
+func TestWaitForPVCResized_LostPhase(t *testing.T) {
+	ctx := context.Background()
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "lost-pvc", Namespace: "test-ns"},
+		Status: corev1.PersistentVolumeClaimStatus{
+			Phase: corev1.ClaimLost,
+		},
+	}
+	client := fake.NewClientset(pvc)
+	err := WaitForPVCResized(ctx, client, "test-ns", "lost-pvc", mustParseQuantity("10Gi"), 10*time.Second)
+	if err == nil {
+		t.Fatal("expected error for PVC in Lost phase, got nil")
+	}
+	if !strings.Contains(err.Error(), "Lost") {
+		t.Errorf("error %q does not mention Lost phase", err.Error())
+	}
+}
+
 // TestWaitForPVCResized_NilCapacity verifies that a PVC whose Status.Capacity is nil
 // is treated as not-yet-resized and the function eventually times out.
 func TestWaitForPVCResized_NilCapacity(t *testing.T) {
