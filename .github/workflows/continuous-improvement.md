@@ -50,6 +50,7 @@ This repo tests Ceph CSI CBT capabilities for Kubernetes/OpenShift backup integr
 - `pkg/` — Core packages
 - `tests/e2e/` — Ginkgo e2e test suites
 - `config/` — K8s manifests and configuration
+- `demo/slides.md` — Slidev presentation with architecture/status claims
 - Shell scripts (`deploy-sidecar.sh`, `debug-cbt.sh`, `run-in-cluster.sh`)
 - `Makefile` — Build and test targets
 
@@ -76,6 +77,7 @@ Pick ONE category and find ALL instances:
 
 ### Low Priority
 - **Documentation**: Add GoDoc to exported functions, improve README
+- **Slide sync**: When behavior/status messaging changes, update `demo/slides.md` in the same PR
 - **Makefile**: Add missing targets, improve help output
 
 ### What NOT to Suggest
@@ -94,4 +96,5 @@ Pick ONE category and find ALL instances:
 - **One category per PR** — bundle all fixes of the same type
 - **Never break the build** — `go build ./...` must pass
 - **Never break tests** — `go test ./cmd/... ./pkg/...` must pass (avoid `go test ./...` which requires a live cluster)
+- **Keep slides updated** — if improvements change behavior, status, or terminology described in docs, update `demo/slides.md` in the same PR
 - **Never include `Closes #N` or `Fixes #N` in issue bodies** — only in PR descriptions
