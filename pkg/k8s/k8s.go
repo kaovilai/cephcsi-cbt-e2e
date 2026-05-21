@@ -699,6 +699,29 @@ func DeletePV(ctx context.Context, clientset kubernetes.Interface, name string) 
 	return nil
 }
 
+// WaitForPVDeleted waits until a PersistentVolume no longer exists.
+// This is the PV counterpart to WaitForPVCDeleted and is useful in cleanup
+// sequences that need to confirm a PV is fully removed before proceeding
+// (e.g. recreating a PV with the same name in a subsequent test run).
+func WaitForPVDeleted(ctx context.Context, clientset kubernetes.Interface, name string, timeout time.Duration) error {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		_, err := clientset.CoreV1().PersistentVolumes().Get(ctx, name, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			if isRetryableAPIError(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return false, nil
+	}); err != nil {
+		return fmt.Errorf("PV %s still exists after %v: %w", name, timeout, err)
+	}
+	return nil
+}
+
 // ExecInPod executes a command in a pod and returns stdout/stderr.
 func ExecInPod(ctx context.Context, clientset kubernetes.Interface, config *rest.Config, namespace, podName, container string, command []string) (string, string, error) {
 	if container == "" {
