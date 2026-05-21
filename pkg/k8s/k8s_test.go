@@ -601,6 +601,48 @@ func TestDeletePV_NotFound(t *testing.T) {
 	}
 }
 
+// TestWaitForPVDeleted_AlreadyGone verifies that WaitForPVDeleted succeeds immediately
+// when the PV does not exist.
+func TestWaitForPVDeleted_AlreadyGone(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewClientset()
+
+	if err := WaitForPVDeleted(ctx, client, "gone-pv", 5*time.Second); err != nil {
+		t.Fatalf("unexpected error when PV already gone: %v", err)
+	}
+}
+
+// TestWaitForPVDeleted_Timeout verifies that WaitForPVDeleted returns an error when
+// the PV still exists after the timeout.
+func TestWaitForPVDeleted_Timeout(t *testing.T) {
+	ctx := context.Background()
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "stuck-pv"},
+	}
+	client := fake.NewClientset(pv)
+
+	err := WaitForPVDeleted(ctx, client, "stuck-pv", 50*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "stuck-pv") {
+		t.Errorf("error should mention PV name, got: %v", err)
+	}
+}
+
+// TestWaitForPVDeleted_RetryableError verifies that a transient server-timeout error
+// during WaitForPVDeleted is retried rather than immediately failing.
+func TestWaitForPVDeleted_RetryableError(t *testing.T) {
+	ctx := context.Background()
+	gr := schema.GroupResource{Group: "", Resource: "persistentvolumes"}
+	client := fake.NewClientset() // PV does not exist after the first (failing) call
+	prependOnceReactor(client, "get", "persistentvolumes", k8serrors.NewServerTimeout(gr, "get", 0))
+
+	if err := WaitForPVDeleted(ctx, client, "retry-pv", 10*time.Second); err != nil {
+		t.Fatalf("expected success after transient error, got: %v", err)
+	}
+}
+
 func TestCreateROXPVCFromSnapshot(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
