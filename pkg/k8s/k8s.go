@@ -55,6 +55,11 @@ const (
 	// toolboxPodNameFragment is used to find the Ceph toolbox pod by name when
 	// label-based lookups fail.
 	toolboxPodNameFragment = "rook-ceph-tools"
+
+	// RBD provisioner pod label selectors for different ODF versions.
+	// ODF 4.18+ uses app.kubernetes.io/* labels; earlier versions use app=csi-rbdplugin-provisioner.
+	rbdProvisionerLabelODF418 = "app.kubernetes.io/name=csi-rbdplugin,app.kubernetes.io/component=ctrlplugin"
+	rbdProvisionerLabelLegacy = "app=csi-rbdplugin-provisioner"
 )
 
 // isRetryableAPIError returns true for transient Kubernetes API errors that should
@@ -840,4 +845,51 @@ func GetToolboxPod(ctx context.Context, clientset kubernetes.Interface, namespac
 		return nil, fmt.Errorf("no Ceph toolbox pod found in namespace %s (label errors: %s)", namespace, strings.Join(listErrs, "; "))
 	}
 	return nil, fmt.Errorf("no Ceph toolbox pod found in namespace %s (tried labels and name matching)", namespace)
+}
+
+// GetRBDProvisionerPods finds all RBD CSI controller/provisioner pods in the given namespace.
+// Tries multiple label selectors to handle different ODF versions, then falls back to name pattern matching.
+// Returns a non-empty list of pods on success, or an error if no pods are found.
+func GetRBDProvisionerPods(ctx context.Context, clientset kubernetes.Interface, namespace string) ([]corev1.Pod, error) {
+	// Try multiple selectors for different ODF/CephCSI versions
+	selectors := []string{
+		rbdProvisionerLabelODF418,
+		rbdProvisionerLabelLegacy,
+	}
+	var listErrs []string
+	for _, selector := range selectors {
+		pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		if err != nil {
+			listErrs = append(listErrs, fmt.Sprintf("label %q: %v", selector, err))
+			continue
+		}
+		if len(pods.Items) > 0 {
+			return pods.Items, nil
+		}
+	}
+
+	// Fall back to name-based matching (ODF 4.21+)
+	allPods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		if len(listErrs) > 0 {
+			return nil, fmt.Errorf("list pods (prior label errors: %s): %w", strings.Join(listErrs, "; "), err)
+		}
+		return nil, fmt.Errorf("list pods: %w", err)
+	}
+	var matched []corev1.Pod
+	for _, p := range allPods.Items {
+		if strings.Contains(p.Name, "rbd") && strings.Contains(p.Name, "ctrlplugin") {
+			matched = append(matched, p)
+		}
+	}
+	if len(matched) > 0 {
+		return matched, nil
+	}
+
+	if len(listErrs) > 0 {
+		return nil, fmt.Errorf("no RBD provisioner pods found in namespace %s (label errors: %s)", namespace, strings.Join(listErrs, "; "))
+	}
+	return nil, fmt.Errorf("no RBD provisioner pods found in namespace %s (tried labels and name matching)", namespace)
 }

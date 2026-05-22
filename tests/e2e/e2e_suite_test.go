@@ -154,44 +154,12 @@ var _ = BeforeSuite(func() {
 	}
 
 	By("Checking CephCSI RBD provisioner pods running")
-	// ODF 4.18+ uses a different naming convention for CSI provisioner pods.
-	// Try the ODF-style label first, then fall back to the upstream label.
-	labelSelectors := []string{
-		"app.kubernetes.io/name=csi-rbdplugin,app.kubernetes.io/component=ctrlplugin",
-		"app=csi-rbdplugin-provisioner",
-	}
-	var pods *corev1.PodList
-	for _, selector := range labelSelectors {
-		pods, err = clientset.CoreV1().Pods(cephcsiNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: selector,
-		})
-		Expect(err).NotTo(HaveOccurred())
-		if len(pods.Items) > 0 {
-			GinkgoWriter.Printf("Found %d RBD provisioner pods with selector %q\n", len(pods.Items), selector)
-			break
-		}
-	}
-	// If label selectors didn't match, try matching by pod name prefix (ODF 4.21+)
-	if len(pods.Items) == 0 {
-		allPods, listErr := clientset.CoreV1().Pods(cephcsiNamespace).List(ctx, metav1.ListOptions{})
-		Expect(listErr).NotTo(HaveOccurred())
-		var filteredItems []corev1.Pod
-		for _, p := range allPods.Items {
-			if strings.Contains(p.Name, "rbd") && strings.Contains(p.Name, "ctrlplugin") {
-				filteredItems = append(filteredItems, p)
-			}
-		}
-		if len(filteredItems) > 0 {
-			pods.Items = filteredItems
-			GinkgoWriter.Printf("Found %d RBD provisioner pods by name pattern\n", len(filteredItems))
-		}
-	}
-	Expect(pods.Items).NotTo(BeEmpty(),
-		"no RBD CSI provisioner pods found in %s. "+
-			"Tried label selectors and name pattern matching.", cephcsiNamespace)
+	pods, err := k8sutil.GetRBDProvisionerPods(ctx, clientset, cephcsiNamespace)
+	Expect(err).NotTo(HaveOccurred())
+	GinkgoWriter.Printf("Found %d RBD provisioner pods\n", len(pods))
 
 	By("Checking for snapshot-metadata sidecar")
-	hasSidecar := slices.ContainsFunc(pods.Items, func(pod corev1.Pod) bool {
+	hasSidecar := slices.ContainsFunc(pods, func(pod corev1.Pod) bool {
 		return slices.ContainsFunc(pod.Spec.Containers, func(c corev1.Container) bool {
 			return c.Name == sidecarContainerName
 		})
