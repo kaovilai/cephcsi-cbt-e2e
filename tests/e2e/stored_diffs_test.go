@@ -20,12 +20,12 @@ import (
 // CBT works via `rbd snap diff` traversing this parent chain.
 //
 // The test:
-// 1. Creates snapshots and verifies CBT works with intact clone chains
-// 2. Force-flattens the intermediate images via `rbd flatten` (simulating what
-//    CephCSI does when hitting the 250-snapshot limit)
-// 3. Verifies CBT behavior after flattening — without CephCSI's "stored diffs"
-//    mechanism (which is not triggered by manual flatten), delta computation
-//    should fail because the clone chain is broken
+//  1. Creates snapshots and verifies CBT works with intact clone chains
+//  2. Force-flattens the intermediate images via `rbd flatten` (simulating what
+//     CephCSI does when hitting the 250-snapshot limit)
+//  3. Verifies CBT behavior after flattening — without CephCSI's "stored diffs"
+//     mechanism (which is not triggered by manual flatten), delta computation
+//     should fail because the clone chain is broken
 var _ = Describe("Stored Diffs", Label("stored-diffs"), Ordered, func() {
 	var (
 		ctx                context.Context

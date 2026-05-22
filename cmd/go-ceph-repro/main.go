@@ -1,10 +1,13 @@
 // Minimal reproducer for go-ceph DiffIterateByID.
 // Build inside a container with CGO + librbd-devel:
-//   CGO_ENABLED=1 go build -o /tmp/repro ./cmd/go-ceph-repro/
+//
+//	CGO_ENABLED=1 go build -o /tmp/repro ./cmd/go-ceph-repro/
+//
 // Run inside cluster with Ceph access:
-//   /tmp/repro -pool ocs-storagecluster-cephblockpool \
-//     -image csi-vol-XXX -snap-id 21 \
-//     -user client.admin -keyring /etc/ceph/ceph.client.admin.keyring
+//
+//	/tmp/repro -pool ocs-storagecluster-cephblockpool \
+//	  -image csi-vol-XXX -snap-id 21 \
+//	  -user client.admin -keyring /etc/ceph/ceph.client.admin.keyring
 package main
 
 import (

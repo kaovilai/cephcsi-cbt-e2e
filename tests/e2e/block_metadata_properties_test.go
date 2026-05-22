@@ -131,9 +131,9 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 	It("should return 1MiB-aligned block offsets and sizes", func() {
 		const alignment = int64(data.DefaultBlockSize) // 1 MiB
 		for i, block := range allocatedResult.Blocks {
-			Expect(block.ByteOffset % alignment).To(BeZero(),
+			Expect(block.ByteOffset%alignment).To(BeZero(),
 				fmt.Sprintf("block[%d] ByteOffset %d not 1MiB-aligned", i, block.ByteOffset))
-			Expect(block.SizeBytes % alignment).To(BeZero(),
+			Expect(block.SizeBytes%alignment).To(BeZero(),
 				fmt.Sprintf("block[%d] SizeBytes %d not 1MiB-aligned", i, block.SizeBytes))
 		}
 	})
@@ -158,7 +158,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 
 		By("Verifying all returned blocks are at or after the starting offset")
 		for i, block := range partialResult.Blocks {
-			Expect(block.ByteOffset + block.SizeBytes).To(BeNumerically(">", midOffset),
+			Expect(block.ByteOffset+block.SizeBytes).To(BeNumerically(">", midOffset),
 				fmt.Sprintf("block[%d] at offset %d ends before StartingOffset %d", i, block.ByteOffset, midOffset))
 		}
 

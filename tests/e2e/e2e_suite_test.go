@@ -51,11 +51,11 @@ var (
 	smsName          string
 	kubeconfig       string
 
-	kubeConfig  *rest.Config
-	clientset   kubernetes.Interface
-	snapClient  snapclient.Interface
-	smsClient   smsclient.Interface
-	cbtClient   *cbt.Client
+	kubeConfig   *rest.Config
+	clientset    kubernetes.Interface
+	snapClient   snapclient.Interface
+	smsClient    smsclient.Interface
+	cbtClient    *cbt.Client
 	rbdInspector *rbd.Inspector
 )
 

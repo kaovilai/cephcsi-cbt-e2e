@@ -15,13 +15,13 @@ import (
 
 var _ = Describe("ROX PVC", Ordered, func() {
 	var (
-		ctx         context.Context
-		pvcName     string
-		podName     string
-		snapName    string
-		roxPVCName  string
-		roxPodName  string
-		roxPVC2Name string
+		ctx          context.Context
+		pvcName      string
+		podName      string
+		snapName     string
+		roxPVCName   string
+		roxPodName   string
+		roxPVC2Name  string
 		clonePVCName string
 	)
 

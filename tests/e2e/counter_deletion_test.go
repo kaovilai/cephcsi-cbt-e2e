@@ -16,12 +16,12 @@ import (
 
 var _ = Describe("Counter-based Deletion", Ordered, func() {
 	var (
-		ctx           context.Context
-		pvcName       string
-		podName       string
-		snapName      string
-		roxPVCNames   []string
-		numROXPVCs    int
+		ctx         context.Context
+		pvcName     string
+		podName     string
+		snapName    string
+		roxPVCNames []string
+		numROXPVCs  int
 	)
 
 	BeforeAll(func() {

@@ -22,9 +22,9 @@ import (
 // Ref: https://github.com/Lyndon-Li/velero/blob/block-data-mover-design/design/block-data-mover/block-data-mover.md
 var _ = Describe("Volume Mode Rebind", Ordered, func() {
 	var (
-		ctx     context.Context
-		fsPVC   string
-		fsPod   string
+		ctx      context.Context
+		fsPVC    string
+		fsPod    string
 		snapName string
 
 		fileHashes map[string]string // filename -> sha256
@@ -63,8 +63,8 @@ var _ = Describe("Volume Mode Rebind", Ordered, func() {
 
 		// Write identifiable files
 		testFiles := map[string]string{
-			"hello.txt":   "Hello from Velero volume mode rebind test!",
-			"data.bin":    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+			"hello.txt":         "Hello from Velero volume mode rebind test!",
+			"data.bin":          "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
 			"subdir/nested.txt": "nested file content for verification",
 		}
 
