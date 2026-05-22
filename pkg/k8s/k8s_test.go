@@ -2141,7 +2141,7 @@ func TestWaitForSnapshotReady_NilReadyToUse(t *testing.T) {
 	ctx := context.Background()
 	vs := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{Name: "nil-ready-snap", Namespace: "test-ns"},
-		Status: &snapshotv1.VolumeSnapshotStatus{
+		Status:     &snapshotv1.VolumeSnapshotStatus{
 			// ReadyToUse deliberately left nil
 		},
 	}
@@ -2164,7 +2164,7 @@ func TestGetSnapshotHandle_NonNilStatusNilHandle(t *testing.T) {
 	}
 	vsc := &snapshotv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-content"},
-		Status: &snapshotv1.VolumeSnapshotContentStatus{
+		Status:     &snapshotv1.VolumeSnapshotContentStatus{
 			// SnapshotHandle deliberately left nil (pointer is nil)
 		},
 	}
@@ -2244,7 +2244,7 @@ func TestWaitForPVCResized_NilCapacity(t *testing.T) {
 	ctx := context.Background()
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "nil-cap-pvc", Namespace: "test-ns"},
-		Status: corev1.PersistentVolumeClaimStatus{
+		Status:     corev1.PersistentVolumeClaimStatus{
 			// Capacity deliberately left nil
 		},
 	}
