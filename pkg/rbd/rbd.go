@@ -127,6 +127,9 @@ func (r *Inspector) getRBDInfo(ctx context.Context, imageName string) (*rbdImage
 
 // IsImageFlattened checks whether an RBD image has been flattened (has no parent).
 func (r *Inspector) IsImageFlattened(ctx context.Context, imageName string) (bool, error) {
+	if imageName == "" {
+		return false, fmt.Errorf("imageName cannot be empty")
+	}
 	info, err := r.getRBDInfo(ctx, imageName)
 	if err != nil {
 		return false, fmt.Errorf("check if image %s is flattened: %w", imageName, err)
@@ -168,6 +171,9 @@ const maxCloneDepth = 100
 
 // GetCloneDepth returns the depth of the clone chain for an image.
 func (r *Inspector) GetCloneDepth(ctx context.Context, imageName string) (int, error) {
+	if imageName == "" {
+		return 0, fmt.Errorf("imageName cannot be empty")
+	}
 	depth := 0
 	current := imageName
 
@@ -205,6 +211,9 @@ func (r *Inspector) GetSnapshotCount(ctx context.Context, imageName string) (int
 // FlattenImage flattens an RBD image, removing its parent reference.
 // This is destructive: the clone chain is permanently broken.
 func (r *Inspector) FlattenImage(ctx context.Context, imageName string) error {
+	if imageName == "" {
+		return fmt.Errorf("imageName cannot be empty")
+	}
 	_, err := r.execInToolbox(ctx, []string{
 		"rbd", "flatten", r.poolImage(imageName),
 	})
@@ -285,6 +294,12 @@ func parseChildrenOutput(output string) []string {
 // GetChildren returns child image names cloned from a specific snapshot.
 // Uses rbd children which outputs "pool/image" per line.
 func (r *Inspector) GetChildren(ctx context.Context, imageName, snapName string) ([]string, error) {
+	if imageName == "" {
+		return nil, fmt.Errorf("imageName cannot be empty")
+	}
+	if snapName == "" {
+		return nil, fmt.Errorf("snapName cannot be empty")
+	}
 	output, err := r.execInToolbox(ctx, []string{
 		"rbd", "children", fmt.Sprintf("%s/%s@%s", r.pool, imageName, snapName),
 	})
@@ -393,6 +408,12 @@ func parseCephMajorVersion(version string) (int, error) {
 // It is a convenience wrapper around GetRBDImageNameFromPV for callers that only have
 // a PVC name. Returns an error if the PVC is not yet bound.
 func (r *Inspector) GetRBDImageNameFromPVC(ctx context.Context, namespace, pvcName string) (string, error) {
+	if namespace == "" {
+		return "", fmt.Errorf("namespace cannot be empty")
+	}
+	if pvcName == "" {
+		return "", fmt.Errorf("pvcName cannot be empty")
+	}
 	pvc, err := r.clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("get PVC %s/%s: %w", namespace, pvcName, err)
@@ -409,6 +430,9 @@ func (r *Inspector) GetRBDImageNameFromPVC(ctx context.Context, namespace, pvcNa
 
 // GetRBDImageNameFromPV extracts the RBD image name from a PV's CSI volume attributes.
 func (r *Inspector) GetRBDImageNameFromPV(ctx context.Context, pvName string) (string, error) {
+	if pvName == "" {
+		return "", fmt.Errorf("pvName cannot be empty")
+	}
 	pv, err := r.clientset.CoreV1().PersistentVolumes().Get(ctx, pvName, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("get PV %s: %w", pvName, err)
