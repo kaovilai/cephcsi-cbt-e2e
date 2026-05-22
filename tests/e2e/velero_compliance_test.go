@@ -24,8 +24,8 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 		snap2Name string
 		snap3Name string
 
-		snap1Handle  string
-		snap2Handle  string
+		snap1Handle   string
+		snap2Handle   string
 		hashesAtSnap3 map[int]string
 	)
 

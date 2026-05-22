@@ -15,13 +15,13 @@ import (
 var _ = Describe("Flattening Prevention", func() {
 	Context("PVC -> Snap -> Restore -> Snap chain", Ordered, func() {
 		var (
-			ctx           context.Context
-			origPVCName   string
-			origPodName   string
-			snap1Name     string
-			restoredPVC   string
-			restoredPod   string
-			snap2Name     string
+			ctx         context.Context
+			origPVCName string
+			origPodName string
+			snap1Name   string
+			restoredPVC string
+			restoredPod string
+			snap2Name   string
 		)
 
 		BeforeAll(func() {
