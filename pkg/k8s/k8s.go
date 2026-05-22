@@ -149,16 +149,16 @@ func WaitForNamespaceDeleted(ctx context.Context, clientset kubernetes.Interface
 
 // PVCOptions configures PVC creation.
 type PVCOptions struct {
-	Name             string
-	Namespace        string
-	StorageClass     string
-	Size             string
-	AccessModes      []corev1.PersistentVolumeAccessMode
-	VolumeMode       *corev1.PersistentVolumeMode
-	DataSource       *corev1.TypedLocalObjectReference
-	DataSourceRef    *corev1.TypedObjectReference
-	SnapshotSource   string // VolumeSnapshot name (shorthand for DataSource)
-	PVCCloneSource   string // PVC name to clone from (shorthand for DataSource)
+	Name           string
+	Namespace      string
+	StorageClass   string
+	Size           string
+	AccessModes    []corev1.PersistentVolumeAccessMode
+	VolumeMode     *corev1.PersistentVolumeMode
+	DataSource     *corev1.TypedLocalObjectReference
+	DataSourceRef  *corev1.TypedObjectReference
+	SnapshotSource string // VolumeSnapshot name (shorthand for DataSource)
+	PVCCloneSource string // PVC name to clone from (shorthand for DataSource)
 }
 
 // CreatePVC creates a PersistentVolumeClaim.
@@ -482,13 +482,13 @@ func GetSnapshotHandle(ctx context.Context, snapClient snapclient.Interface, nam
 
 // PodOptions configures pod creation.
 type PodOptions struct {
-	Name      string
-	Namespace string
-	Image     string
-	PVCName   string
-	ReadOnly  bool
-	Command   []string
-	MountPath string
+	Name       string
+	Namespace  string
+	Image      string
+	PVCName    string
+	ReadOnly   bool
+	Command    []string
+	MountPath  string
 	VolumeMode corev1.PersistentVolumeMode
 }
 
@@ -678,16 +678,16 @@ func RebindPVWithVolumeMode(ctx context.Context, clientset kubernetes.Interface,
 			Name: newPVName,
 		},
 		Spec: corev1.PersistentVolumeSpec{
-			Capacity:   capacity,
-			VolumeMode: &targetMode,
-			AccessModes: accessModes,
+			Capacity:                      capacity,
+			VolumeMode:                    &targetMode,
+			AccessModes:                   accessModes,
 			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
 			StorageClassName:              sourcePV.Spec.StorageClassName,
 			PersistentVolumeSource: corev1.PersistentVolumeSource{
 				CSI: &corev1.CSIPersistentVolumeSource{
-					Driver:           sourcePV.Spec.CSI.Driver,
-					VolumeHandle:     sourcePV.Spec.CSI.VolumeHandle,
-					VolumeAttributes: sourcePV.Spec.CSI.VolumeAttributes,
+					Driver:               sourcePV.Spec.CSI.Driver,
+					VolumeHandle:         sourcePV.Spec.CSI.VolumeHandle,
+					VolumeAttributes:     sourcePV.Spec.CSI.VolumeAttributes,
 					NodeStageSecretRef:   sourcePV.Spec.CSI.NodeStageSecretRef,
 					NodePublishSecretRef: sourcePV.Spec.CSI.NodePublishSecretRef,
 				},
@@ -717,8 +717,8 @@ func RebindPVWithVolumeMode(ctx context.Context, clientset kubernetes.Interface,
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: capacity,
 			},
-			VolumeMode: &targetMode,
-			VolumeName: newPVName,
+			VolumeMode:       &targetMode,
+			VolumeName:       newPVName,
 			StorageClassName: &sourcePV.Spec.StorageClassName,
 		},
 	}
