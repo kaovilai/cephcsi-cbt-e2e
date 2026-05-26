@@ -25,6 +25,6 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install gh-aw extension
-        uses: github/gh-aw-actions/setup-cli@318d7f4901f78b85e25b91709cf0109ac9b425f6 # v0.74.9
+        uses: github/gh-aw-actions/setup-cli@46d564922b082d0db93244972e8005ea6904ee5f # v0.76.1
         with:
           version: v0.74.3
