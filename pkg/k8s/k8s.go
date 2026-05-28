@@ -796,8 +796,11 @@ func ExecInPod(ctx context.Context, clientset kubernetes.Interface, config *rest
 		Stdout: &stdout,
 		Stderr: &stderr,
 	})
+	if err != nil {
+		return stdout.String(), stderr.String(), fmt.Errorf("exec in pod %s/%s (container %s): %w", namespace, podName, container, err)
+	}
 
-	return stdout.String(), stderr.String(), err
+	return stdout.String(), stderr.String(), nil
 }
 
 // GetToolboxPod finds the Ceph toolbox pod in the given namespace.
