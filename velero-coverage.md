@@ -59,7 +59,7 @@ implemented), so Case 1 remains unsupported for Ceph today (tracking:
 | No stored diffs present after manual flatten | `stored_diffs_test.go` | 177-188 | "should have no stored diffs in omap (manual flatten bypasses CephCSI)" | No usable CephCSI-stored diffs are found in omap after manual flatten |
 | `GetMetadataAllocated` after flatten | `stored_diffs_test.go` | 190-201 | "should fail GetMetadataAllocated after flattening without stored diffs" | Allocated metadata calls fail once chain/snapshot references are broken |
 | `GetMetadataDelta` after flatten | `stored_diffs_test.go` | 203-219 | "should fail GetMetadataDelta after flattening without stored diffs" | Delta calls fail for flattened pairs without stored diffs fallback |
-| Velero handling path | [PR #9736](https://github.com/velero-io/velero/pull/9736) | N/A | Bitmap fallback (`bitmap.SetFull()`) | Fallback-to-full implementation is **in progress** in Velero (open PR) |
+| Velero handling path | [PR #9736](https://github.com/velero-io/velero/pull/9736) | N/A | Bitmap fallback (`bitmap.SetFull()`) | Fallback-to-full implementation **merged** in Velero (2026-05-21) |
 
 ### 250-Snapshot Limit and Priority Flattening
 
@@ -116,7 +116,7 @@ volumePolicies:
 
 - **250-snapshot hard limit** per RBD image enforced by CephCSI
 - **Priority flattening** is a desired behavior but not implemented ([ceph/ceph-csi#1800](https://github.com/ceph/ceph-csi/issues/1800) is closed and no longer tracks this)
-- **Stored diffs in omap** fallback is not implemented in CephCSI today; Velero fallback-to-full is in progress in [velero-io/velero#9736](https://github.com/velero-io/velero/pull/9736)
+- **Stored diffs in omap** fallback is not implemented in CephCSI today; Velero fallback-to-full merged in [velero-io/velero#9736](https://github.com/velero-io/velero/pull/9736) (2026-05-21)
 - **Velero GC** must clean up `VolumeSnapshotContent` with `DeletionPolicy: Retain`
   when backup chain is pruned
 

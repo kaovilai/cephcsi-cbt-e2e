@@ -22,7 +22,7 @@ Reference: [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/kep
 |------------|-----------|------------|-------|
 | `kubernetes/kubernetes` (`test/e2e/storage/`) | **None** | N/A | No snapshot_metadata, CBT, or changed_block_tracking files |
 | `kubernetes-csi/external-snapshot-metadata` | **None** | Comprehensive | Server gRPC, auth, iterator, validation — all mocked |
-| This suite (`cephcsi-cbt-e2e`) | **50 tests** | N/A | Real Ceph RBD cluster, real CSI driver |
+| This suite (`cephcsi-cbt-e2e`) | **48 tests** | N/A | Real Ceph RBD cluster, real CSI driver |
 
 ---
 

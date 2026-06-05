@@ -191,9 +191,9 @@ Velero's block data mover is being built incrementally. Current state of the PR 
 | Design doc | [PR #9528](https://github.com/velero-io/velero/pull/9528) | **Completed** (merged) | Block data mover design |
 | CBT interfaces | [PR #9716](https://github.com/velero-io/velero/pull/9716) | **Completed** (merged) | `cbtservice.Service` and bitmap interfaces |
 | Unified repo extension | [PR #9724](https://github.com/velero-io/velero/pull/9724) | **Completed** (merged) | Block uploader support in unified repository |
-| CBT bitmap impl | [PR #9736](https://github.com/velero-io/velero/pull/9736) | **In progress** (open PR) | RoaringBitmap-based block tracking |
-| gRPC client | [Issue #9710](https://github.com/velero-io/velero/issues/9710) | **In progress** (open issue, no PR) | `cbtservice.Service` impl talking to external-snapshot-metadata sidecar |
-| Service-to-bitmap | [Issue #9715](https://github.com/velero-io/velero/issues/9715) | **In progress** (open issue, no PR) | Glue between gRPC client and bitmap |
+| CBT bitmap impl | [PR #9736](https://github.com/velero-io/velero/pull/9736) | **Completed** (merged 2026-05-21) | RoaringBitmap-based block tracking |
+| gRPC client | [Issue #9710](https://github.com/velero-io/velero/issues/9710) | **Completed** (closed 2026-05-28) | `cbtservice.Service` impl talking to external-snapshot-metadata sidecar |
+| Service-to-bitmap | [Issue #9715](https://github.com/velero-io/velero/issues/9715) | **Completed** (closed 2026-05-21) | Glue between gRPC client and bitmap |
 | Block data mover | [Issue #9556](https://github.com/velero-io/velero/issues/9556) | **In progress** (open issue, no PR) | End-to-end incremental backup using bitmap |
 
 **What this test suite validates today:** The CSI-level CBT layer (gRPC calls directly to the external-snapshot-metadata sidecar via CephCSI). This covers the same protocol that Velero's gRPC client (issue #9710) will use.

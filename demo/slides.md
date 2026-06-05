@@ -302,7 +302,7 @@ graph TD
 <v-click>
 <div class="mt-2 p-2 bg-red-900 bg-opacity-20 rounded text-sm">
 
-After flattening: `GetMetadataDelta` **fails** at the driver level -- `rbd diff` needs intact clone chain. **Velero fallback-to-full is in progress** via `bitmap.SetFull()` ([PR #9736](https://github.com/velero-io/velero/pull/9736), open). `GetMetadataAllocated` can also fail in manual-flatten scenarios without stored diffs.
+After flattening: `GetMetadataDelta` **fails** at the driver level -- `rbd diff` needs intact clone chain. **Velero fallback-to-full merged** via `bitmap.SetFull()` ([PR #9736](https://github.com/velero-io/velero/pull/9736), merged 2026-05-21). `GetMetadataAllocated` can also fail in manual-flatten scenarios without stored diffs.
 
 </div>
 </v-click>
@@ -395,7 +395,7 @@ What happens when flattening **does** break the chain?
 
 **Driver-level gap**: No "stored diffs in omap" mechanism exists in CephCSI. `GetMetadataDelta` fails for flattened snapshot pairs.
 
-**Velero handling is in progress**: BDM fallback-to-full via `bitmap.SetFull()` is being implemented in [PR #9736](https://github.com/velero-io/velero/pull/9736). Goal behavior is to resume incrementals from the new full backup.
+**Velero handling merged**: BDM fallback-to-full via `bitmap.SetFull()` was merged in [PR #9736](https://github.com/velero-io/velero/pull/9736) (2026-05-21). The goal behavior is to resume incrementals from the new full backup.
 
 </div>
 </v-click>
@@ -565,14 +565,14 @@ transition: slide-left
 - Volume resize between backups
 - Shallow clone chains (typical workflows)
 - Graceful error responses
-- **In-progress fallback implementation** to full backup on CBT errors ([PR #9736](https://github.com/velero-io/velero/pull/9736))
+- **Merged fallback implementation** to full backup on CBT errors ([PR #9736](https://github.com/velero-io/velero/pull/9736), merged 2026-05-21)
 
 </div>
 <div>
 
 **Constraints & User Actions**
 - **Must configure** `RetainSnapshot` (Case 2)
-- Delta fails after flattening (fallback-to-full implementation is in progress)
+- Delta fails after flattening (Velero fallback-to-full merged in [PR #9736](https://github.com/velero-io/velero/pull/9736))
 - **Existing backups always safe** after flattening
 - No stored diffs mechanism in CephCSI
 - No priority-based flattening
@@ -585,7 +585,7 @@ transition: slide-left
 <v-click>
 <div class="mt-4 p-3 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-**Velero BDM** ([PR #9528](https://github.com/velero-io/velero/pull/9528), merged): Use Case 2 retention. `bitmap.SetFull()` fallback work is in progress in [PR #9736](https://github.com/velero-io/velero/pull/9736). Backup data in Kopia is independent of source -- no action needed for existing backups.
+**Velero BDM** ([PR #9528](https://github.com/velero-io/velero/pull/9528), merged): Use Case 2 retention. `bitmap.SetFull()` fallback merged in [PR #9736](https://github.com/velero-io/velero/pull/9736) (2026-05-21). Backup data in Kopia is independent of source -- no action needed for existing backups.
 
 </div>
 </v-click>
@@ -623,7 +623,7 @@ transition: slide-left
 **Velero BDM + CBT**
 - [BDM Design (merged)](https://github.com/velero-io/velero/pull/9528) -- PR #9528
 - [CBT Interfaces (merged)](https://github.com/velero-io/velero/pull/9716) -- PR #9716
-- [CBT Bitmap](https://github.com/velero-io/velero/pull/9736) -- PR #9736 (in progress, open PR)
+- [CBT Bitmap](https://github.com/velero-io/velero/pull/9736) -- PR #9736 (merged 2026-05-21)
 - [ChangeId for Ceph](https://github.com/velero-io/velero/issues/9714) -- Issue #9714
 - [CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
 
