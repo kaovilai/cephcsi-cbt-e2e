@@ -1,3 +1,30 @@
+# Compiled test binary
 e2e.test
+
+# Slidev build artifacts
 demo/node_modules/
 demo/dist/
+
+# Go build artifacts
+*.test
+*.out
+*.prof
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Development scratch space
+.scratch/
+
+# Coverage reports (from test-coverage target)
+coverage.out
+coverage.html
+
+# Temporary files
+*.tmp
+*.bak
