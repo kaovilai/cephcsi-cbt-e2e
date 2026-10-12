@@ -19,4 +19,12 @@ updates:
   package-ecosystem: github-actions
   schedule:
     interval: weekly
+- directory: /demo
+  groups:
+    slidev:
+      patterns:
+      - '@slidev/*'
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
 version: 2

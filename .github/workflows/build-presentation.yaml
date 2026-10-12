@@ -28,19 +28,12 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 'lts/*'
-      - run: pwd
-      - run: ls -la
-      - name: Setup @antfu/ni
-        run: npm i -g @antfu/ni
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Install dependencies
-        run: nci
+        run: npm ci
 
       - name: Build
-        run: nr build --base /${{github.event.repository.name}}/
+        run: npm run build -- --base /${{github.event.repository.name}}/
 
       - name: Setup Pages
         uses: actions/configure-pages@v6

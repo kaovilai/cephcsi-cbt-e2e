@@ -25,6 +25,9 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Unit tests
+        run: go test ./pkg/... ./cmd/cbt-check/...
+
   lint:
     runs-on: ubuntu-latest
     steps:

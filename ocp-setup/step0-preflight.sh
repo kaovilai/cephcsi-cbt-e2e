@@ -225,18 +225,36 @@ fi
 echo ""
 echo "--- Feature Gate / SnapshotMetadataService CRD ---"
 FEATURE_SET=$(oc get featuregate cluster -o jsonpath='{.spec.featureSet}' 2>/dev/null || echo "")
-if [ "$FEATURE_SET" = "CustomNoUpgrade" ] || [ "$FEATURE_SET" = "DevPreviewNoUpgrade" ]; then
+# ExternalSnapshotMetadata is enabled by DevPreviewNoUpgrade on OCP 4.20-4.22, by
+# TechPreviewNoUpgrade or DevPreviewNoUpgrade on OCP 4.23/5.0 (openshift/api features.go), and by
+# CustomNoUpgrade with the gate listed on any version. Note the CRD those feature sets install is
+# v1alpha1 on OCP <= 4.22 and v1beta1 on OCP 5.0; the tests need v1beta1 (see below).
+if [ "$FEATURE_SET" = "CustomNoUpgrade" ] || [ "$FEATURE_SET" = "DevPreviewNoUpgrade" ] || [ "$FEATURE_SET" = "TechPreviewNoUpgrade" ]; then
     pass "Feature set is '$FEATURE_SET'"
 fi
 
+# Upstream SnapshotMetadataService CRD (cbt.storage.k8s.io/v1beta1), pinned to the
+# external-snapshot-metadata release that go.mod depends on (v1.1.0). Override with SMS_CRD_URL.
+# The openshift/csi-external-snapshot-metadata fork is not used here: only its main branch
+# carries the v1beta1 CRD (release-4.21 and release-4.22 still ship v1alpha1), so there is no
+# release branch to pin to.
+SMS_CRD_URL="${SMS_CRD_URL:-https://raw.githubusercontent.com/kubernetes-csi/external-snapshot-metadata/v1.1.0/client/config/crd/cbt.storage.k8s.io_snapshotmetadataservices.yaml}"
+
 if oc get crd snapshotmetadataservices.cbt.storage.k8s.io &>/dev/null; then
     pass "SnapshotMetadataService CRD exists"
+    SMS_CRD_VERSIONS=$(oc get crd snapshotmetadataservices.cbt.storage.k8s.io -o jsonpath='{.spec.versions[*].name}' 2>/dev/null || echo "")
+    if echo "$SMS_CRD_VERSIONS" | grep -qw "v1beta1"; then
+        pass "SnapshotMetadataService CRD serves v1beta1"
+    else
+        warn "SnapshotMetadataService CRD serves '${SMS_CRD_VERSIONS:-unknown}' but not v1beta1 (the OCP feature gate installs v1alpha1 on OCP <= 4.22). Apply: oc apply -f $SMS_CRD_URL"
+    fi
 else
     echo ""
     echo "  SnapshotMetadataService CRD is not installed."
     echo "  You can either:"
-    echo "    a) Run step1 to enable the feature gate (triggers ~30 min node rollout)"
-    echo "    b) Install the CRD directly (no node rollout, no feature gate needed)"
+    echo "    a) Run step1 to enable the feature gate (triggers ~30 min node rollout;"
+    echo "       installs a v1alpha1 CRD on OCP <= 4.22, so the v1beta1 CRD must still be applied)"
+    echo "    b) Install the v1beta1 CRD directly (no node rollout, no feature gate needed)"
     echo ""
     # Interactive: prompt (default Y). Non-interactive (e.g. setup-all.sh): auto-install.
     INSTALL_CRD="y"
@@ -249,7 +267,7 @@ else
 
     if [ "$INSTALL_CRD" = "y" ] || [ "$INSTALL_CRD" = "Y" ]; then
         echo "  Installing SnapshotMetadataService CRD..."
-        if oc apply -f https://raw.githubusercontent.com/openshift/csi-external-snapshot-metadata/main/client/config/crd/cbt.storage.k8s.io_snapshotmetadataservices.yaml; then
+        if oc apply -f "$SMS_CRD_URL"; then
             pass "SnapshotMetadataService CRD installed"
         else
             fail "Failed to install SnapshotMetadataService CRD"

@@ -1,5 +1,21 @@
 # Deploying csi-external-snapshot-metadata Sidecar for CephCSI RBD on ODF/OCP
 
+> **Legacy / historical manual flow (ODF 4.21.0).** This document records the hand-built
+> procedure used on an early ODF 4.21.0 cluster (SCC patch, scaling down
+> `ceph-csi-controller-manager`, patching the Deployment directly). It is kept as a record of
+> observed operator behavior and is **not the maintained path**. Use instead:
+>
+> - [`ocp-setup/step4-cbt-sidecar.sh`](ocp-setup/step4-cbt-sidecar.sh): automated, no SCC patch or
+>   operator scale-down (a `tls-key` projected volume in the Driver CR), ODF-version aware, with a
+>   `SIDECAR_IMAGE` override for the ODF <= 4.21 sidecar workaround.
+> - The [ceph-csi-operator docs](https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md)
+>   (`docs/features/rbd-snapshot-metadata.md`, Beta).
+>
+> On ODF 5.0 / OCP >= 4.23, ocs-client-operator creates the Service, TLS secret and `tls-key`
+> volume itself (per its source; not verified on a live cluster), so none of the manual steps
+> below apply. Statements below describe the ODF 4.21.0 cluster as observed at the time; where a
+> note says "superseded", later findings contradict the original text.
+
 This document describes how to deploy the `csi-external-snapshot-metadata` sidecar
 alongside the CephCSI RBD controller plugin on an OpenShift 4.21+ cluster with ODF,
 enabling the CSI Changed Block Tracking (CBT) API (`cbt.storage.k8s.io/v1beta1`).
@@ -18,7 +34,7 @@ The following were already present on our OCP 4.21.4 cluster:
 | Resource | Status |
 |----------|--------|
 | `DevPreviewNoUpgrade` feature set | Enabled |
-| `SnapshotMetadataService` CRD (`cbt.storage.k8s.io/v1beta1`) | Present (auto-created by feature set) |
+| `SnapshotMetadataService` CRD (`cbt.storage.k8s.io`) | Present (auto-created by feature set; the OCP-managed CRD is `v1alpha1` on OCP <= 4.22, so the `v1beta1` CRD used by `ocp-setup/step0-preflight.sh` and the CRs below must be applied separately) |
 | `cephcsi-operator.v4.21.0-rhodf` CSV | Succeeded |
 | RBD ctrlplugin deployment | `openshift-storage.rbd.csi.ceph.com-ctrlplugin` (2 replicas) |
 | RBD ctrlplugin service account | `ceph-csi-rbd-ctrlplugin-sa` |
@@ -37,6 +53,12 @@ oc get crd snapshotmetadataservices.cbt.storage.k8s.io
 ```
 
 ## Step 1: Get the Sidecar Image from the Release Payload
+
+> **Superseded.** The release-payload sidecar on early ODF 4.21 builds uses name-based
+> `BaseSnapshotName` lookups and breaks `GetMetadataDelta`. This repo's validated workaround is
+> the upstream `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` image applied via a
+> driver-level ImageSet (see `ocp-setup/step4-cbt-sidecar.sh`, step 4g, and `deploy-sidecar.sh`).
+> The payload image below is shown only to document what the cluster shipped.
 
 Get the exact image for YOUR cluster version (not the `oc` client version):
 
@@ -343,7 +365,10 @@ The cert volume mount is missing. Verify the deployment has both:
 
 ### Wrong Sidecar Image
 
-Always use the image from the cluster's release payload, not a generic tag:
+Superseded: this section originally recommended always using the release-payload image. On
+early ODF 4.21 builds that image breaks `GetMetadataDelta` (see the note in Step 1); use the
+`SIDECAR_IMAGE` workaround in `ocp-setup/step4-cbt-sidecar.sh` there. The payload image can be
+inspected with:
 ```bash
 RELEASE_IMAGE=$(oc get clusterversion version -o jsonpath='{.status.desired.image}')
 oc adm release info "$RELEASE_IMAGE" --image-for=csi-external-snapshot-metadata
@@ -361,10 +386,14 @@ oc adm release info "$RELEASE_IMAGE" --image-for=csi-external-snapshot-metadata
 | Deployment | New StatefulSet | Patch existing Deployment |
 | SCC | `privileged` via ClusterRole | `ceph-csi-op-scc` (needs `secret` added) |
 | Operator | None | `ceph-csi-controller-manager` (must scale down) |
-| Sidecar image | `quay.io/openshift/origin-csi-external-snapshot-metadata:latest` | From release payload via `oc adm release info` |
+| Sidecar image | `quay.io/openshift/origin-csi-external-snapshot-metadata:latest` | ODF 4.21.0 payload image via `oc adm release info` (superseded; see Step 1 note) |
 | Sidecar injection | Manual | Auto-injected by operator (but TLS volume missing) |
 
 ## Observed Operator Behavior (ODF 4.21.0-rhodf)
+
+Note: this describes ODF 4.21.0. Current ceph-csi-operator docs inject the sidecar when the
+Driver CR `spec.controllerPlugin.volumes` contains a volume named `tls-key` (mount path
+`/tmp/certificates`), replacing the earlier SMS-CR-presence trigger described here.
 
 When a `SnapshotMetadataService` CR is created, the `ceph-csi-controller-manager`
 (CephCSI operator) automatically:

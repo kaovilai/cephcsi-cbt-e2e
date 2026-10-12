@@ -9,10 +9,24 @@ Reference: [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/kep
 [external-snapshot-metadata](https://github.com/kubernetes-csi/external-snapshot-metadata) |
 [velero-coverage.md](./velero-coverage.md)
 
-> **Key finding**: No CBT e2e tests exist upstream in `kubernetes/kubernetes` or
-> `kubernetes-csi/external-snapshot-metadata`. Only unit tests exist in the
-> sidecar repo. This suite is currently the only known e2e validation of the
-> CBT API against a real CSI driver.
+> **Key finding**: `kubernetes/kubernetes` has a generic CSI snapshot-metadata e2e
+> testsuite (`test/e2e/storage/testsuites/snapshot-metadata.go`, with `should verify
+> GetMetadataDelta` and `should verify GetAllocatedMetadata` cases, plus
+> `test/e2e/storage/utils/snapshot-metadata.go` and a
+> `testing-manifests/storage-csi/external-snapshot-metadata/` runner). It runs against
+> drivers that implement `SnapshotMetadataTestDriver` (the CSI hostpath driver wiring is in
+> `test/e2e/storage/drivers/csi.go`) and has no Ceph-specific, flattening, ROX or
+> Velero-workflow coverage. `kubernetes-csi/external-snapshot-metadata` has unit tests,
+> CRD CEL validation tests and an integration-test workflow. CephCSI added its own RBD
+> snapshot-metadata e2e tests in [ceph-csi#6459](https://github.com/ceph/ceph-csi/pull/6459)
+> (merged Aug 2026). This suite targets the CBT API end-to-end against a real Ceph RBD
+> driver through the sidecar, including Velero-oriented workflows. The Req ID tables below
+> were not re-mapped against the upstream testsuite; its two cases overlap the basic
+> `GetMetadataAllocated` / `GetMetadataDelta` happy paths (T-API-1, T-API-2).
+>
+> Status as of Oct 2026. KEP-3314 is **beta** (Kubernetes v1.36); there is no feature
+> gate (the feature is out-of-tree), and the CRD is `v1beta1`. No cluster results
+> are claimed by this document; see [results.md](./results.md) for the dated run.
 
 ---
 
@@ -20,44 +34,61 @@ Reference: [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/kep
 
 | Repository | E2E Tests | Unit Tests | Notes |
 |------------|-----------|------------|-------|
-| `kubernetes/kubernetes` (`test/e2e/storage/`) | **None** | N/A | No snapshot_metadata, CBT, or changed_block_tracking files |
-| `kubernetes-csi/external-snapshot-metadata` | **None** | Comprehensive | Server gRPC, auth, iterator, validation — all mocked |
-| This suite (`cephcsi-cbt-e2e`) | **50 tests** | N/A | Real Ceph RBD cluster, real CSI driver |
+| `kubernetes/kubernetes` (`test/e2e/storage/`) | Generic snapshot-metadata testsuite (2 cases: `GetMetadataDelta`, `GetAllocatedMetadata`) | N/A | Driver-agnostic (`testsuites/snapshot-metadata.go`); no Ceph/flattening/ROX/Velero coverage |
+| `kubernetes-csi/external-snapshot-metadata` | **None** | Comprehensive | Server gRPC, auth, iterator, validation — all mocked; plus CRD CEL tests and an integration-test workflow |
+| `ceph/ceph-csi` | RBD snapshot-metadata e2e ([#6459](https://github.com/ceph/ceph-csi/pull/6459)) | Yes | Driver-level tests in the CephCSI repo |
+| This suite (`cephcsi-cbt-e2e`) | **48 tests** (`It` blocks, see below) | N/A | Real Ceph RBD cluster, real CSI driver |
+
+Per-file test counts (`It` blocks under `tests/e2e/`):
+
+| File | Tests |
+|------|-------|
+| `block_metadata_properties_test.go` | 8 |
+| `error_handling_test.go` | 8 |
+| `backup_workflow_test.go` | 6 |
+| `stored_diffs_test.go` | 6 |
+| `flattening_prevention_test.go` | 4 |
+| `rox_pvc_test.go` | 4 |
+| `velero_compliance_test.go` | 4 |
+| `volume_mode_rebind_test.go` | 3 |
+| `volume_resize_test.go` | 3 |
+| `counter_deletion_test.go` | 2 |
+| **Total** | **48** |
 
 ---
 
 ## 1. gRPC API Behavior (Happy Path)
 
-| Req ID | Upstream Requirement | Test File | Lines | Test Description | Status |
-|--------|---------------------|-----------|-------|------------------|--------|
-| T-API-1 | `GetMetadataAllocated` returns all allocated blocks | `basic_cbt_test.go` | 93-102 | should return allocated blocks for a single snapshot | Covered |
-| T-API-2 | `GetMetadataDelta` returns changed blocks between snapshots | `basic_cbt_test.go` | 104-117 | should return changed blocks between consecutive snapshots | Covered |
-| T-API-3 | Allocated blocks in ascending `byte_offset` order | `block_metadata_properties_test.go` | 111-117 | should return blocks in ascending order by ByteOffset | Covered |
-| T-API-4 | Delta blocks in ascending `byte_offset` order | `block_metadata_properties_test.go` | 111-117 | should return blocks in ascending order by ByteOffset | Covered |
-| T-API-5 | No overlapping block ranges in allocated response | `block_metadata_properties_test.go` | 119-122 | should return non-overlapping block ranges | Covered |
-| T-API-6 | No overlapping block ranges in delta response | `block_metadata_properties_test.go` | 119-122 | should return non-overlapping block ranges | Covered |
-| T-API-7 | `block_metadata_type` constant across all stream messages | `block_metadata_properties_test.go` | 142-145 | should report FIXED_LENGTH BlockMetadataType | Partial (allocated only; delta not validated) |
-| T-API-8 | `volume_capacity_bytes` constant across all stream messages | `block_metadata_properties_test.go` | 124-130 | should report consistent VolumeCapacityBytes across calls | Covered |
-| T-API-9 | `volume_capacity_bytes` matches actual PVC size | `volume_resize_test.go` | 104-110 | should report updated VolumeCapacityBytes after expansion | Covered |
-| T-API-10 | For `FIXED_LENGTH`, `size_bytes` constant across all tuples | `block_metadata_properties_test.go` | 132-140 | should return 1MiB-aligned block offsets and sizes | Covered |
-| T-API-11 | `starting_offset=0` returns from beginning | `block_metadata_properties_test.go` | 147-171 | should support StartingOffset for resumption | Implicit |
-| T-API-12 | `starting_offset > 0` resumes from specified offset | `block_metadata_properties_test.go` | 147-171 | should support StartingOffset for resumption | Covered |
-| T-API-13 | `max_results` limits tuples per response message | `block_metadata_properties_test.go` | 173-183 | should honor MaxResults parameter without error | Covered |
-| T-API-14 | `max_results=0` returns all results (driver default) | `basic_cbt_test.go` | 93-102 | Default calls use max_results=0 | Implicit |
-| T-API-15 | Stream terminates normally with EOF | All tests | — | Iterator collects all blocks then returns | Implicit |
+| Req ID | Upstream Requirement | Test File | Test Description | Status |
+|--------|---------------------|-----------|------------------|--------|
+| T-API-1 | `GetMetadataAllocated` returns all allocated blocks | `backup_workflow_test.go` | should perform full backup via GetMetadataAllocated | Covered |
+| T-API-2 | `GetMetadataDelta` returns changed blocks between snapshots | `backup_workflow_test.go` | should perform first incremental backup via GetMetadataDelta | Covered |
+| T-API-3 | Allocated blocks in ascending `byte_offset` order | `block_metadata_properties_test.go` | should return blocks in ascending order by ByteOffset | Covered |
+| T-API-4 | Delta blocks in ascending `byte_offset` order | `block_metadata_properties_test.go` | should return blocks in ascending order by ByteOffset | Covered |
+| T-API-5 | No overlapping block ranges in allocated response | `block_metadata_properties_test.go` | should return non-overlapping block ranges | Covered |
+| T-API-6 | No overlapping block ranges in delta response | `block_metadata_properties_test.go` | should return non-overlapping block ranges | Covered |
+| T-API-7 | `block_metadata_type` constant across all stream messages | `block_metadata_properties_test.go` | should report VARIABLE_LENGTH BlockMetadataType | Partial (allocated only; delta not validated) |
+| T-API-8 | `volume_capacity_bytes` constant across all stream messages | `block_metadata_properties_test.go` | should report consistent VolumeCapacityBytes across calls | Covered |
+| T-API-9 | `volume_capacity_bytes` matches actual PVC size | `volume_resize_test.go` | should report updated VolumeCapacityBytes after expansion | Covered |
+| T-API-10 | For `FIXED_LENGTH`, `size_bytes` constant across all tuples | `block_metadata_properties_test.go` | should return 1MiB-aligned block offsets and sizes | Covered |
+| T-API-11 | `starting_offset=0` returns from beginning | `block_metadata_properties_test.go` | should support StartingOffset for resumption | Implicit |
+| T-API-12 | `starting_offset > 0` resumes from specified offset | `block_metadata_properties_test.go` | should support StartingOffset for resumption | Covered |
+| T-API-13 | `max_results` limits tuples per response message | `block_metadata_properties_test.go` | should honor MaxResults parameter without error | Covered |
+| T-API-14 | `max_results=0` returns all results (driver default) | `backup_workflow_test.go` | Default calls use max_results=0 | Implicit |
+| T-API-15 | Stream terminates normally with EOF | All tests | Iterator collects all blocks then returns | Implicit |
 
 ---
 
 ## 2. Data Correctness
 
-| Req ID | Upstream Requirement | Test File | Lines | Test Description | Status |
-|--------|---------------------|-----------|-------|------------------|--------|
-| T-DATA-1 | Allocated blocks match actual written data regions | `basic_cbt_test.go` | 133-143 | should report accurate metadata matching written data | Covered |
-| T-DATA-2 | Delta blocks match actual changed regions | `backup_workflow_test.go` | 144-164 | should perform first incremental backup via GetMetadataDelta | Covered |
-| T-DATA-3 | Unwritten regions not reported as allocated | `basic_cbt_test.go` | 133-143 | Validates only written blocks appear | Partial |
-| T-DATA-4 | Unchanged regions not reported in delta | `backup_workflow_test.go` | 144-164 | Verifies unchanged blocks (0,2) excluded from delta | Covered |
-| T-DATA-5 | Data at reported offsets matches source snapshot | `backup_workflow_test.go` | 183-219 | should restore from chain and verify data integrity | Covered |
-| T-DATA-6 | Multiple writes to same block = single delta entry | — | — | — | **GAP** |
+| Req ID | Upstream Requirement | Test File | Test Description | Status |
+|--------|---------------------|-----------|------------------|--------|
+| T-DATA-1 | Allocated blocks match actual written data regions | `backup_workflow_test.go` | should report accurate metadata matching all written data | Covered |
+| T-DATA-2 | Delta blocks match actual changed regions | `backup_workflow_test.go` | should perform first incremental backup via GetMetadataDelta | Covered |
+| T-DATA-3 | Unwritten regions not reported as allocated | `backup_workflow_test.go` | "should report accurate metadata matching all written data" checks written blocks are present; it does not assert absence of unwritten blocks | Partial |
+| T-DATA-4 | Unchanged regions not reported in delta | `backup_workflow_test.go` | Verifies unchanged blocks (0,2) excluded from delta | Covered |
+| T-DATA-5 | Data at reported offsets matches source snapshot | `backup_workflow_test.go` | should restore from chain and verify data integrity | Covered |
+| T-DATA-6 | Multiple writes to same block = single delta entry | — | — | **GAP** |
 
 ---
 
@@ -65,118 +96,118 @@ Reference: [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/kep
 
 ### Sidecar-Level Errors
 
-| Req ID | Upstream Requirement | gRPC Code | Test File | Lines | Status |
-|--------|---------------------|-----------|-----------|-------|--------|
-| T-ERR-1 | Missing `security_token` | `InvalidArgument` (3) | — | — | **GAP** |
-| T-ERR-2 | Missing `namespace` | `InvalidArgument` (3) | — | — | **GAP** |
-| T-ERR-3 | Missing `snapshot_name` | `InvalidArgument` (3) | — | — | **GAP** |
-| T-ERR-4 | Missing `base_snapshot_id` (delta) | `InvalidArgument` (3) | — | — | **GAP** |
-| T-ERR-5 | Missing `target_snapshot_name` (delta) | `InvalidArgument` (3) | — | — | **GAP** |
-| T-ERR-6 | Invalid/expired token | `Unauthenticated` (16) | — | — | **GAP** |
-| T-ERR-7 | Unauthorized user | `PermissionDenied` (7) | — | — | **GAP** |
-| T-ERR-8 | Non-existent snapshot | `Unavailable` (14) | `error_handling_test.go` | 24-28 | Covered |
-| T-ERR-9 | Snapshot not ready | `Unavailable` (14) | `error_compliance_test.go` | 133-174 | Covered |
-| T-ERR-10 | VolumeSnapshotContent not found | `Unavailable` (14) | — | — | **GAP** |
-| T-ERR-11 | Missing snapshot handle | `Unavailable` (14) | — | — | **GAP** |
-| T-ERR-12 | CSI driver mismatch | `InvalidArgument` (3) | — | — | **GAP** |
-| T-ERR-13 | CSI driver not ready | `Unavailable` (14) | — | — | **GAP** |
+| Req ID | Upstream Requirement | gRPC Code | Test File | Status |
+|--------|---------------------|-----------|-----------|--------|
+| T-ERR-1 | Missing `security_token` | `InvalidArgument` (3) | — | **GAP** |
+| T-ERR-2 | Missing `namespace` | `InvalidArgument` (3) | — | **GAP** |
+| T-ERR-3 | Missing `snapshot_name` | `InvalidArgument` (3) | — | **GAP** |
+| T-ERR-4 | Missing `base_snapshot_id` (delta) | `InvalidArgument` (3) | — | **GAP** |
+| T-ERR-5 | Missing `target_snapshot_name` (delta) | `InvalidArgument` (3) | — | **GAP** |
+| T-ERR-6 | Invalid/expired token | `Unauthenticated` (16) | — | **GAP** |
+| T-ERR-7 | Unauthorized user | `PermissionDenied` (7) | — | **GAP** |
+| T-ERR-8 | Non-existent snapshot | `Unavailable` (14) | `error_handling_test.go` | Covered |
+| T-ERR-9 | Snapshot not ready | `Unavailable` (14) | `error_handling_test.go` ("should return error when querying CBT on snapshot that is not ready") | Covered |
+| T-ERR-10 | VolumeSnapshotContent not found | `Unavailable` (14) | — | **GAP** |
+| T-ERR-11 | Missing snapshot handle | `Unavailable` (14) | — | **GAP** |
+| T-ERR-12 | CSI driver mismatch | `InvalidArgument` (3) | — | **GAP** |
+| T-ERR-13 | CSI driver not ready | `Unavailable` (14) | — | **GAP** |
 
 ### CSI Driver-Level Errors
 
-| Req ID | Upstream Requirement | gRPC Code | Test File | Lines | Status |
-|--------|---------------------|-----------|-----------|-------|--------|
-| T-ERR-14 | `starting_offset` > volume size | `OutOfRange` (11) | — | — | **GAP** |
-| T-ERR-15 | CBT not enabled | `FailedPrecondition` (9) | — | — | **GAP** |
-| — | Cross-PVC delta | Driver-specific | `error_handling_test.go` | 30-92 | Covered |
-| — | Reversed snapshot order | Driver-specific | `error_handling_test.go` | 94-137 | Covered |
-| — | Invalid snapshot handle | Driver-specific | `error_compliance_test.go` | 22-62 | Covered |
-| — | Cross-volume handle | Driver-specific | `error_compliance_test.go` | 64-131 | Covered |
+| Req ID | Upstream Requirement | gRPC Code | Test File | Status |
+|--------|---------------------|-----------|-----------|--------|
+| T-ERR-14 | `starting_offset` > volume size | `OutOfRange` (11) | — | **GAP** |
+| T-ERR-15 | CBT not enabled | `FailedPrecondition` (9) | — | **GAP** |
+| — | Cross-PVC delta | Driver-specific | `error_handling_test.go` | Covered |
+| — | Reversed snapshot order | Driver-specific | `error_handling_test.go` | Covered |
+| — | Invalid snapshot handle | Driver-specific | `error_handling_test.go` ("should return error for invalid snapshot handle in GetChangedBlocksByID") | Covered |
+| — | Cross-volume handle | Driver-specific | `error_handling_test.go` ("should return error for GetChangedBlocksByID with handle from different volume") | Covered |
 
 ---
 
 ## 4. Security & Authentication
 
-| Req ID | Upstream Requirement | Test File | Lines | Status |
-|--------|---------------------|-----------|-------|--------|
-| T-SEC-1 | Valid audience-scoped token succeeds | `e2e_suite_test.go` | 88-219 | Implicit (all tests use valid token) |
-| T-SEC-2 | Wrong audience token fails with `Unauthenticated` | — | — | **GAP** |
-| T-SEC-3 | Expired token fails with `Unauthenticated` | — | — | **GAP** |
-| T-SEC-4 | User with `volumesnapshot get` permission succeeds | `e2e_suite_test.go` | 88-219 | Implicit (RBAC binding created) |
-| T-SEC-5 | User without `volumesnapshot get` fails with `PermissionDenied` | — | — | **GAP** |
-| T-SEC-6 | Cross-namespace access denied | — | — | **GAP** |
-| T-SEC-7 | TLS connection required (plaintext rejected) | — | — | **GAP** |
-| T-SEC-8 | Invalid CA cert fails connection | — | — | **GAP** |
-| T-SEC-9 | RBAC: client can create `serviceaccounts/token` | `e2e_suite_test.go` | 88-219 | Implicit |
-| T-SEC-10 | RBAC: client can get/list `snapshotmetadataservices` | `e2e_suite_test.go` | 88-219 | Implicit |
+| Req ID | Upstream Requirement | Test File | Status |
+|--------|---------------------|-----------|--------|
+| T-SEC-1 | Valid audience-scoped token succeeds | `e2e_suite_test.go` | Implicit (all tests use valid token) |
+| T-SEC-2 | Wrong audience token fails with `Unauthenticated` | — | **GAP** |
+| T-SEC-3 | Expired token fails with `Unauthenticated` | — | **GAP** |
+| T-SEC-4 | User with `volumesnapshot get` permission succeeds | `e2e_suite_test.go` | Implicit (RBAC binding created) |
+| T-SEC-5 | User without `volumesnapshot get` fails with `PermissionDenied` | — | **GAP** |
+| T-SEC-6 | Cross-namespace access denied | — | **GAP** |
+| T-SEC-7 | TLS connection required (plaintext rejected) | — | **GAP** |
+| T-SEC-8 | Invalid CA cert fails connection | — | **GAP** |
+| T-SEC-9 | RBAC: client can create `serviceaccounts/token` | `e2e_suite_test.go` | Implicit |
+| T-SEC-10 | RBAC: client can get/list `snapshotmetadataservices` | `e2e_suite_test.go` | Implicit |
 
 ---
 
 ## 5. SnapshotMetadataService CRD
 
-| Req ID | Upstream Requirement | Test File | Lines | Status |
-|--------|---------------------|-----------|-------|--------|
-| T-CRD-1 | SMS CR can be created with valid spec | `e2e_suite_test.go` | 88-219 | Implicit (precondition check) |
-| T-CRD-2 | SMS CR discoverable by CSI driver name | — | — | **GAP** |
-| T-CRD-3 | SMS CR deletion disables metadata service | — | — | **GAP** |
-| T-CRD-4 | SMS CR `address` points to working gRPC endpoint | `e2e_suite_test.go` | 88-219 | Implicit |
-| T-CRD-5 | SMS CR `caCert` enables TLS verification | `e2e_suite_test.go` | 88-219 | Implicit |
+| Req ID | Upstream Requirement | Test File | Status |
+|--------|---------------------|-----------|--------|
+| T-CRD-1 | SMS CR can be created with valid spec | `e2e_suite_test.go` | Implicit (precondition check) |
+| T-CRD-2 | SMS CR discoverable by CSI driver name | — | **GAP** |
+| T-CRD-3 | SMS CR deletion disables metadata service | — | **GAP** |
+| T-CRD-4 | SMS CR `address` points to working gRPC endpoint | `e2e_suite_test.go` | Implicit |
+| T-CRD-5 | SMS CR `caCert` enables TLS verification | `e2e_suite_test.go` | Implicit |
 
 ---
 
 ## 6. Streaming & Resumption
 
-| Req ID | Upstream Requirement | Test File | Lines | Status |
-|--------|---------------------|-----------|-------|--------|
-| T-STRM-1 | Large response spans multiple stream messages | `error_handling_test.go` | 189-229 | Covered (5Gi, 50 blocks) |
-| T-STRM-2 | Client can resume with `starting_offset` after interruption | `block_metadata_properties_test.go` | 147-171 | Covered |
-| T-STRM-3 | Resumed stream returns correct remaining blocks | `block_metadata_properties_test.go` | 147-171 | Covered |
-| T-STRM-4 | `max_results` pagination works correctly | `block_metadata_properties_test.go` | 173-183 | Covered |
-| T-STRM-5 | Empty snapshot returns empty block list | — | — | **GAP** |
-| T-STRM-6 | Client context cancellation terminates stream | — | — | **GAP** |
+| Req ID | Upstream Requirement | Test File | Status |
+|--------|---------------------|-----------|--------|
+| T-STRM-1 | Large response spans multiple stream messages | `error_handling_test.go` | Covered (5Gi, 50 blocks) |
+| T-STRM-2 | Client can resume with `starting_offset` after interruption | `block_metadata_properties_test.go` | Covered |
+| T-STRM-3 | Resumed stream returns correct remaining blocks | `block_metadata_properties_test.go` | Covered |
+| T-STRM-4 | `max_results` pagination works correctly | `block_metadata_properties_test.go` | Covered |
+| T-STRM-5 | Empty snapshot returns empty block list | — | **GAP** |
+| T-STRM-6 | Client context cancellation terminates stream | — | **GAP** |
 
 ---
 
 ## 7. Snapshot Lifecycle
 
-| Req ID | Upstream Requirement | Test File | Lines | Status |
-|--------|---------------------|-----------|-------|--------|
-| T-SNAP-1 | Metadata available immediately after snapshot ready | All ordered tests | — | Implicit (WaitForSnapshotReady then query) |
-| T-SNAP-2 | Metadata for deleted snapshot returns error | `velero_compliance_test.go` | 135-199 | Covered (Type 1 path) |
-| T-SNAP-3 | Delta between different volumes returns error | `error_handling_test.go` | 30-92 | Covered |
-| T-SNAP-4 | Delta with target older than base returns error | `error_handling_test.go` | 94-137 | Covered (CSI driver enforced; sidecar does not validate ordering) |
-| T-SNAP-5 | Metadata survives snapshot content migration | — | — | **GAP** |
+| Req ID | Upstream Requirement | Test File | Status |
+|--------|---------------------|-----------|--------|
+| T-SNAP-1 | Metadata available immediately after snapshot ready | All ordered tests | Implicit (WaitForSnapshotReady then query) |
+| T-SNAP-2 | Metadata for deleted snapshot returns error | `velero_compliance_test.go` | Covered (Type 1 path) |
+| T-SNAP-3 | Delta between different volumes returns error | `error_handling_test.go` | Covered |
+| T-SNAP-4 | Delta with target older than base returns error | `error_handling_test.go` | Covered (CSI driver enforced; sidecar does not validate ordering) |
+| T-SNAP-5 | Metadata survives snapshot content migration | — | **GAP** |
 
 ---
 
 ## 8. Backup Workflow (End-to-End)
 
-| Req ID | Upstream Requirement | Test File | Lines | Status |
-|--------|---------------------|-----------|-------|--------|
-| T-BKP-1 | Full backup: allocated blocks + verify data | `backup_workflow_test.go` | 128-142 | Covered |
-| T-BKP-2 | Incremental backup: delta blocks + verify changes | `backup_workflow_test.go` | 144-164 | Covered |
-| T-BKP-3 | Restore from full backup produces identical volume | `backup_workflow_test.go` | 183-218 | Covered |
-| T-BKP-4 | Restore from incremental produces correct state | `backup_workflow_test.go` | 183-218 | Covered |
-| T-BKP-5 | Multiple incrementals in chain work correctly | `backup_workflow_test.go` | 166-181 | Covered |
+| Req ID | Upstream Requirement | Test File | Status |
+|--------|---------------------|-----------|--------|
+| T-BKP-1 | Full backup: allocated blocks + verify data | `backup_workflow_test.go` | Covered |
+| T-BKP-2 | Incremental backup: delta blocks + verify changes | `backup_workflow_test.go` | Covered |
+| T-BKP-3 | Restore from full backup produces identical volume | `backup_workflow_test.go` | Covered |
+| T-BKP-4 | Restore from incremental produces correct state | `backup_workflow_test.go` | Covered |
+| T-BKP-5 | Multiple incrementals in chain work correctly | `backup_workflow_test.go` | Covered |
 
 ---
 
 ## 9. Compatibility
 
-| Req ID | Upstream Requirement | Test File | Lines | Status |
-|--------|---------------------|-----------|-------|--------|
-| T-COMPAT-1 | Driver without CBT returns `UNIMPLEMENTED` | — | — | **GAP** (requires non-CBT driver) |
-| T-COMPAT-2 | VolumeSnapshot v1 objects work correctly | All tests | — | Covered |
-| T-COMPAT-3 | Multiple concurrent metadata requests succeed | `error_handling_test.go` | 139-187 | Covered |
+| Req ID | Upstream Requirement | Test File | Status |
+|--------|---------------------|-----------|--------|
+| T-COMPAT-1 | Driver without CBT returns `UNIMPLEMENTED` | — | **GAP** (requires non-CBT driver) |
+| T-COMPAT-2 | VolumeSnapshot v1 objects work correctly | All tests | Covered |
+| T-COMPAT-3 | Multiple concurrent metadata requests succeed | `error_handling_test.go` | Covered |
 
 ---
 
 ## 10. Volume Operations
 
-| Upstream Requirement | Test File | Lines | Test Description | Status |
-|---------------------|-----------|-------|------------------|--------|
-| CBT after volume expansion | `volume_resize_test.go` | 104-136 | VolumeCapacityBytes updated, expanded region blocks reported | Covered |
-| Non-aligned volume size handling | `block_metadata_properties_test.go` | 185-237 | 1500Mi PVC (not 1MiB-aligned) | Covered |
-| Cumulative delta (non-consecutive snaps) | `basic_cbt_test.go` | 119-131 | should return cumulative changes | Covered |
+| Upstream Requirement | Test File | Test Description | Status |
+|---------------------|-----------|------------------|--------|
+| CBT after volume expansion | `volume_resize_test.go` | VolumeCapacityBytes updated, expanded region blocks reported | Covered |
+| Non-aligned volume size handling | `block_metadata_properties_test.go` | 1500Mi PVC (not 1MiB-aligned) | Covered |
+| Cumulative delta (non-consecutive snaps) | — | No current test (the chained incremental test only compares consecutive snapshots) | **GAP** |
 
 ---
 
@@ -204,18 +235,19 @@ Counts use: **Covered** = explicitly tested, **Implicit** = exercised indirectly
 
 ### Critical Gaps (High Impact)
 
-These gaps represent areas where upstream graduation criteria (beta/GA) will
-likely require e2e coverage:
+KEP-3314 reached beta in Kubernetes v1.36 and has no GA target yet. These gaps
+represent areas where upstream graduation criteria (GA) are likely to require e2e
+coverage:
 
 | Priority | Gap | Why It Matters | Proposed Test |
 |----------|-----|---------------|---------------|
 | P0 | **No CRD lifecycle tests** (T-CRD-2, T-CRD-3) | SMS CR is the discovery mechanism backup tools rely on | Create `crd_lifecycle_test.go`: delete SMS CR, verify service becomes unavailable, re-create |
-| P0 | **No empty snapshot test** (T-STRM-5) | Common edge case; empty volume backup must not crash | Add to `basic_cbt_test.go`: snapshot before any writes |
-| P0 | **No security/auth e2e tests** (T-SEC-2 through T-SEC-8) | Beta graduation requires auth/authz testing per KEP | Create `security_test.go`: wrong audience, expired token, unauthorized SA, cross-namespace, TLS validation (requires raw gRPC infrastructure) |
+| P0 | **No empty snapshot test** (T-STRM-5) | Common edge case; empty volume backup must not crash | Add to `backup_workflow_test.go` (or a new file): snapshot before any writes |
+| P0 | **No security/auth e2e tests** (T-SEC-2 through T-SEC-8) | Auth/authz testing is a likely graduation requirement per the KEP | Create `security_test.go`: wrong audience, expired token, unauthorized SA, cross-namespace, TLS validation (requires raw gRPC infrastructure) |
 | P0 | **No sidecar error validation** (T-ERR-1 through T-ERR-7) | API contract violations if not enforced | Create `sidecar_errors_test.go`: send raw gRPC calls with missing fields, verify error codes (requires raw gRPC infrastructure) |
 | P1 | **No client cancellation test** (T-STRM-6) | gRPC streaming contract requirement | Add to `error_handling_test.go`: cancel context mid-stream |
 | P2 | **No `starting_offset > capacity` test** (T-ERR-14) | OutOfRange error path untested | Add to `block_metadata_properties_test.go` |
-| P2 | **No multi-write-same-block test** (T-DATA-6) | Data correctness edge case | Add to `basic_cbt_test.go`: overwrite block, verify single delta |
+| P2 | **No multi-write-same-block test** (T-DATA-6) | Data correctness edge case | Add to `backup_workflow_test.go`: overwrite block, verify single delta |
 | P3 | **No UNIMPLEMENTED driver test** (T-COMPAT-1) | Requires separate non-CBT CSI driver deployment | Out of scope for this suite |
 
 ### Sidecar Error Gaps (Detail)
@@ -251,20 +283,20 @@ Issues discovered during research that affect test design:
 
 | # | Discrepancy | Impact on Tests |
 |---|-------------|-----------------|
-| 1 | `base_snapshot_id` in delta is a **CSI handle**, not a K8s VolumeSnapshot name | Tests must use `GetChangedBlocksByID` (handle-based). Our suite handles this correctly. |
+| 1 | `base_snapshot_id` in delta is a **CSI handle**, not a K8s VolumeSnapshot name (introduced in sidecar v0.2.0; earlier sidecars used `BaseSnapshotName`) | Tests must use `GetChangedBlocksByID` (handle-based). Our suite handles this correctly. Sidecars older than v0.2.0 break delta calls; this suite's validated workaround image is `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` (see [results.md](./results.md)). The sidecar only serves gRPC, so a v0.2.0 sidecar works with a v1beta1 SMS CR. |
 | 2 | Sidecar does **NOT validate** same-volume for delta requests | Cross-volume errors come from CSI driver, not sidecar. Error code may differ. |
 | 3 | Sidecar does **NOT validate** snapshot ordering | Reversed-order errors come from CSI driver, not sidecar. Error code may differ. |
-| 4 | CRD graduated to **v1beta1** (not v1alpha1 as noted in CLAUDE.md) | Suite should test against v1beta1 CRD. Update CLAUDE.md reference. |
+| 4 | `SnapshotMetadataService` CRD is **v1beta1** since external-snapshot-metadata v1.0.0 (v1alpha1 removed, no conversion, schema unchanged); the KEP reached beta in Kubernetes v1.36 with no feature gate (out-of-tree) | The test client reads the v1beta1 SMS CR itself. OCP <= 4.22 ships the v1alpha1 CRD, so the v1beta1 CRD must be applied manually there (OCP 5.0 ships v1beta1). |
 | 5 | KEP says `NotFound` for missing snapshots, sidecar returns `Unavailable` | Error code assertions should use `Unavailable` (14), not `NotFound` (5). |
 
 ---
 
 ## 11. Monitoring & Observability
 
-| Req ID | Upstream Requirement | Test File | Lines | Status |
-|--------|---------------------|-----------|-------|--------|
-| T-MON-1 | `snapshot_metadata_controller_operation_total_seconds` histogram metric | — | — | **GAP** |
-| T-MON-2 | `/health` endpoint returns `ServiceUnavailable` until gRPC ready | — | — | **GAP** |
+| Req ID | Upstream Requirement | Test File | Status |
+|--------|---------------------|-----------|--------|
+| T-MON-1 | `snapshot_metadata_controller_operation_total_seconds` histogram metric | — | **GAP** |
+| T-MON-2 | `/health` endpoint returns `ServiceUnavailable` until gRPC ready | — | **GAP** |
 
 ---
 
@@ -272,15 +304,15 @@ Issues discovered during research that affect test design:
 
 This document focuses on **upstream K8s/CSI requirements**. The companion
 [velero-coverage.md](./velero-coverage.md) maps **Velero Block Data Mover**
-(PR #9528) requirements. Key overlaps:
+([PR #9528](https://github.com/velero-io/velero/pull/9528), merged; targeting the unreleased Velero v1.19) requirements. Key overlaps:
 
 | Area | K8s Coverage (this doc) | Velero Coverage |
 |------|------------------------|-----------------|
 | Handle-based delta | T-API-2, T-SNAP-2 | Handle retention, Type 1 vs Type 2 |
 | Backup workflow | T-BKP-1 through T-BKP-5 | Full + incremental chain simulation |
-| Error fallback | T-ERR-8, T-ERR-9 | Fallback-to-full on FailedPrecondition |
-| Snapshot retention | T-SNAP-2 | `retainSnapshot: "true"` requirement |
-| Ceph-specific (250 limit, flattening, omap) | Not in upstream spec | Velero-specific coverage |
+| Error fallback | T-ERR-8, T-ERR-9 | Any CBT error degrades changed -> allocated -> full |
+| Snapshot retention | T-SNAP-2 | Retention via `deletionPolicy: Retain` on the VolumeSnapshotClass (the design's `RetainSnapshot` parameter is not implemented) |
+| Ceph-specific (450/250 snapshot thresholds, flattening, omap proposals) | Not in upstream spec | Velero-specific coverage |
 
 ---
 

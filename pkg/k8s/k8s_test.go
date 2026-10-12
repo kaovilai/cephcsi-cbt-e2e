@@ -19,6 +19,13 @@ import (
 	clientgotesting "k8s.io/client-go/testing"
 )
 
+// newSnapClient returns a fake external-snapshotter clientset. The client/v8
+// fake package does not generate apply configurations, so it has no
+// NewClientset replacement for the deprecated NewSimpleClientset.
+func newSnapClient(objects ...runtime.Object) *snapfake.Clientset {
+	return snapfake.NewSimpleClientset(objects...) //nolint:staticcheck // no NewClientset available in client/v8 fake
+}
+
 func TestGetToolboxPod_FoundByLabel(t *testing.T) {
 	ctx := context.Background()
 	ns := "rook-ceph"
@@ -152,7 +159,7 @@ func TestGetToolboxPod_LabelListError_FallsBackToName(t *testing.T) {
 	// Fail the first two list calls (label-selector paths); let the third
 	// (all-pods fallback) proceed normally so the pod is found by name.
 	callCount := 0
-	client.Fake.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		callCount++
 		if callCount <= 2 {
 			return true, nil, k8serrors.NewServerTimeout(gr, "list", 0)
@@ -179,7 +186,7 @@ func TestGetToolboxPod_AllPodsListError(t *testing.T) {
 	// Let the first two list calls (label selectors) succeed with empty results,
 	// then fail the third all-pods call.
 	callCount := 0
-	client.Fake.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		callCount++
 		if callCount == 3 {
 			return true, nil, k8serrors.NewServerTimeout(gr, "list", 0)
@@ -200,7 +207,7 @@ func TestGetToolboxPod_AllListsFail(t *testing.T) {
 	gr := schema.GroupResource{Group: "", Resource: "pods"}
 	client := fake.NewClientset()
 
-	client.Fake.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("list", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "list", 0)
 	})
 
@@ -320,7 +327,7 @@ func TestDeletePod_Error(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 	gr := schema.GroupResource{Group: "", Resource: "pods"}
-	client.Fake.PrependReactor("delete", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("delete", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
 	})
 
@@ -472,7 +479,7 @@ func TestCreatePVC_CreateError(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
-	client.Fake.PrependReactor("create", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("create", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "create", 0)
 	})
 
@@ -514,7 +521,7 @@ func TestDeletePVC_Error(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
-	client.Fake.PrependReactor("delete", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("delete", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
 	})
 
@@ -581,7 +588,7 @@ func TestCreatePodWithPVC_CreateError(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 	gr := schema.GroupResource{Group: "", Resource: "pods"}
-	client.Fake.PrependReactor("create", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("create", "pods", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "create", 0)
 	})
 
@@ -601,7 +608,7 @@ func TestResizePVC_Error(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 	gr := schema.GroupResource{Group: "", Resource: "persistentvolumeclaims"}
-	client.Fake.PrependReactor("patch", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("patch", "persistentvolumeclaims", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "patch", 0)
 	})
 
@@ -699,7 +706,7 @@ func TestCreateROXPVCFromSnapshot(t *testing.T) {
 
 func TestCreateSnapshot_Success(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 
 	vs, err := CreateSnapshot(ctx, client, "my-snap", "test-ns", "my-pvc", "csi-snapclass")
 	if err != nil {
@@ -721,7 +728,7 @@ func TestDeleteSnapshot_Exists(t *testing.T) {
 	existing := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
 	}
-	client := snapfake.NewSimpleClientset(existing) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(existing)
 
 	if err := DeleteSnapshot(ctx, client, "test-ns", "my-snap"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -734,7 +741,7 @@ func TestDeleteSnapshot_Exists(t *testing.T) {
 
 func TestDeleteSnapshot_NotFound(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 
 	// Should not return an error when snapshot does not exist.
 	if err := DeleteSnapshot(ctx, client, "test-ns", "missing-snap"); err != nil {
@@ -745,9 +752,9 @@ func TestDeleteSnapshot_NotFound(t *testing.T) {
 // TestCreateSnapshot_Error verifies that a Create failure is returned as a wrapped error.
 func TestCreateSnapshot_Error(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"}
-	client.Fake.PrependReactor("create", "volumesnapshots", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("create", "volumesnapshots", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "create", 0)
 	})
 
@@ -791,7 +798,7 @@ func TestGetSnapshotContentName_Success(t *testing.T) {
 			BoundVolumeSnapshotContentName: ptr("my-content"),
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 
 	got, err := GetSnapshotContentName(ctx, client, "test-ns", "my-snap")
 	if err != nil {
@@ -804,7 +811,7 @@ func TestGetSnapshotContentName_Success(t *testing.T) {
 
 func TestGetSnapshotContentName_NotFound(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 
 	_, err := GetSnapshotContentName(ctx, client, "test-ns", "missing-snap")
 	if err == nil {
@@ -818,7 +825,7 @@ func TestGetSnapshotContentName_NilStatus(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
 		// Status is nil — snapshot not yet bound
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 
 	_, err := GetSnapshotContentName(ctx, client, "test-ns", "my-snap")
 	if err == nil {
@@ -834,7 +841,7 @@ func TestGetSnapshotContentName_NilContentName(t *testing.T) {
 			BoundVolumeSnapshotContentName: nil,
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 
 	_, err := GetSnapshotContentName(ctx, client, "test-ns", "my-snap")
 	if err == nil {
@@ -850,7 +857,7 @@ func TestGetSnapshotContentName_EmptyContentName(t *testing.T) {
 			BoundVolumeSnapshotContentName: ptr(""),
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 
 	_, err := GetSnapshotContentName(ctx, client, "test-ns", "my-snap")
 	if err == nil {
@@ -872,7 +879,7 @@ func TestGetSnapshotHandle_Success(t *testing.T) {
 			SnapshotHandle: ptr("ceph-handle-abc123"),
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs, vsc) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs, vsc)
 
 	got, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
 	if err != nil {
@@ -885,7 +892,7 @@ func TestGetSnapshotHandle_Success(t *testing.T) {
 
 func TestGetSnapshotHandle_SnapshotNotFound(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 
 	_, err := GetSnapshotHandle(ctx, client, "test-ns", "missing-snap")
 	if err == nil {
@@ -899,7 +906,7 @@ func TestGetSnapshotHandle_SnapshotNotBound(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "my-snap", Namespace: "test-ns"},
 		// Status nil — not bound yet
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 
 	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
 	if err == nil {
@@ -916,7 +923,7 @@ func TestGetSnapshotHandle_ContentNotFound(t *testing.T) {
 		},
 	}
 	// VolumeSnapshotContent is not added to the fake client
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 
 	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
 	if err == nil {
@@ -936,7 +943,7 @@ func TestGetSnapshotHandle_NoHandle(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "my-content"},
 		// Status nil — no handle yet
 	}
-	client := snapfake.NewSimpleClientset(vs, vsc) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs, vsc)
 
 	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
 	if err == nil {
@@ -958,7 +965,7 @@ func TestGetSnapshotHandle_EmptyHandle(t *testing.T) {
 			SnapshotHandle: ptr(""),
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs, vsc) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs, vsc)
 
 	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
 	if err == nil {
@@ -1173,7 +1180,7 @@ func TestWaitForSnapshotReady_ImmediatelyReady(t *testing.T) {
 			ReadyToUse: &readyToUse,
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 	got, err := WaitForSnapshotReady(ctx, client, "test-ns", "my-snap", 5*time.Second)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1197,7 +1204,7 @@ func TestWaitForSnapshotReady_ErrorStatus(t *testing.T) {
 			},
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "broken-snap", 5*time.Second)
 	if err == nil {
 		t.Fatal("expected error for snapshot with error status, got nil")
@@ -1220,7 +1227,7 @@ func TestWaitForSnapshotReady_ErrorStatusNilMessage(t *testing.T) {
 			},
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "broken-snap-no-msg", 5*time.Second)
 	if err == nil {
 		t.Fatal("expected error for snapshot with non-nil Error but nil Message, got nil")
@@ -1232,7 +1239,7 @@ func TestWaitForSnapshotReady_ErrorStatusNilMessage(t *testing.T) {
 
 func TestWaitForSnapshotDeleted_AlreadyGone(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 	if err := WaitForSnapshotDeleted(ctx, client, "test-ns", "gone-snap", 5*time.Second); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1240,7 +1247,7 @@ func TestWaitForSnapshotDeleted_AlreadyGone(t *testing.T) {
 
 func TestWaitForSnapshotContentDeleted_AlreadyGone(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 	if err := WaitForSnapshotContentDeleted(ctx, client, "gone-content", 5*time.Second); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1583,7 +1590,7 @@ func TestWaitForSnapshotContentDeleted_Timeout(t *testing.T) {
 	vsc := &snapshotv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{Name: "live-content"},
 	}
-	client := snapfake.NewSimpleClientset(vsc) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vsc)
 	err := WaitForSnapshotContentDeleted(ctx, client, "live-content", 100*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected timeout error for existing snapshot content, got nil")
@@ -1628,7 +1635,7 @@ func TestWaitForSnapshotReady_Timeout(t *testing.T) {
 			ReadyToUse: &notReady,
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "not-ready-snap", 100*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected timeout error for not-ready snapshot, got nil")
@@ -1668,7 +1675,7 @@ func TestWaitForSnapshotDeleted_Timeout(t *testing.T) {
 	vs := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{Name: "live-snap", Namespace: "test-ns"},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 	err := WaitForSnapshotDeleted(ctx, client, "test-ns", "live-snap", 100*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected timeout error for existing snapshot, got nil")
@@ -1759,7 +1766,7 @@ func TestRebindPVWithVolumeMode_PVCCreateFailCleansUpPV(t *testing.T) {
 	client := fake.NewClientset(sourcePV)
 
 	// Inject a failure for PVC create only.
-	client.Fake.PrependReactor("create", "persistentvolumeclaims",
+	client.PrependReactor("create", "persistentvolumeclaims",
 		func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, nil, k8serrors.NewInternalError(errors.New("injected PVC create failure"))
 		})
@@ -1876,7 +1883,7 @@ func TestWaitForPVCBound_LostPhase(t *testing.T) {
 // when the VolumeSnapshot does not exist, because NotFound is not retryable.
 func TestWaitForSnapshotReady_NotFound(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "nonexistent-snap", 5*time.Second)
 	if err == nil {
 		t.Fatal("expected error for nonexistent VolumeSnapshot, got nil")
@@ -1909,7 +1916,7 @@ func TestWaitForPVCResized_NotFound(t *testing.T) {
 // to the default fake behaviour for all subsequent calls.
 func prependOnceReactor(client *fake.Clientset, verb, resource string, err error) {
 	called := false
-	client.Fake.PrependReactor(verb, resource, func(action clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor(verb, resource, func(action clientgotesting.Action) (bool, runtime.Object, error) {
 		if !called {
 			called = true
 			return true, nil, err
@@ -1973,9 +1980,9 @@ func TestWaitForPodDeleted_RetryableError(t *testing.T) {
 func TestWaitForSnapshotDeleted_RetryableError(t *testing.T) {
 	ctx := context.Background()
 	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"}
-	snapClient := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client; snapshot absent after the first (failing) call
+	snapClient := newSnapClient() // snapshot absent after the first (failing) call
 	called := false
-	snapClient.Fake.PrependReactor("get", "volumesnapshots",
+	snapClient.PrependReactor("get", "volumesnapshots",
 		func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 			if !called {
 				called = true
@@ -1996,9 +2003,9 @@ func TestWaitForSnapshotDeleted_RetryableError(t *testing.T) {
 func TestWaitForSnapshotContentDeleted_RetryableError(t *testing.T) {
 	ctx := context.Background()
 	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshotcontents"}
-	snapClient := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	snapClient := newSnapClient()
 	called := false
-	snapClient.Fake.PrependReactor("get", "volumesnapshotcontents",
+	snapClient.PrependReactor("get", "volumesnapshotcontents",
 		func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 			if !called {
 				called = true
@@ -2025,9 +2032,9 @@ func TestWaitForSnapshotReady_RetryableError(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "test-snap", Namespace: "test-ns"},
 		Status:     &snapshotv1.VolumeSnapshotStatus{ReadyToUse: &ready},
 	}
-	snapClient := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	snapClient := newSnapClient(vs)
 	called := false
-	snapClient.Fake.PrependReactor("get", "volumesnapshots",
+	snapClient.PrependReactor("get", "volumesnapshots",
 		func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 			if !called {
 				called = true
@@ -2128,7 +2135,7 @@ func TestWaitForSnapshotReady_NilStatus(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "nil-status-snap", Namespace: "test-ns"},
 		// Status deliberately left nil
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "nil-status-snap", 100*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected timeout error for snapshot with nil Status, got nil")
@@ -2145,7 +2152,7 @@ func TestWaitForSnapshotReady_NilReadyToUse(t *testing.T) {
 			// ReadyToUse deliberately left nil
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs)
 	_, err := WaitForSnapshotReady(ctx, client, "test-ns", "nil-ready-snap", 100*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected timeout error for snapshot with nil ReadyToUse, got nil")
@@ -2168,7 +2175,7 @@ func TestGetSnapshotHandle_NonNilStatusNilHandle(t *testing.T) {
 			// SnapshotHandle deliberately left nil (pointer is nil)
 		},
 	}
-	client := snapfake.NewSimpleClientset(vs, vsc) //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient(vs, vsc)
 
 	_, err := GetSnapshotHandle(ctx, client, "test-ns", "my-snap")
 	if err == nil {
@@ -2201,7 +2208,7 @@ func TestDeleteNamespace_Error(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 	gr := schema.GroupResource{Group: "", Resource: "namespaces"}
-	client.Fake.PrependReactor("delete", "namespaces", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("delete", "namespaces", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
 	})
 
@@ -2215,7 +2222,7 @@ func TestDeletePV_Error(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewClientset()
 	gr := schema.GroupResource{Group: "", Resource: "persistentvolumes"}
-	client.Fake.PrependReactor("delete", "persistentvolumes", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("delete", "persistentvolumes", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
 	})
 
@@ -2227,9 +2234,9 @@ func TestDeletePV_Error(t *testing.T) {
 // TestDeleteSnapshot_Error verifies that a non-NotFound delete error is propagated.
 func TestDeleteSnapshot_Error(t *testing.T) {
 	ctx := context.Background()
-	client := snapfake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires --with-applyconfig generated types, unavailable for this vendored client
+	client := newSnapClient()
 	gr := schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"}
-	client.Fake.PrependReactor("delete", "volumesnapshots", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("delete", "volumesnapshots", func(_ clientgotesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewServerTimeout(gr, "delete", 0)
 	})
 
@@ -2264,7 +2271,7 @@ func TestRebindPVWithVolumeMode_PVCreateFail(t *testing.T) {
 	client := fake.NewClientset(sourcePV)
 
 	// Inject a failure for PV create only.
-	client.Fake.PrependReactor("create", "persistentvolumes",
+	client.PrependReactor("create", "persistentvolumes",
 		func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, nil, k8serrors.NewInternalError(errors.New("injected PV create failure"))
 		})

@@ -62,10 +62,11 @@ else
     FAIL=$((FAIL + 1))
 fi
 
-# Check TLS volume mount
+# Check TLS volume mount. The volume must be named "tls-key": ceph-csi-operator injects the
+# sidecar based on that name, and both step4 and the ODF 5.x ocs-client-operator use it.
 VOLUMES=$(oc get deployment "${CSI_DRIVER_NAME}-ctrlplugin" -n "$NAMESPACE" -o json 2>/dev/null | \
   jq -r '.spec.template.spec.volumes[]?.name' || echo "")
-if echo "$VOLUMES" | grep -q "csi-snapshot-metadata-server-certs"; then
+if echo "$VOLUMES" | grep -qx "tls-key"; then
     echo "  PASS: TLS cert volume mounted"
     PASS=$((PASS + 1))
 else
