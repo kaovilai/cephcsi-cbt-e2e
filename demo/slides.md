@@ -1,6 +1,5 @@
 ---
 theme: default
-background: https://source.unsplash.com/collection/1065976/1920x1080
 class: text-center
 highlighter: shiki
 lineNumbers: true
@@ -43,7 +42,7 @@ transition: slide-left
 
 # Why Ceph-Specific Validation?
 
-CBT (KEP-3314) defines a generic API, but **each CSI driver has unique behaviors**.
+CBT (KEP-3314, beta since K8s 1.36, no feature gate) defines a generic API, but **each CSI driver has unique behaviors**.
 
 <v-clicks>
 
@@ -195,13 +194,13 @@ Ceph RBD **requires** retaining the previous snapshot for `GetMetadataDelta`.
 <v-click>
 <div class="mt-3 p-2 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-Ref: [Velero Block Data Mover Design (merged)](https://github.com/velero-io/velero/pull/9528) -- configure `RetainSnapshot` via VolumePolicy `Action.Parameters`. No auto-detection of which retention mode a CSI driver needs.
+Ref: [Velero Block Data Mover Design (merged)](https://github.com/velero-io/velero/pull/9528) -- the design's `RetainSnapshot` parameter is not implemented; on Ceph set `deletionPolicy: Retain` on the VolumeSnapshotClass ([PR #10307](https://github.com/velero-io/velero/pull/10307)). No auto-detection of which retention mode a CSI driver needs.
 
 </div>
 </v-click>
 
 <!--
-- Velero design doc defines Case 1 and Case 2 retention strategies
+- Velero design doc defines Case 1 and Case 2 retention strategies; in code, retention follows the VolumeSnapshotClass deletionPolicy (PR #10307)
 - Ceph RBD requires Case 2 because rbd diff traverses parent chain
 - Test: velero_compliance_test.go -- negative test asserts Case 1 fails
 -->
@@ -302,7 +301,7 @@ graph TD
 <v-click>
 <div class="mt-2 p-2 bg-red-900 bg-opacity-20 rounded text-sm">
 
-After flattening: `GetMetadataDelta` **fails** at the driver level -- `rbd diff` needs intact clone chain. **Velero fallback-to-full is in progress** via `bitmap.SetFull()` ([PR #9736](https://github.com/velero-io/velero/pull/9736), open). `GetMetadataAllocated` can also fail in manual-flatten scenarios without stored diffs.
+After flattening: `GetMetadataDelta` **fails** at the driver level -- `rbd diff` needs intact clone chain. **Velero degrades gracefully** -- the CBT bitmap ([PR #9736](https://github.com/velero-io/velero/pull/9736), merged) falls back to an allocated-blocks or full backup (targeting v1.19, not yet released). `GetMetadataAllocated` can also fail in manual-flatten scenarios without stored diffs.
 
 </div>
 </v-click>
@@ -311,7 +310,7 @@ After flattening: `GetMetadataDelta` **fails** at the driver level -- `rbd diff`
 - Flattening is threshold-based, not priority-based
 - No mechanism to prefer flattening deleted snapshots over alive ones
 - This is the fundamental tension between CBT and CephCSI's clone management
-- Velero BDM design (PR #9528) handles this gracefully with automatic fallback
+- Velero BDM (design PR #9528, bitmap PR #9736) handles this gracefully with automatic fallback
 -->
 
 
@@ -395,7 +394,7 @@ What happens when flattening **does** break the chain?
 
 **Driver-level gap**: No "stored diffs in omap" mechanism exists in CephCSI. `GetMetadataDelta` fails for flattened snapshot pairs.
 
-**Velero handling is in progress**: BDM fallback-to-full via `bitmap.SetFull()` is being implemented in [PR #9736](https://github.com/velero-io/velero/pull/9736). Goal behavior is to resume incrementals from the new full backup.
+**Velero handling is merged for v1.19 (unreleased)**: when delta fails, the CBT bitmap ([PR #9736](https://github.com/velero-io/velero/pull/9736)) falls back to allocated blocks or a full backup, then incrementals resume from the new full backup.
 
 </div>
 </v-click>
@@ -403,7 +402,7 @@ What happens when flattening **does** break the chain?
 <!--
 - This test manually triggers flatten to document the gap
 - CephCSI PR #5347 uses rbd DiffIterateByID directly -- no driver-level fallback
-- Velero BDM design (PR #9528) handles this with automatic fallback to full backup
+- Velero BDM (design PR #9528, bitmap PR #9736) handles this with automatic fallback to a full backup
 -->
 
 
@@ -437,7 +436,7 @@ What happens to **existing backups** when Ceph flattens the clone chain?
 - Flattening is a backup-creation-time concern only, not a data-safety concern
 - All existing backups remain valid, restorable, and require no special treatment
 - The only cost of flattening is one full backup (more data read + uploaded)
-- Velero BDM bitmap.SetFull() fallback (PR #9736) handles this transparently
+- Velero BDM bitmap fallback (PR #9736, merged May 2026) handles this transparently
 -->
 
 
@@ -451,7 +450,7 @@ Retaining snapshots for CBT can **trigger the flattening it's trying to avoid**.
 
 <v-clicks>
 
-- Velero retains snapshots (Case 2) for incremental delta
+- Velero retains snapshots (Case 2, `deletionPolicy: Retain`) for incremental delta
 - Frequent backups (e.g., hourly) accumulate snapshots on source image
 - Hit `maxSnapshotsOnImage` (default 450) → CephCSI flattens intermediate clones
 - Flattening breaks clone chain → next `GetMetadataDelta` fails → full backup
@@ -462,7 +461,7 @@ Retaining snapshots for CBT can **trigger the flattening it's trying to avoid**.
 <v-click>
 <div class="mt-4 p-3 bg-yellow-900 bg-opacity-20 rounded text-sm">
 
-**Mitigation**: Schedule periodic full backups (weekly/monthly) and clean up old snapshots. The BDM design does not automate snapshot cleanup -- users must manage retention policies to stay below thresholds.
+**Mitigation**: Schedule periodic full backups (weekly/monthly) and clean up old snapshots. Reclaiming retained snapshots when a backup is deleted is not confirmed implemented ([Velero #9835](https://github.com/velero-io/velero/issues/9835)) -- manage retention to stay below thresholds.
 
 </div>
 </v-click>
@@ -565,17 +564,18 @@ transition: slide-left
 - Volume resize between backups
 - Shallow clone chains (typical workflows)
 - Graceful error responses
-- **In-progress fallback implementation** to full backup on CBT errors ([PR #9736](https://github.com/velero-io/velero/pull/9736))
+- **Automatic fallback** (allocated/full) on CBT errors ([PR #9736](https://github.com/velero-io/velero/pull/9736), merged; Velero v1.19 unreleased)
 
 </div>
 <div>
 
 **Constraints & User Actions**
-- **Must configure** `RetainSnapshot` (Case 2)
-- Delta fails after flattening (fallback-to-full implementation is in progress)
+- **Must set** `deletionPolicy: Retain` on the VolumeSnapshotClass (Case 2)
+- Delta fails after flattening (Velero degrades changed -> allocated -> full backup)
 - **Existing backups always safe** after flattening
 - No stored diffs mechanism in CephCSI
-- No priority-based flattening
+- No priority-based flattening (both still proposals)
+- ROX restores skip flattening on ceph-csi >= v3.18.0 ([PR #6534](https://github.com/ceph/ceph-csi/pull/6534))
 - Manage snapshot retention to stay below 450/image
 - Periodic full backups recommended (weekly/monthly)
 
@@ -585,13 +585,13 @@ transition: slide-left
 <v-click>
 <div class="mt-4 p-3 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-**Velero BDM** ([PR #9528](https://github.com/velero-io/velero/pull/9528), merged): Use Case 2 retention. `bitmap.SetFull()` fallback work is in progress in [PR #9736](https://github.com/velero-io/velero/pull/9736). Backup data in Kopia is independent of source -- no action needed for existing backups.
+**Velero BDM** ([PR #9528](https://github.com/velero-io/velero/pull/9528), merged): Use Case 2 retention. Bitmap fallback is merged ([PR #9736](https://github.com/velero-io/velero/pull/9736)); the Ceph changeID fix is in [PR #10307](https://github.com/velero-io/velero/pull/10307) (main/v1.19, not in 1.18.x). Backup data in Kopia is independent of source -- no action needed for existing backups.
 
 </div>
 </v-click>
 
 <!--
-- Velero can rely on CBT for Ceph today with Case 2 retention
+- Velero can rely on CBT for Ceph with Case 2 retention once v1.19 ships (changeID fix is not in 1.18.x)
 - Flattening risk is low for typical workflows and handled by auto-fallback
 - Existing backups are always safe -- data is in Kopia, independent of RBD
 - Future CephCSI improvements (stored diffs, priority flatten) would reduce full-backup frequency
@@ -609,11 +609,12 @@ transition: slide-left
 
 **CephCSI CBT**
 - [PR #5347](https://github.com/ceph/ceph-csi/pull/5347) -- CBT RPCs (merged Jul 2025)
-- [Issue #5346](https://github.com/ceph/ceph-csi/issues/5346) -- CBT feature request
+- [Issue #5346](https://github.com/ceph/ceph-csi/issues/5346) -- CBT feature request (closed by stale bot)
 - [Design: rbd-snap-clone.md](https://github.com/ceph/ceph-csi/blob/devel/docs/design/proposals/rbd-snap-clone.md)
 
 **Flattening**
 - [PR #2900](https://github.com/ceph/ceph-csi/pull/2900) -- Flatten before create
+- [PR #6534](https://github.com/ceph/ceph-csi/pull/6534) -- Skip flatten for ROX restores (v3.18.0)
 - [PR #1678](https://github.com/ceph/ceph-csi/pull/1678) -- minSnapshotsOnImage
 - [Issue #1800](https://github.com/ceph/ceph-csi/issues/1800) -- No-flatten request
 
@@ -623,12 +624,14 @@ transition: slide-left
 **Velero BDM + CBT**
 - [BDM Design (merged)](https://github.com/velero-io/velero/pull/9528) -- PR #9528
 - [CBT Interfaces (merged)](https://github.com/velero-io/velero/pull/9716) -- PR #9716
-- [CBT Bitmap](https://github.com/velero-io/velero/pull/9736) -- PR #9736 (in progress, open PR)
-- [ChangeId for Ceph](https://github.com/velero-io/velero/issues/9714) -- Issue #9714
+- [CBT Bitmap (merged)](https://github.com/velero-io/velero/pull/9736) -- PR #9736
+- [ChangeId for Ceph (closed)](https://github.com/velero-io/velero/issues/9714) -- Issue #9714
+- [changeID + retention fix (merged)](https://github.com/velero-io/velero/pull/10307) -- PR #10307
 - [CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
 
 **Setup & Getting Started**
-- [CBT sidecar for ODF](https://access.redhat.com/articles/7130698)
+- [CBT sidecar for ODF](https://access.redhat.com/articles/7130698) -- Developer Preview (KCS written for ODF 4.20)
+- Early ODF 4.21 builds ship an older sidecar; this suite overrides it with upstream `csi-snapshot-metadata` v0.2.0
 - [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo) -- CBT intro & demo
 - [This test suite](https://github.com/kaovilai/cephcsi-cbt-e2e)
 
@@ -639,6 +642,7 @@ transition: slide-left
 - PR #5347 is the core CBT implementation using rbd DiffIterateByID
 - Block Data Mover design doc defines retention strategies
 - k8s-cbt-s3mover-demo covers CBT basics and getting started
+- Test suite results are from ODF/OCP 4.21 with the v0.2.0 sidecar override; ceph-csi 3.18, ODF 4.22 and external-snapshot-metadata v1.1.0 are not yet validated here
 -->
 
 

@@ -8,21 +8,25 @@ For a getting-started overview of Kubernetes CBT (using csi-driver-host-path), s
 
 ## Prerequisites
 
-| Component | Minimum Version |
-|-----------|----------------|
-| Kubernetes | v1.33 (alpha), v1.36 (beta target per KEP-3314) |
+| Component | Requirement |
+|-----------|-------------|
+| Kubernetes | v1.33+ (CBT alpha in v1.33, beta since v1.36; not GA as of Oct 2026) |
 | CSI spec | v1.10.0 (SnapshotMetadata service) |
-| external-snapshot-metadata | v1.0.0 (SnapshotMetadataService CRD v1beta1) |
-| external-snapshotter | v8.0.0 |
-| Ceph | v17.0 (Quincy) |
-| Go | 1.24+ |
+| external-snapshot-metadata | v1.0.0+ (SnapshotMetadataService CRD `v1beta1`); this repo builds against v1.1.0 |
+| external-snapshotter | v8.0.0+ (this repo builds against client/v8 v8.6.0) |
+| Ceph | Pacific v16.2.0+ per the ceph-csi README (no CBT-specific minimum is published); validated on Ceph 20.1.0 (Tentacle) |
+| Go | 1.26.1+ (matches `go.mod`) |
+
+CBT is an out-of-tree Kubernetes API: [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md) has no feature gate. On OpenShift, CBT is Developer Preview on OCP/ODF 4.20-4.22 and Technology Preview on OCP 5.0 (the [ODF setup article](https://access.redhat.com/articles/7130698), Red Hat login required, is written for ODF 4.20; the same status for 4.21/4.22 is assumed, not confirmed in its public text), and requires the `ExternalSnapshotMetadata` cluster feature gate.
 
 Additionally:
 
 - **VolumeSnapshot CRD** must be installed (external-snapshotter)
 - **SnapshotMetadataService CRD** must be installed (`cbt.storage.k8s.io/v1beta1`)
 - **external-snapshot-metadata sidecar** must be deployed in the CephCSI provisioner pod
-- CephCSI RBD provisioner pods must be running (tested with ODF 4.18+)
+- CephCSI RBD provisioner pods must be running
+
+**Validated environment:** ODF 4.21 on OCP 4.21.7 (Kubernetes v1.34.5, Ceph 20.1.0) with the upstream sidecar image `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0`; see [`results.md`](results.md). ODF 4.22, ODF 5.0 and CephCSI v3.18.x have not been run with this suite (ODF 4.22 ships the same v0.2.0 sidecar; ODF 5.0 ships v1.0.0). The ROX and flattening tests in particular may behave differently on CephCSI v3.18.0+, where ReadOnlyMany snapshot restores no longer flatten (see [Flattening Impact on CBT](#flattening-impact-on-cbt)).
 
 ## Project Structure
 
@@ -176,39 +180,53 @@ Ceph RBD computes deltas using `rbd snap diff`, which requires both snapshots to
 
 ### ROX PVC Pattern
 
-ReadOnlyMany PVCs created from snapshots do not trigger RBD flattening, preserving the snapshot chain for CBT. This is important for backup workflows that expose snapshot data for reading.
+ReadOnlyMany PVCs created from snapshots are intended to avoid RBD flattening, preserving the snapshot chain for CBT. This is important for backup workflows that expose snapshot data for reading. CephCSI [PR #6534](https://github.com/ceph/ceph-csi/pull/6534) (v3.18.0) implements this for RBD by skipping the flatten step when all requested volume capabilities are read-only. Older CephCSI releases (and ODF builds that ship them) still flatten on restore. ReadWrite restores always create a real clone.
 
 ### Flattening Impact on CBT
 
-When a snapshot's intermediate RBD image is flattened (clone chain broken), `rbd snap diff` across images fails and `GetMetadataDelta` cannot compute deltas. There is a [design proposal](CLAUDE.md#key-domain-concepts) ("Combined solution") to store diffs in Ceph omap before flattening as a fallback, but this is **not yet implemented** in CephCSI.
+When a snapshot's intermediate RBD image is flattened (clone chain broken), `rbd snap diff` across images fails and `GetMetadataDelta` cannot compute deltas. There is a [design proposal](CLAUDE.md#key-domain-concepts) ("Combined solution") to store diffs in Ceph omap before flattening as a fallback, but as of Oct 2026 no PR, issue, or design document for it was found in CephCSI.
 
-## Velero CBT Integration Status (as of 2026-05-14)
+## Velero CBT Integration Status (as of Oct 2026)
 
-Velero's block data mover is being built incrementally. Current state of the PR chain:
+Velero's block data mover has merged on `main` and is unreleased: the latest release is v1.18.4 and there is no v1.19 tag, release candidate, or branch yet. Chain of work:
 
 | Step | PR/Issue | Status | Description |
 |------|----------|--------|-------------|
 | Design doc | [PR #9528](https://github.com/velero-io/velero/pull/9528) | **Completed** (merged) | Block data mover design |
 | CBT interfaces | [PR #9716](https://github.com/velero-io/velero/pull/9716) | **Completed** (merged) | `cbtservice.Service` and bitmap interfaces |
 | Unified repo extension | [PR #9724](https://github.com/velero-io/velero/pull/9724) | **Completed** (merged) | Block uploader support in unified repository |
-| CBT bitmap impl | [PR #9736](https://github.com/velero-io/velero/pull/9736) | **In progress** (open PR) | RoaringBitmap-based block tracking |
-| gRPC client | [Issue #9710](https://github.com/velero-io/velero/issues/9710) | **In progress** (open issue, no PR) | `cbtservice.Service` impl talking to external-snapshot-metadata sidecar |
-| Service-to-bitmap | [Issue #9715](https://github.com/velero-io/velero/issues/9715) | **In progress** (open issue, no PR) | Glue between gRPC client and bitmap |
-| Block data mover | [Issue #9556](https://github.com/velero-io/velero/issues/9556) | **In progress** (open issue, no PR) | End-to-end incremental backup using bitmap |
+| CBT bitmap impl | [PR #9736](https://github.com/velero-io/velero/pull/9736) | **Completed** (merged) | RoaringBitmap-based block tracking |
+| CBT service (gRPC client) | [PR #9846](https://github.com/velero-io/velero/pull/9846), [Issue #9710](https://github.com/velero-io/velero/issues/9710) | **Completed** (merged) | `cbtservice.Service` impl talking to the external-snapshot-metadata sidecar |
+| Service-to-bitmap | [Issue #9715](https://github.com/velero-io/velero/issues/9715) | **Completed** (closed) | Glue between gRPC client and bitmap |
+| Block uploader and workflow | [PR #9979](https://github.com/velero-io/velero/pull/9979), [PR #10067](https://github.com/velero-io/velero/pull/10067), [PR #10071](https://github.com/velero-io/velero/pull/10071) | **Completed** (merged) | Block uploader backup/restore and backup workflow |
+| Block data mover umbrella | [Issue #9556](https://github.com/velero-io/velero/issues/9556) | **Completed** (closed) | End-to-end block-level backup/restore |
+| Ceph changeID fix | [PR #10307](https://github.com/velero-io/velero/pull/10307) (fixes [#10294](https://github.com/velero-io/velero/issues/10294)) | **Completed** (merged on `main`, not in 1.18.x) | Generic CSI changeID retrieval (was empty on non-vSphere drivers, so every "incremental" ran full) and snapshot-class deletion policy honored for retention |
+| Docs | [PR #10537](https://github.com/velero-io/velero/pull/10537) | **Completed** (merged) | Block data mover section in `csi-snapshot-data-movement.md` |
 
-**What this test suite validates today:** The CSI-level CBT layer (gRPC calls directly to the external-snapshot-metadata sidecar via CephCSI). This covers the same protocol that Velero's gRPC client (issue #9710) will use.
+Enablement: no alpha flag; the CSI feature (`EnableCSI`) is required, and the data mover is selected per backup (`velero backup create ... --snapshot-move-data --data-mover velero-block [--backup-type Incremental|Full]`) or per volume via VolumePolicy snapshot action parameters (`dataMover: velero-block|velero-fs`).
 
-**Next contribution opportunity:** Implement the `cbtservice.Service` gRPC client (issue #9710). Our `pkg/cbt/` already wraps the same external-snapshot-metadata iterator API — the Velero implementation would be structurally similar.
+Snapshot retention for Ceph: the design's `RetainSnapshot` VolumePolicy parameter is not implemented in code. Retention follows the VolumeSnapshotClass instead; set `deletionPolicy: Retain` on the RBD VolumeSnapshotClass. Whether retained base snapshots are reclaimed when a backup is deleted is not confirmed ([#9835](https://github.com/velero-io/velero/issues/9835), [#10304](https://github.com/velero-io/velero/issues/10304)); unreclaimed snapshots increase pressure toward `maxSnapshotsOnImage` flattening.
+
+**What this test suite validates today:** The CSI-level CBT layer (gRPC calls directly to the external-snapshot-metadata sidecar via CephCSI). This is the same protocol that Velero's CBT service uses.
+
+**Candidate coverage:** The in-place incremental restore design ([PR #10014](https://github.com/velero-io/velero/pull/10014)) and retained-snapshot behavior under `maxSnapshotsOnImage` pressure are not covered here yet.
 
 ### Upstream Dependency Versions
 
+Versions as of Oct 2026 (this repo: `go.mod`, `golangci-lint.mod`).
+
 | Dependency | This repo | Latest upstream |
 |---|---|---|
-| external-snapshot-metadata | v1.0.0 | v1.0.0 |
-| external-snapshot-metadata/client | v1.0.0 | v1.0.0 |
-| external-snapshotter client/v8 | v8.4.0 | v8.4.0 |
-| k8s.io/{api,apimachinery,client-go} | v0.35.4 | v0.35.4 (v0.36.0 available) |
-| CephCSI CBT | [PR #5347](https://github.com/ceph/ceph-csi/pull/5347) merged (devel) | Latest release: v3.16.2 |
+| external-snapshot-metadata | v1.1.0 | v1.1.0 |
+| external-snapshot-metadata/client | v1.1.0 | v1.1.0 |
+| external-snapshotter client/v8 | v8.6.0 | v8.6.0 |
+| k8s.io/{api,apimachinery,client-go} | v0.37.1 | v0.37.1 (Kubernetes v1.37) |
+| ginkgo / gomega | v2.33.1 / v1.44.0 | v2.33.1 / v1.44.0 |
+| golangci-lint | v2.14.0 | v2.14.0 |
+| CephCSI CBT | [PR #5347](https://github.com/ceph/ceph-csi/pull/5347) merged (July 2025) | Latest release: [v3.18.1](https://github.com/ceph/ceph-csi/releases/tag/v3.18.1) (2026-10-01) |
+| CephCSI ROX restore without flatten | [PR #6534](https://github.com/ceph/ceph-csi/pull/6534) (v3.18.0) | v3.18.1 |
+
+The sidecar image used by `ocp-setup/step4-cbt-sidecar.sh` is a separate choice from the Go module version: ODF 4.22 ships snapshot-metadata v0.2.0 and ODF 5.0 ships v1.0.0, and this repo has only validated v0.2.0 (see [`results.md`](results.md)).
 
 ## References
 

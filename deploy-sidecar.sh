@@ -5,6 +5,11 @@
 # It handles the ODF 4.21 operator gap where the sidecar is auto-injected but
 # without the TLS certificate volume mount.
 #
+# LEGACY: this is the historical manual flow for ODF 4.21.0 (SCC patch, operator scale-down).
+# The maintained path is ocp-setup/step4-cbt-sidecar.sh, which uses a "tls-key" Driver CR
+# volume and needs neither. See also
+# https://github.com/red-hat-storage/ceph-csi-operator/blob/main/docs/features/rbd-snapshot-metadata.md
+#
 # Prerequisites:
 #   - OCP 4.20+ with DevPreviewNoUpgrade feature set enabled
 #   - ODF installed with CephCSI RBD
@@ -62,11 +67,22 @@ check_prereqs() {
 }
 
 get_sidecar_image() {
-    # Use upstream image matching go.mod client library version (v0.2.0).
-    # The OCP release payload ships v0.1.0-based sidecar which has an API
-    # mismatch with the v0.2.0 client (base_snapshot_name vs base_snapshot_id).
-    # See: https://github.com/kaovilai/cephcsi-cbt-e2e/issues/9
-    SIDECAR_IMAGE="registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0"
+    # Upstream sidecar image used as the ODF <= 4.21 workaround. Same variable, default and
+    # rationale as ocp-setup/step4-cbt-sidecar.sh (step 4g); see the comment there for the
+    # full discussion. In short:
+    #   - v0.2.0 (default) is the workaround validated by this repo. The ODF 4.21 payload sidecar
+    #     ships the older v0.1.0-based API (base_snapshot_name vs base_snapshot_id), which breaks
+    #     GetMetadataDelta. See: https://github.com/kaovilai/cephcsi-cbt-e2e/issues/9
+    #   - v1.0.0/v1.1.0 are SMS v1beta1-only releases that Velero validated live on Ceph/ODF
+    #     (https://github.com/velero-io/velero/pull/10307; OCP 5.0 + ODF 4.21.10 per
+    #     https://github.com/velero-io/velero/issues/10294) but this repo has not; v1.x also
+    #     uses an HTTP /health probe instead of grpc_health_probe. Test before switching:
+    #       SIDECAR_IMAGE=registry.k8s.io/sig-storage/csi-snapshot-metadata:v1.1.0
+    # Note: this go.mod depends on the external-snapshot-metadata v1.x client library, which is
+    # independent of the sidecar image; the tests read the SMS CR (v1beta1) themselves.
+    # This legacy script only reports the image; the sidecar container is injected by
+    # ceph-csi-operator, and the image override itself is applied by step4 (driver ImageSet).
+    SIDECAR_IMAGE="${SIDECAR_IMAGE:-registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0}"
     # Commented out: OCP release payload image (v0.1.0 API)
     # log "Getting sidecar image from cluster release payload..."
     # local release_image

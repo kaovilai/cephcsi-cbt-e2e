@@ -227,7 +227,7 @@ var _ = Describe("Block Metadata Properties", Ordered, func() {
 		Expect(result.VolumeCapacityBytes).To(BeNumerically(">=", int64(1500*1024*1024)),
 			"VolumeCapacityBytes should be at least 1500Mi")
 
-		fmt.Fprintf(GinkgoWriter, "Odd-size volume: capacity=%d bytes, block count=%d\n",
+		GinkgoWriter.Printf("Odd-size volume: capacity=%d bytes, block count=%d\n",
 			result.VolumeCapacityBytes, len(result.Blocks))
 
 		By("Cleaning up odd-size resources")

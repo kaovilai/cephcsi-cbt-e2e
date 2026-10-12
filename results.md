@@ -1,5 +1,14 @@
 # E2E Test Results
 
+> **Scope**: This is the record of a single run on 2026-03-26 against OCP 4.21.7
+> (K8s v1.34.5, Ceph 20.1.0) with the upstream sidecar `v0.2.0` override. It predates
+> external-snapshot-metadata v1.1.0, ceph-csi v3.17/v3.18 and ODF 4.22, and has not been
+> repeated since. Treat it as dated evidence for that environment only. In particular,
+> ROX and flattening behavior may differ on ceph-csi >= v3.18.0, where restores with
+> read-only volume capabilities skip flattening
+> ([ceph-csi#6534](https://github.com/ceph/ceph-csi/pull/6534)); the ROX PVC and
+> Flattening Prevention results below have not been re-validated there.
+
 **Date**: 2026-03-26
 **Cluster**: mig-tkaovila-mar26 (OCP 4.21.7, K8s v1.34.5, Ceph 20.1.0 Tentacle)
 **Start**: 6:39 PM EST | **End**: 6:59 PM EST | **Duration**: 20m 19s (1219s)
@@ -118,10 +127,10 @@ All 48 tests pass with the upstream sidecar image. The ODF-shipped sidecar (`ose
 
 ## ODF <= 4.21 Sidecar Workaround
 
-The first test run (with ODF's shipped sidecar) had 5 failures and 19 skipped tests. All failures were caused by the ODF-shipped sidecar image (`ose-csi-external-snapshot-metadata-rhel9`) using `BaseSnapshotName` (name-based VolumeSnapshot lookup) instead of `BaseSnapshotId` (CSI handle passthrough) in `GetMetadataDelta`.
+The first test run (with ODF's shipped sidecar) had 5 failures and 19 skipped tests. All failures were caused by the ODF-shipped sidecar image (`ose-csi-external-snapshot-metadata-rhel9`) using `BaseSnapshotName` (name-based VolumeSnapshot lookup) instead of `BaseSnapshotId` (CSI handle passthrough) in `GetMetadataDelta`. The affected sidecar is the one shipped with ODF 4.21 at the time of the run (snapshot-metadata `v0.1.0`); later 4.21.z builds were not tested.
 
-**Fix**: [red-hat-storage/ceph-csi-operator commit 454e9130](https://github.com/red-hat-storage/ceph-csi-operator/commit/454e9130a39057b5a9ca98785df605ada195d62e) — expected in ODF 4.22+.
+**Fix**: [red-hat-storage/ceph-csi-operator commit 454e9130](https://github.com/red-hat-storage/ceph-csi-operator/commit/454e9130a39057b5a9ca98785df605ada195d62e) ("csi: update K8s CSI sidecar images") bumps the default snapshot-metadata image from `v0.1.0` to `v0.2.0`. It is in the operator's `release-4.22`, `release-5.0` and `main` branches but not in `release-4.21`; ODF 4.22 ships snapshot-metadata `v0.2.0`.
 
-**Workaround**: Override the sidecar image to upstream `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` via driver-level ImageSet ConfigMap. Automated in `ocp-setup/step4-cbt-sidecar.sh` step 4j with ODF version detection (only applies on ODF <= 4.21).
+**Workaround**: Override the sidecar image to upstream `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` via driver-level ImageSet ConfigMap. Automated in `ocp-setup/step4-cbt-sidecar.sh` step 4g with ODF version detection (applies only on ODF versions that ship an older sidecar, i.e. before 4.22). `v0.2.0` is the only sidecar configuration validated by this suite. A newer upstream sidecar (for example `v1.1.0`, which Velero used in its own live Ceph/ODF validation of [velero-io/velero#10307](https://github.com/velero-io/velero/pull/10307); platform OCP 5.0 + ODF 4.21.10 per [#10294](https://github.com/velero-io/velero/issues/10294)) is a possible option but has not been tested here.
 
 After applying the override, all 48 tests pass — including expected **post-flatten failure** assertions in the stored-diffs suite (no CephCSI stored-diffs fallback today), plus backup workflows, Velero compliance, volume resize, flattening prevention, error handling, and volume mode rebind.
