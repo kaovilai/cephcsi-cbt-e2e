@@ -22,7 +22,6 @@ tools:
       - "kubernetes-csi/external-snapshot-metadata"
       - "kubernetes/enhancements"
       - "red-hat-storage/ceph-csi-operator"
-  web-fetch:
 
 network:
   allowed:
