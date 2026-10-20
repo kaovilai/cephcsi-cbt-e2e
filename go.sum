@@ -97,8 +97,8 @@ github.com/kubernetes-csi/external-snapshot-metadata v1.1.0 h1:qp0t1Du6ZrBRyzit7
 github.com/kubernetes-csi/external-snapshot-metadata v1.1.0/go.mod h1:K8u50zHpOX34psjwa5JK9bbo3zpbbt+oecUm2AuYjNo=
 github.com/kubernetes-csi/external-snapshot-metadata/client v1.1.0 h1:OOnA+7Cb5izT+daM9t21hQC0GayeskHk+COnAJjeR2Y=
 github.com/kubernetes-csi/external-snapshot-metadata/client v1.1.0/go.mod h1:Nufr1PWalLkuIyjS4Zr+ugyYEbK7MzbEUtZQUPeAJF0=
-github.com/kubernetes-csi/external-snapshotter/client/v8 v8.6.0 h1:FtGewu2k6HWw6evLGXY8JqUZ9eHpti1kd3e4amj+ilA=
-github.com/kubernetes-csi/external-snapshotter/client/v8 v8.6.0/go.mod h1:Vxl89NySJ45J+ah3NTMan/KJXW+NpcGHE2Tw0GSw53k=
+github.com/kubernetes-csi/external-snapshotter/client/v8 v8.7.0 h1:HVaSUeRRHPu49aSiL8eXOjS9Re9G6pM0NzdTGI7mM14=
+github.com/kubernetes-csi/external-snapshotter/client/v8 v8.7.0/go.mod h1:DexNTSbOZELjTVUO7li3hP8cX3Di7lXy9+dwI6TW2TU=
 github.com/maruel/natural v1.1.1 h1:Hja7XhhmvEFhcByqDoHz9QZbkWey+COd9xWfCfn1ioo=
 github.com/maruel/natural v1.1.1/go.mod h1:v+Rfd79xlw1AgVBjbO0BEQmptqb5HvL/k9GRHB7ZKEg=
 github.com/mfridman/tparse v0.18.0 h1:wh6dzOKaIwkUGyKgOntDW4liXSo37qg5AXbIhkMV3vE=
