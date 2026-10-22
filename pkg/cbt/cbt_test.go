@@ -1,6 +1,7 @@
 package cbt
 
 import (
+	"context"
 	"testing"
 
 	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/api"
@@ -289,5 +290,49 @@ func TestCollectingEmitter_Done(t *testing.T) {
 	emitter := &collectingEmitter{result: &MetadataResult{}}
 	if err := emitter.SnapshotMetadataIteratorDone(0); err != nil {
 		t.Errorf("SnapshotMetadataIteratorDone() returned unexpected error: %v", err)
+	}
+}
+
+func TestClientRejectsEmptyNames(t *testing.T) {
+	// Validation runs before any gRPC call, so a zero-value Client is sufficient.
+	c := &Client{}
+	ctx := context.Background()
+
+	tests := []struct {
+		name string
+		call func() (*MetadataResult, error)
+	}{
+		{"GetAllocatedBlocks empty snapshot", func() (*MetadataResult, error) { return c.GetAllocatedBlocks(ctx, "") }},
+		{"GetChangedBlocks empty prev", func() (*MetadataResult, error) { return c.GetChangedBlocks(ctx, "", "snap") }},
+		{"GetChangedBlocks empty snapshot", func() (*MetadataResult, error) { return c.GetChangedBlocks(ctx, "prev", "") }},
+		{"GetChangedBlocksByID empty prev ID", func() (*MetadataResult, error) { return c.GetChangedBlocksByID(ctx, "", "snap") }},
+		{"GetChangedBlocksByID empty snapshot", func() (*MetadataResult, error) { return c.GetChangedBlocksByID(ctx, "id", "") }},
+		{"GetAllocatedBlocksWithOptions empty snapshot", func() (*MetadataResult, error) {
+			return c.GetAllocatedBlocksWithOptions(ctx, "", 0, 10)
+		}},
+		{"GetChangedBlocksWithOptions empty prev", func() (*MetadataResult, error) {
+			return c.GetChangedBlocksWithOptions(ctx, "", "snap", 0, 10)
+		}},
+		{"GetChangedBlocksWithOptions empty snapshot", func() (*MetadataResult, error) {
+			return c.GetChangedBlocksWithOptions(ctx, "prev", "", 0, 10)
+		}},
+		{"GetChangedBlocksByIDWithOptions empty prev ID", func() (*MetadataResult, error) {
+			return c.GetChangedBlocksByIDWithOptions(ctx, "", "snap", 0, 10)
+		}},
+		{"GetChangedBlocksByIDWithOptions empty snapshot", func() (*MetadataResult, error) {
+			return c.GetChangedBlocksByIDWithOptions(ctx, "id", "", 0, 10)
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := tt.call()
+			if err == nil {
+				t.Fatal("expected validation error, got nil")
+			}
+			if res != nil {
+				t.Errorf("expected nil result, got %+v", res)
+			}
+		})
 	}
 }
