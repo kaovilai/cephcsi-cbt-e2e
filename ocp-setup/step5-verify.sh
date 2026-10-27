@@ -108,6 +108,33 @@ else
 fi
 
 echo ""
+echo "--- SELinux host mount (RBD Filesystem volumes) ---"
+# ceph-csi-operator always sets seLinuxMount: true on the CSIDriver, so kubelet passes
+# context= and skips relabeling. If the node plugin cannot see /etc/selinux, mount drops
+# context= without an error and Filesystem volumes stay unlabeled_t (EACCES for
+# confined pods). The Driver CR value takes precedence over the OperatorConfig default.
+# Ref: https://github.com/ceph/ceph-csi/issues/6679
+SELINUX_MOUNT=$(oc get csidriver "$CSI_DRIVER_NAME" -o jsonpath='{.spec.seLinuxMount}' 2>/dev/null || true)
+if [ "$SELINUX_MOUNT" = "true" ]; then
+    OPERATOR_SELINUX_HOST_MOUNT=$(oc get operatorconfigs.csi.ceph.io ceph-csi-operator-config -n "$NAMESPACE" \
+      -o jsonpath='{.spec.driverSpecDefaults.nodePlugin.enableSeLinuxHostMount}' 2>/dev/null || true)
+    DRIVER_SELINUX_HOST_MOUNT=$(oc get drivers.csi.ceph.io "$CSI_DRIVER_NAME" -n "$NAMESPACE" \
+      -o jsonpath='{.spec.nodePlugin.enableSeLinuxHostMount}' 2>/dev/null || true)
+    EFFECTIVE_SELINUX_HOST_MOUNT="${DRIVER_SELINUX_HOST_MOUNT:-$OPERATOR_SELINUX_HOST_MOUNT}"
+    if [ "$EFFECTIVE_SELINUX_HOST_MOUNT" = "true" ]; then
+        echo "  PASS: node plugin SELinux host mount enabled"
+        PASS=$((PASS + 1))
+    else
+        echo "  WARN: CSIDriver sets seLinuxMount=true, but nodePlugin.enableSeLinuxHostMount is not true"
+        echo "        RBD Filesystem volumes can stay unlabeled_t (EACCES) on SELinux-enforcing nodes."
+        echo "        Set nodePlugin.enableSeLinuxHostMount: true; see https://github.com/ceph/ceph-csi/issues/6679"
+        WARN=$((WARN + 1))
+    fi
+else
+    echo "  SKIP: CSIDriver does not advertise seLinuxMount"
+fi
+
+echo ""
 echo "--- SnapshotMetadataService CR ---"
 check "SnapshotMetadataService CR exists" oc get snapshotmetadataservice "${CSI_DRIVER_NAME}"
 

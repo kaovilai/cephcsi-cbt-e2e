@@ -7,4 +7,7 @@ parameters:
   clusterID: openshift-storage
   csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
   csi.storage.k8s.io/snapshotter-secret-namespace: openshift-storage
+# Velero 1.19.0 ignores this for data movement: its backup VSC is always Delete,
+# so Ceph RBD block data mover backups fall back once the base snapshot is gone.
+# Case 2 retention is pending in velero-io/velero#10743 / #10744 (target 1.19.x).
 deletionPolicy: Delete

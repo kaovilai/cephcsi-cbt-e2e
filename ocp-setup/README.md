@@ -175,6 +175,23 @@ Step 4 configures the CBT sidecar via the Driver CR following the [official ceph
 - **ceph-csi-controller-manager**: Reconciles Driver CR changes (TLS volume, ImageSet, sidecar injection) into the deployment. The sidecar is injected when the Driver CR has a volume named `tls-key` (mount path `/tmp/certificates`).
 - **ocs-client-operator**: Manages the `ceph-csi-op-scc` SCC. On ODF <= 4.21 the SCC only allows `configMap`, `emptyDir`, `hostPath`, and `projected`, so the TLS volume uses a `projected` volume (sourcing from the secret) instead of a `secret` volume. No SCC patch or operator scale-down is needed. The release-4.22 and release-5.0 branches of ocs-client-operator allow `secret` volumes, so the projected form is only required on <= 4.21 (it works on all versions).
 
+### SELinux host mount for RBD Filesystem volumes
+
+ceph-csi-operator always sets `seLinuxMount: true` on the RBD `CSIDriver`, so kubelet
+passes a `context=` mount option and skips relabeling. The node plugin must be able to
+see the host's SELinux configuration for that to work. With
+`nodePlugin.enableSeLinuxHostMount: false` (the operator default), libselinux inside the
+plugin reports SELinux disabled, `mount` silently drops `context=`, and an RBD
+`volumeMode: Filesystem` volume stays `unlabeled_t`, so confined or non-root pods get
+`EACCES` ([ceph-csi#6679](https://github.com/ceph/ceph-csi/issues/6679)). Set it to
+`true` in the Driver CR (`spec.nodePlugin`) or OperatorConfig
+(`spec.driverSpecDefaults.nodePlugin`); the Driver CR wins
+([ceph-csi-operator#649](https://github.com/ceph/ceph-csi-operator/pull/649) merged;
+[rook#18636](https://github.com/rook/rook/pull/18636) updates the OpenShift example).
+`step5-verify.sh` warns when the CSIDriver advertises `seLinuxMount` but the setting is
+not enabled. Existing volumes pick up `context=` only after they are unstaged and
+remounted. Block-mode volumes are unaffected.
+
 ### Sidecar image (ODF <= 4.21)
 
 Early ODF 4.21 builds ship a sidecar that breaks `GetMetadataDelta` (it looks up the CSI snapshot handle as a VolumeSnapshot name). Step 4 (4g) overrides it through a driver-level ImageSet. The image is `SIDECAR_IMAGE`, defaulting to `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0`, the only configuration this repo has validated. The upstream fix ([ceph-csi-operator 454e9130](https://github.com/red-hat-storage/ceph-csi-operator/commit/454e9130), a sidecar image bump to v0.2.0) is in ceph-csi-operator `release-4.22`, `release-5.0` and `main`; ODF 4.22 ships v0.2.0 and ODF 5.0 ships v1.0.0. A late ODF 4.21.z build may already carry a fixed sidecar (not verified), so check the shipped image before overriding.

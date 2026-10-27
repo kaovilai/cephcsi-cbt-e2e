@@ -4,8 +4,8 @@ This document captures what the Velero Block Data Mover (BDM) design
 ([PR #9528](https://github.com/velero-io/velero/pull/9528)) and implementation need to
 support Ceph RBD Changed Block Tracking (CBT) via CephCSI, and which of the original
 asks have since been resolved, implemented differently, or remain open. Status is as of
-October 2026; the BDM targets Velero v1.19, which is **not yet released** (latest
-release: v1.18.4).
+2026-10-27. Velero 1.19.0 is in development and **not released** (latest release:
+v1.18.4), so no release date should be assumed.
 
 Companion documents: [velero-coverage.md](./velero-coverage.md) (test mapping) and
 [k8s-coverage.md](./k8s-coverage.md).
@@ -14,7 +14,7 @@ Companion documents: [velero-coverage.md](./velero-coverage.md) (test mapping) a
 
 | # | Topic | Status |
 |---|-------|--------|
-| 1 | Snapshot retention for Ceph RBD | Mechanism implemented differently from the design (`VolumeSnapshotClass` `deletionPolicy: Retain`); documentation, reclamation and detection asks remain open |
+| 1 | Snapshot retention for Ceph RBD | **Not supported in 1.19.0.** The `VolumeSnapshotClass` `deletionPolicy` inheritance is being rolled back; a separate Case 2 design ([#10744](https://github.com/velero-io/velero/issues/10744)) targets a 1.19.x patch |
 | 2 | ChangeId = CSI snapshot handle | Resolved: confirmed for Ceph and fixed on `main` ([#10307](https://github.com/velero-io/velero/pull/10307)); fix not in 1.18.x |
 | 3 | Fallback when the delta cannot be computed | Implemented (degrades changed -> allocated -> full); Ceph-specific documentation remains open |
 | 4 | 1 MiB chunk alignment | Compatibility note; unchanged |
@@ -34,15 +34,55 @@ in the same clone chain. Deleting the VolumeSnapshot after backup upload complet
 design's **Case 1**) removes the base snapshot, so `GetMetadataDelta` cannot compute a
 diff against it. The design's **Case 2** (retain the snapshot) is required for Ceph.
 
-### How Retention is Actually Configured
+### Status as of 2026-10-27
 
-The design describes a `RetainSnapshot` VolumePolicy parameter. That parameter is
-**not implemented**. The implemented mechanism is
-[velero-io/velero#10307](https://github.com/velero-io/velero/pull/10307): the backup's
-`VolumeSnapshotContent` inherits `DeletionPolicy` from the source
-VolumeSnapshotContent / `VolumeSnapshotClass` (releases without this fix always
-use `Delete`). For Ceph RBD, set `deletionPolicy: Retain` on the `VolumeSnapshotClass` used
-for backups:
+The 2026-10-27 Velero community meeting decided that **Velero 1.19.0 does not support
+Case 2**:
+
+- The class-inherit half of [velero-io/velero#10307](https://github.com/velero-io/velero/pull/10307)
+  is being rolled back (Lyndon-Li's rollback PR), so the backup
+  `VolumeSnapshotContent` is always `Delete`, as in 1.18.
+- The changeID fix from the same PR ([#10294](https://github.com/velero-io/velero/issues/10294))
+  stays.
+- Velero no longer reads the `VolumeSnapshotClass` `deletionPolicy` for data movement.
+- The file system data mover never retains snapshots.
+
+Consequence on Ceph RBD with 1.19.0: once the base snapshot has been deleted,
+`GetMetadataDelta` fails (ceph-csi reports `no snap source in omap`) and the uploader
+falls back to a non-CBT backup (`fallbackFull`). The backup data is still correct; only
+the incremental saving is lost. This is the expected 1.19.0 behavior, not a driver
+regression.
+
+Case 2 is now a separate design targeting a 1.19.x patch: umbrella
+[#10743](https://github.com/velero-io/velero/issues/10743), design
+[#10744](https://github.com/velero-io/velero/issues/10744), and a draft design document
+([base-snapshot-retention.md](https://github.com/kaovilai/velero/blob/design-base-snapshot-retention/design/block-data-mover/base-snapshot-retention.md)).
+Everything in that draft beyond the meeting decisions is a proposal:
+
+- Precedence: a VolumePolicy parameter (working name `retainBaseSnapshot`) overrides
+  autodetection from the SnapshotMetadataService `spec.requireBaseSnapshotForDelta`
+  field, which overrides the default of not retaining. The parameter name is not
+  settled.
+- Velero owns the Retain lifecycle instead of reading the VolumeSnapshotClass.
+- Keep one retained snapshot per volume chain: delete the previous one after the next
+  backup succeeds, and delete it when its backup is deleted.
+- Failed, canceled, or interrupted data movement never leaves a retained snapshot.
+- KEP-3314 places the "does this driver need the base snapshot" decision on the backup
+  application; `requireBaseSnapshotForDelta` is the discovery mechanism.
+
+Timeline: Ceph CBT is deferred, not dropped. It remains in the 1.19 stream (1.19.x) and
+is **targeted** for OADP 1.7; that is a target, not a commitment.
+
+### The Withdrawn Mechanism (Pre-Rollback Builds)
+
+Builds between [#10307](https://github.com/velero-io/velero/pull/10307) and the rollback
+made the backup `VolumeSnapshotContent` inherit `DeletionPolicy` from the source
+VolumeSnapshotContent / `VolumeSnapshotClass`. This is the mechanism the results below
+were produced with, and it is **withdrawn for 1.19.0**. It was also incomplete: nothing
+tracked or deleted the retained snapshot, so snapshots leaked
+([#9835](https://github.com/velero-io/velero/issues/9835),
+[#10304](https://github.com/velero-io/velero/issues/10304)). The class used in those
+tests looked like this:
 
 ```yaml
 apiVersion: snapshot.storage.k8s.io/v1
@@ -59,34 +99,46 @@ parameters:
   csi.storage.k8s.io/snapshotter-secret-namespace: openshift-storage
 ```
 
-Without retention, each backup after the first degrades to an allocated-blocks or full
-backup because there is no base snapshot to diff against. There is no automatic
-detection of whether a driver needs the parent snapshot retained. Upstream
-[external-snapshot-metadata#258](https://github.com/kubernetes-csi/external-snapshot-metadata/pull/258)
-(unreleased) proposes an optional `spec.requireBaseSnapshotForDelta` on the
-SnapshotMetadataService so a driver can advertise this; CephCSI/ODF support for it is
-not verified.
+Do not plan new deployments on this mechanism. Under 1.19.0 the class is ignored for
+data movement, and under pre-release builds it retained without managing deletion.
+
+### What Was Validated (Pre-Rollback Builds, Base Retained)
+
+These results were obtained with a retained base snapshot on pre-release Velero builds
+(OCP with Rook, and ODF):
+
+- End-to-end CBT produced real incrementals, for example a delta of exactly
+  150994944 bytes.
+- Whole-device sha256 matched at every restore point, VMs booted, and multi-disk VMs
+  including a hotplugged disk matched checksums.
+- In-place incremental restore (`existingVolumeDataPolicy: incremental`) moved
+  270532608 bytes for a 30 GiB volume in 22 s.
+- Counter-example: with the base snapshot deleted (a `Delete` class), ceph-csi failed
+  with `no snap source in omap` and the backup fell back to full. This is the same
+  path 1.19.0 takes by default.
 
 ### Remaining Asks
 
-- **Documentation**: the user docs page for the block data mover
-  (`csi-snapshot-data-movement.md`, updated by
-  [#10537](https://github.com/velero-io/velero/pull/10537)) does not mention snapshot
-  retention, `deletionPolicy: Retain`, or Ceph RBD requirements. Document that
-  Ceph RBD needs a retaining `VolumeSnapshotClass`.
-- **Design/implementation alignment**: the design text still refers to the
-  `RetainSnapshot` parameter and "Way 1 / Way 2" terminology; align it with the
-  `VolumeSnapshotClass` mechanism.
-- **Reclamation**: retained snapshots must be reclaimed when the backup chain is pruned
-  (the `VolumeSnapshotContent` with `DeletionPolicy: Retain` and the underlying RBD
-  snapshot). Reclamation at backup deletion is **not confirmed implemented**:
-  [#10304](https://github.com/velero-io/velero/issues/10304) was closed as a duplicate
-  of [#9835](https://github.com/velero-io/velero/issues/9835) (closed, no linked PR),
-  and the backup deletion controller has no retain/CBT handling as of this writing.
+- **Case 2 design and implementation**: settle the configuration source, the tracking
+  record, rotation, and deletion semantics in
+  [#10744](https://github.com/velero-io/velero/issues/10744), then land it in a 1.19.x
+  patch. [#10691](https://github.com/velero-io/velero/pull/10691) is the draft
+  candidate implementation.
+- **Documentation**: the block data mover docs (`csi-snapshot-data-movement.md`,
+  updated by [#10537](https://github.com/velero-io/velero/pull/10537)) should state
+  that 1.19.0 does not retain base snapshots for data movement, that Ceph RBD
+  incrementals fall back until Case 2 lands, and how to configure retention once the
+  parameter exists.
+- **Autodetection**: read `requireBaseSnapshotForDelta` from the SnapshotMetadataService
+  ([velero#10722](https://github.com/velero-io/velero/issues/10722)) after an
+  external-snapshot-metadata release includes it, and have Ceph RBD set it to `true`
+  ([ceph-csi#6680](https://github.com/ceph/ceph-csi/issues/6680)).
 
 ### Impact
 
-- **Storage overhead**: Retained snapshots consume Ceph pool space (COW extents).
+- **Storage overhead**: A retained base snapshot consumes Ceph pool space (COW
+  extents). The proposed one-per-chain rule bounds this to one extra snapshot per
+  volume chain, versus one per backup under the withdrawn mechanism.
 - **Self-defeating accumulation**: CephCSI flattens when an image reaches
   `maxSnapshotsOnImage` (default 450) and flattens down to `minSnapshotsOnImage`
   (default 250); these are CephCSI defaults, not a hard limit of 250. Retained or
@@ -242,8 +294,10 @@ to RBD volumes. CephFS volumes should continue using the file system data mover.
 
 ### Remaining Ask
 
-Add a Ceph RBD example to the Velero docs showing the retaining `VolumeSnapshotClass`
-plus the policy above; the current docs page only shows an EBS/EFS example.
+Add a Ceph RBD example to the Velero docs once the Case 2 retention parameter is
+accepted, showing that parameter plus the policy above. The current docs page only shows
+an EBS/EFS example, and the `VolumeSnapshotClass` `deletionPolicy` path must not be
+documented as the Ceph mechanism.
 
 ---
 
@@ -362,11 +416,13 @@ skips flattening for read-only restores to be fully effective. Velero does not c
 
 | # | Change | Priority | Velero Component |
 |---|--------|----------|-----------------|
-| 1 | Document `deletionPolicy: Retain` on the `VolumeSnapshotClass` as the Ceph RBD retention mechanism; align design text (`RetainSnapshot`) with it | **Critical** | Documentation, design |
-| 2 | Reclaim retained snapshots when a backup is deleted (not confirmed implemented) | **High** | Backup deletion controller |
-| 3 | Backport or document the [#10307](https://github.com/velero-io/velero/pull/10307) changeID fix for 1.18.x users | **High** | Release notes / backport |
+| 1 | Design and land Case 2 retention for storage that needs the base snapshot ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744)); target 1.19.x | **Critical** | Block data mover, design |
+| 2 | Track and delete retained snapshots (rotation after the next backup, deletion with the backup); [#10691](https://github.com/velero-io/velero/pull/10691) is the draft candidate | **High** | Backup deletion, DataUpload controller |
+| 3 | Backport or document the [#10307](https://github.com/velero-io/velero/pull/10307) changeID fix for 1.18.x users (the class-inherit part is withdrawn) | **High** | Release notes / backport |
 | 4 | Document Ceph-specific fallback causes; surface the failing status in the fallback reason | **Medium** | Block Data Mover, documentation |
-| 5 | Ceph RBD Volume Policy + VolumeSnapshotClass example | **Medium** | Documentation, examples |
+| 5 | Ceph RBD Volume Policy example once the retention parameter is accepted | **Medium** | Documentation, examples |
 | 6 | Pre-flight check and docs for the SnapshotMetadataService prerequisite (Ceph/ODF setup) | **High** | Documentation, pre-flight checks |
 | 7 | Document read-only `backupPVC` for Ceph RBD (and the ceph-csi >= 3.18 dependency) | **Medium** | Documentation |
 | 8 | Document 1 MiB chunk alignment | **Low** | Documentation |
+| 9 | Bound block data mover write concurrency and set a Go soft memory limit; on a 96 vCPU node the default still OOMs ([#10724](https://github.com/velero-io/velero/issues/10724), fix in [#10740](https://github.com/velero-io/velero/pull/10740)) | **High** | Block data mover |
+| 10 | Do not block the single DataDownload worker while waiting for a `WaitForFirstConsumer` PVC ([#10730](https://github.com/velero-io/velero/issues/10730); workaround `restorePVC.ignoreDelayBinding: true`) | **High** | DataDownload controller |

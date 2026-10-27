@@ -128,8 +128,8 @@ transition: slide-left
 |---|---|---|
 | **GetMetadataAllocated** | Full backup: sparse block detection | Works |
 | **GetMetadataDelta** | Incremental backup: changed blocks | Works (with caveats) |
-| **Snapshot retention (Case 2)** | Keep previous snap for delta | Required for Ceph |
-| **Snapshot retention (Case 1)** | Delete previous snap after backup | Fails on Ceph |
+| **Snapshot retention (Case 2)** | Keep previous snap for delta | Required for Ceph; not supported in Velero 1.19.0 |
+| **Snapshot retention (Case 1)** | Delete previous snap after backup | 1.19.0 default on Ceph: delta fails, backup falls back (data correct) |
 | **FS-to-Block volume mode** | Block Data Mover reads FS volumes as block | Works (KEP-3141) |
 | **Rebind Block-to-FS** | Restore FS volume after block backup | Works |
 | **Flattening prevention** | Shallow chains stay intact | Works (depth < soft limit) |
@@ -141,7 +141,7 @@ transition: slide-left
 
 <!--
 - Green: works today, Velero can rely on it
-- Case 1 retention is a hard constraint -- Velero must retain previous snapshot
+- Case 1 is the 1.19.0 default; on Ceph the delta call fails and the backup degrades instead of failing
 - Post-flatten delta failure is expected -- no stored diffs mechanism exists
 -->
 
@@ -182,7 +182,7 @@ Ceph RBD **requires** retaining the previous snapshot for `GetMetadataDelta`.
 
   - Both snapshots remain in clone chain
   - `GetMetadataDelta` succeeds
-  - **Required** for Ceph RBD
+  - **Required** for Ceph RBD (pending in Velero)
 
   </div>
 </div>
@@ -194,15 +194,16 @@ Ceph RBD **requires** retaining the previous snapshot for `GetMetadataDelta`.
 <v-click>
 <div class="mt-3 p-2 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-Ref: [Velero Block Data Mover Design (merged)](https://github.com/velero-io/velero/pull/9528) -- the design's `RetainSnapshot` parameter is not implemented; on Ceph set `deletionPolicy: Retain` on the VolumeSnapshotClass ([PR #10307](https://github.com/velero-io/velero/pull/10307)). No auto-detection of which retention mode a CSI driver needs.
+Ref: [Velero Block Data Mover Design (merged)](https://github.com/velero-io/velero/pull/9528) defines the two cases. Velero 1.19.0 does **not** support Case 2: the class-inherit part of [PR #10307](https://github.com/velero-io/velero/pull/10307) is being rolled back, so Ceph incrementals fall back until the separate Case 2 design lands ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744), targeted for 1.19.x). Retention would be configured by Velero, not by `deletionPolicy: Retain` on the VolumeSnapshotClass.
 
 </div>
 </v-click>
 
 <!--
-- Velero design doc defines Case 1 and Case 2 retention strategies; in code, retention follows the VolumeSnapshotClass deletionPolicy (PR #10307)
-- Ceph RBD requires Case 2 because rbd diff traverses parent chain
-- Test: velero_compliance_test.go -- negative test asserts Case 1 fails
+- Velero design doc defines Case 1 and Case 2 retention strategies
+- 2026-10-27 community meeting: 1.19.0 drops the class-inherit behavior (rollback of part of #10307); the changeID fix stays
+- Ceph RBD requires Case 2 because rbd diff traverses the parent chain
+- Test: velero_compliance_test.go -- negative test asserts Case 1 fails at the CSI layer; Velero then falls back
 -->
 
 
@@ -301,7 +302,7 @@ graph TD
 <v-click>
 <div class="mt-2 p-2 bg-red-900 bg-opacity-20 rounded text-sm">
 
-After flattening: `GetMetadataDelta` **fails** at the driver level -- `rbd diff` needs intact clone chain. **Velero degrades gracefully** -- the CBT bitmap ([PR #9736](https://github.com/velero-io/velero/pull/9736), merged) falls back to an allocated-blocks or full backup (targeting v1.19, not yet released). `GetMetadataAllocated` can also fail in manual-flatten scenarios without stored diffs.
+After flattening: `GetMetadataDelta` **fails** at the driver level -- `rbd diff` needs intact clone chain. **Velero degrades gracefully** -- the CBT bitmap ([PR #9736](https://github.com/velero-io/velero/pull/9736), merged) falls back to an allocated-blocks or full backup (Velero 1.19.0 is in development). `GetMetadataAllocated` can also fail in manual-flatten scenarios without stored diffs.
 
 </div>
 </v-click>
@@ -394,7 +395,7 @@ What happens when flattening **does** break the chain?
 
 **Driver-level gap**: No "stored diffs in omap" mechanism exists in CephCSI. `GetMetadataDelta` fails for flattened snapshot pairs.
 
-**Velero handling is merged for v1.19 (unreleased)**: when delta fails, the CBT bitmap ([PR #9736](https://github.com/velero-io/velero/pull/9736)) falls back to allocated blocks or a full backup, then incrementals resume from the new full backup.
+**Velero handling is merged for v1.19 (in development)**: when delta fails, the CBT bitmap ([PR #9736](https://github.com/velero-io/velero/pull/9736)) falls back to allocated blocks or a full backup, then incrementals resume from the new full backup. On Ceph RBD under 1.19.0, a deleted base snapshot takes this same path.
 
 </div>
 </v-click>
@@ -450,10 +451,10 @@ Retaining snapshots for CBT can **trigger the flattening it's trying to avoid**.
 
 <v-clicks>
 
-- Velero retains snapshots (Case 2, `deletionPolicy: Retain`) for incremental delta
-- Frequent backups (e.g., hourly) accumulate snapshots on source image
+- Case 2 requires a base snapshot to stay on the source image
+- Frequent backups (e.g., hourly) can accumulate snapshots if retention is unmanaged
 - Hit `maxSnapshotsOnImage` (default 450) → CephCSI flattens intermediate clones
-- Flattening breaks clone chain → next `GetMetadataDelta` fails → full backup
+- Flattening breaks clone chain → next `GetMetadataDelta` fails → backup falls back
 - New chain starts → incremental resumes → cycle repeats at threshold
 
 </v-clicks>
@@ -461,16 +462,16 @@ Retaining snapshots for CBT can **trigger the flattening it's trying to avoid**.
 <v-click>
 <div class="mt-4 p-3 bg-yellow-900 bg-opacity-20 rounded text-sm">
 
-**Mitigation**: Schedule periodic full backups (weekly/monthly) and clean up old snapshots. Reclaiming retained snapshots when a backup is deleted is not confirmed implemented ([Velero #9835](https://github.com/velero-io/velero/issues/9835)) -- manage retention to stay below thresholds.
+**Where this stands**: 1.19.0 retains nothing, so it does not add snapshots (and Ceph backups fall back once the base is gone). The proposed Case 2 design keeps **one** retained snapshot per volume chain, deletes the previous one after the next backup succeeds, and deletes it with its backup ([#10744](https://github.com/velero-io/velero/issues/10744)). Pre-rollback builds had no such tracking ([#9835](https://github.com/velero-io/velero/issues/9835)).
 
 </div>
 </v-click>
 
 <!--
 - Self-defeating cycle: retain for CBT → more snapshots → triggers flatten → breaks CBT
-- BDM design acknowledges this but delegates cleanup to user policy
-- Practical impact: with hourly backups, ~450 hours (~19 days) before first flatten cycle
-- Users should set Velero backup retention to delete old backups + snapshots before threshold
+- 1.19.0 avoids the cycle by not retaining, at the cost of incremental Ceph backups
+- The pending design bounds it to one snapshot per chain
+- Periodic full backups remain a sensible fallback for chains that already flattened
 -->
 
 
@@ -551,6 +552,58 @@ Velero needs graceful error handling from the driver to decide when to fall back
 transition: slide-left
 ---
 
+# Velero BDM Status (2026-10-27)
+
+<div class="grid grid-cols-2 gap-6 mt-4 text-sm">
+<div>
+
+**Decided**
+- 1.19.0 does not support Case 2; class-inherit part of #10307 rolled back, changeID fix stays
+- fs data mover never retains snapshots
+- Case 2 design targets a 1.19.x patch ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744))
+- OADP 1.7 is a target for Ceph CBT, not a commitment
+
+**Merged**
+- [#10698](https://github.com/velero-io/velero/pull/10698) `BLKZEROOUT` restore fix
+- [#10696](https://github.com/velero-io/velero/pull/10696) design case order
+- [#10700](https://github.com/velero-io/velero/pull/10700) kopia snapshot not found after interrupted deletion
+
+</div>
+<div>
+
+**Open**
+- [#10699](https://github.com/velero-io/velero/pull/10699) in-place restore baseline snapshot leak
+- [#10708](https://github.com/velero-io/velero/pull/10708) source VSC left by interrupted expose (draft)
+- [#10710](https://github.com/velero-io/velero/pull/10710) failed-backup VolumeSnapshot cleanup
+- [#10718](https://github.com/velero-io/velero/pull/10718) docs
+- [#10691](https://github.com/velero-io/velero/pull/10691) retention deletion (draft, #10744 candidate)
+
+**Known issues**
+- [#10724](https://github.com/velero-io/velero/issues/10724) / [#10740](https://github.com/velero-io/velero/pull/10740) DM pod OOM on large-CPU nodes
+- [#10730](https://github.com/velero-io/velero/issues/10730) WFFC + Immediate restore deadlock
+
+</div>
+</div>
+
+<v-click>
+<div class="mt-3 p-2 bg-blue-900 bg-opacity-20 rounded text-sm">
+
+**Field results (pre-rollback builds, base retained)**: real incrementals (e.g. delta of exactly 150994944 bytes), whole-device sha256 matched at every restore, VMs booted, multi-disk VMs with hotplug matched, and in-place incremental restore moved 270532608 bytes for 30 GiB in 22 s.
+
+</div>
+</v-click>
+
+<!--
+- 1.19.0 is in development; latest release is v1.18.4
+- OOM: on 96 vCPU, default still OOMs; cpuLimit 2/8/16 gave peaks of 384/690/928 MiB, all passing (node-agent podResources)
+- Deadlock workaround: restorePVC.ignoreDelayBinding: true
+-->
+
+
+---
+transition: slide-left
+---
+
 # Summary: What Velero Needs to Know
 
 <div class="grid grid-cols-2 gap-6 mt-4 text-sm">
@@ -558,25 +611,26 @@ transition: slide-left
 
 **Works Today**
 - `GetMetadataAllocated` for full backup
-- `GetMetadataDelta` for incremental (with retention)
+- `GetMetadataDelta` for incremental (needs the base snapshot retained)
 - FS-to-Block conversion (KEP-3141)
 - Block-to-FS rebind after backup
 - Volume resize between backups
 - Shallow clone chains (typical workflows)
 - Graceful error responses
-- **Automatic fallback** (allocated/full) on CBT errors ([PR #9736](https://github.com/velero-io/velero/pull/9736), merged; Velero v1.19 unreleased)
+- **Automatic fallback** (allocated/full) on CBT errors ([PR #9736](https://github.com/velero-io/velero/pull/9736), merged; Velero 1.19.0 in development)
 
 </div>
 <div>
 
 **Constraints & User Actions**
-- **Must set** `deletionPolicy: Retain` on the VolumeSnapshotClass (Case 2)
+- **Velero 1.19.0 does not retain base snapshots**: Ceph delta falls back once the base is gone; no user configuration restores incrementality yet
+- Case 2 retention is a separate design for a 1.19.x patch ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744))
 - Delta fails after flattening (Velero degrades changed -> allocated -> full backup)
 - **Existing backups always safe** after flattening
 - No stored diffs mechanism in CephCSI
 - No priority-based flattening (both still proposals)
 - ROX restores skip flattening on ceph-csi >= v3.18.0 ([PR #6534](https://github.com/ceph/ceph-csi/pull/6534))
-- Manage snapshot retention to stay below 450/image
+- On OCP, set `nodePlugin.enableSeLinuxHostMount: true` for RBD Filesystem volumes ([ceph-csi#6679](https://github.com/ceph/ceph-csi/issues/6679))
 - Periodic full backups recommended (weekly/monthly)
 
 </div>
@@ -585,13 +639,13 @@ transition: slide-left
 <v-click>
 <div class="mt-4 p-3 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-**Velero BDM** ([PR #9528](https://github.com/velero-io/velero/pull/9528), merged): Use Case 2 retention. Bitmap fallback is merged ([PR #9736](https://github.com/velero-io/velero/pull/9736)); the Ceph changeID fix is in [PR #10307](https://github.com/velero-io/velero/pull/10307) (main/v1.19, not in 1.18.x). Backup data in Kopia is independent of source -- no action needed for existing backups.
+**Velero BDM** ([PR #9528](https://github.com/velero-io/velero/pull/9528), merged): bitmap fallback is merged ([PR #9736](https://github.com/velero-io/velero/pull/9736)); the Ceph changeID fix is in [PR #10307](https://github.com/velero-io/velero/pull/10307) (main/v1.19, not in 1.18.x). Case 2 retention is **not** in 1.19.0 and is being designed for 1.19.x ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744)). Backup data in Kopia is independent of source -- no action needed for existing backups.
 
 </div>
 </v-click>
 
 <!--
-- Velero can rely on CBT for Ceph with Case 2 retention once v1.19 ships (changeID fix is not in 1.18.x)
+- 1.19.0 gives Ceph correct backups that fall back to full once the base is gone; incrementality waits for Case 2 in a 1.19.x patch (targeted for OADP 1.7, not committed)
 - Flattening risk is low for typical workflows and handled by auto-fallback
 - Existing backups are always safe -- data is in Kopia, independent of RBD
 - Future CephCSI improvements (stored diffs, priority flatten) would reduce full-backup frequency
@@ -626,7 +680,11 @@ transition: slide-left
 - [CBT Interfaces (merged)](https://github.com/velero-io/velero/pull/9716) -- PR #9716
 - [CBT Bitmap (merged)](https://github.com/velero-io/velero/pull/9736) -- PR #9736
 - [ChangeId for Ceph (closed)](https://github.com/velero-io/velero/issues/9714) -- Issue #9714
-- [changeID + retention fix (merged)](https://github.com/velero-io/velero/pull/10307) -- PR #10307
+- [changeID fix (merged; class-inherit part rolled back)](https://github.com/velero-io/velero/pull/10307) -- PR #10307
+- [Case 2 umbrella](https://github.com/velero-io/velero/issues/10743) -- Issue #10743
+- [Case 2 design](https://github.com/velero-io/velero/issues/10744) -- Issue #10744
+- [Base-snapshot retention draft](https://github.com/kaovilai/velero/blob/design-base-snapshot-retention/design/block-data-mover/base-snapshot-retention.md) -- proposals for 1.19.x
+- [BLKZEROOUT restore fix (merged)](https://github.com/velero-io/velero/pull/10698) -- PR #10698
 - [CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
 
 **Setup & Getting Started**

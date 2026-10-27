@@ -186,9 +186,15 @@ ReadOnlyMany PVCs created from snapshots are intended to avoid RBD flattening, p
 
 When a snapshot's intermediate RBD image is flattened (clone chain broken), `rbd snap diff` across images fails and `GetMetadataDelta` cannot compute deltas. There is a [design proposal](CLAUDE.md#key-domain-concepts) ("Combined solution") to store diffs in Ceph omap before flattening as a fallback, but as of Oct 2026 no PR, issue, or design document for it was found in CephCSI.
 
-## Velero CBT Integration Status (as of Oct 2026)
+## Velero CBT Integration Status (as of 2026-10-27)
 
-Velero's block data mover has merged on `main` and is unreleased: the latest release is v1.18.4 and there is no v1.19 tag, release candidate, or branch yet. Chain of work:
+Velero's block data mover has merged on `main` and is unreleased: the latest release is v1.18.4 and there is no v1.19 tag yet.
+
+**What changed at the 2026-10-27 community meeting:** Velero 1.19.0 will not support Case 2 (storage that needs the base snapshot to still exist when `GetMetadataDelta` is called, which includes Ceph RBD). The class-inherit half of [#10307](https://github.com/velero-io/velero/pull/10307) is being rolled back, so the backup `VolumeSnapshotContent` is always `Delete` as in 1.18; the changeID fix from the same PR ([#10294](https://github.com/velero-io/velero/issues/10294)) stays. Starting from 1.19.0, when the base snapshot is already deleted, `GetMetadataDelta` fails and the block data mover falls back to a non-CBT backup (`fallbackFull`). The backup data is still correct; only the incremental saving is lost. The file system data mover never retains snapshots.
+
+Case 2 is now a separate design targeting a 1.19.x patch: umbrella [#10743](https://github.com/velero-io/velero/issues/10743), design [#10744](https://github.com/velero-io/velero/issues/10744), and a draft design document ([base-snapshot-retention.md](https://github.com/kaovilai/velero/blob/design-base-snapshot-retention/design/block-data-mover/base-snapshot-retention.md)). Everything below that line is a proposal: a VolumePolicy parameter (working name `retainBaseSnapshot`) takes precedence over autodetection from the SnapshotMetadataService `requireBaseSnapshotForDelta` field, with "do not retain" as the default. Velero would own the Retain lifecycle instead of reading the VolumeSnapshotClass: keep only the latest snapshot per volume chain, delete the previous one once the next backup succeeds, and delete it when the backup is deleted. KEP-3314 assigns the decision of whether a driver needs the base snapshot to the backup application. Ceph CBT is deferred, not dropped: it stays in the 1.19 stream (1.19.x) and is targeted for OADP 1.7, which is a target and not a commitment.
+
+Chain of work:
 
 | Step | PR/Issue | Status | Description |
 |------|----------|--------|-------------|
@@ -200,14 +206,16 @@ Velero's block data mover has merged on `main` and is unreleased: the latest rel
 | Service-to-bitmap | [Issue #9715](https://github.com/velero-io/velero/issues/9715) | **Completed** (closed) | Glue between gRPC client and bitmap |
 | Block uploader and workflow | [PR #9979](https://github.com/velero-io/velero/pull/9979), [PR #10067](https://github.com/velero-io/velero/pull/10067), [PR #10071](https://github.com/velero-io/velero/pull/10071) | **Completed** (merged) | Block uploader backup/restore and backup workflow |
 | Block data mover umbrella | [Issue #9556](https://github.com/velero-io/velero/issues/9556) | **Completed** (closed) | End-to-end block-level backup/restore |
-| Ceph changeID fix | [PR #10307](https://github.com/velero-io/velero/pull/10307) (fixes [#10294](https://github.com/velero-io/velero/issues/10294)) | **Completed** (merged on `main`, not in 1.18.x) | Generic CSI changeID retrieval (was empty on non-vSphere drivers, so every "incremental" ran full) and snapshot-class deletion policy honored for retention |
+| Ceph changeID fix | [PR #10307](https://github.com/velero-io/velero/pull/10307) (fixes [#10294](https://github.com/velero-io/velero/issues/10294)) | **ChangeID part kept**, class-inherit part being rolled back | Generic CSI changeID retrieval (was empty on non-vSphere drivers, so every "incremental" ran full). The `deletionPolicy` inheritance from the VolumeSnapshotClass is withdrawn for 1.19.0 |
+| Case 2 retention umbrella | [Issue #10743](https://github.com/velero-io/velero/issues/10743), [design #10744](https://github.com/velero-io/velero/issues/10744) | **Open** (design, target 1.19.x) | Retention for storage that needs the base snapshot (Ceph RBD); see above |
+| Retention deletion (candidate) | [PR #10691](https://github.com/velero-io/velero/pull/10691) | **Draft** | Records retained snapshots and deletes them with the backup; to be reworked against #10744 |
 | Docs | [PR #10537](https://github.com/velero-io/velero/pull/10537) | **Completed** (merged) | Block data mover section in `csi-snapshot-data-movement.md` |
 
 Enablement: no alpha flag; the CSI feature (`EnableCSI`) is required, and the data mover is selected per backup (`velero backup create ... --snapshot-move-data --data-mover velero-block [--backup-type Incremental|Full]`) or per volume via VolumePolicy snapshot action parameters (`dataMover: velero-block|velero-fs`).
 
-Snapshot retention for Ceph: the design's `RetainSnapshot` VolumePolicy parameter is not implemented in code. Retention follows the VolumeSnapshotClass instead; set `deletionPolicy: Retain` on the RBD VolumeSnapshotClass. Whether retained base snapshots are reclaimed when a backup is deleted is not confirmed ([#9835](https://github.com/velero-io/velero/issues/9835), [#10304](https://github.com/velero-io/velero/issues/10304)); unreclaimed snapshots increase pressure toward `maxSnapshotsOnImage` flattening.
+Snapshot retention for Ceph: do not rely on a `deletionPolicy: Retain` VolumeSnapshotClass with 1.19.0. That path is being withdrawn, and on Ceph it buys no incrementality without the Case 2 tracking and lifecycle work. Until #10743/#10744 land in a 1.19.x patch, expect Ceph block data mover backups to fall back to allocated-blocks or full when the base snapshot is gone. The earlier retention path also left unreclaimed snapshots ([#9835](https://github.com/velero-io/velero/issues/9835), [#10304](https://github.com/velero-io/velero/issues/10304)), which increases pressure toward `maxSnapshotsOnImage` flattening.
 
-**What this test suite validates today:** The CSI-level CBT layer (gRPC calls directly to the external-snapshot-metadata sidecar via CephCSI). This is the same protocol that Velero's CBT service uses.
+**What this test suite validates today:** The CSI-level CBT layer (gRPC calls directly to the external-snapshot-metadata sidecar via CephCSI). This is the same protocol that Velero's CBT service uses. The end-to-end Velero results in this repo's tracking docs were obtained with a retained base snapshot on pre-release builds, before the rollback.
 
 **Candidate coverage:** The in-place incremental restore design ([PR #10014](https://github.com/velero-io/velero/pull/10014)) and retained-snapshot behavior under `maxSnapshotsOnImage` pressure are not covered here yet.
 

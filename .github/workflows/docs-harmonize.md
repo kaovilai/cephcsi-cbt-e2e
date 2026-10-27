@@ -78,8 +78,11 @@ For each file, extract:
 For each unique PR/issue reference found, check the current status using GitHub tools:
 
 ### Key references to check:
-- `velero-io/velero` PRs: #9528, #9716, #9724, #9736
-- `velero-io/velero` Issues: #9710, #9715, #9714, #9556
+- `velero-io/velero` PRs: #9528, #9716, #9724, #9736, #10307, #10691, #10698, #10699, #10700, #10708, #10710, #10718, #10740
+- `velero-io/velero` Issues: #9710, #9715, #9714, #9556, #10722, #10724, #10730, #10743, #10744
+- `kubernetes-csi/external-snapshot-metadata` PRs: #258
+- `ceph/ceph-csi` Issues: #6679, #6680
+- `ceph/ceph-csi-operator` PRs: #649; `rook/rook` PRs: #18636
 - `ceph/ceph-csi` PRs: #5347, #2900, #1678, #1160, #3651, #2893
 - `ceph/ceph-csi` Issues: #5346, #1800, #2190
 - `red-hat-storage/ceph-csi-operator` commits referenced
@@ -148,3 +151,10 @@ Group findings by file. If no Go discrepancies found, skip issue creation.
 - Keep CLAUDE.md's detailed technical explanations intact — only update status claims
 - In demo/slides.md, preserve Slidev syntax (v-clicks, mermaid blocks, HTML divs)
 - If unsure about a change, err on the side of NOT changing it and mention it in the PR description as needing human review
+- **Canonical status for Velero block data mover retention**: the 2026-10-27 Velero
+  community meeting decided that Velero 1.19.0 does not support Case 2 (the
+  class-inherit half of #10307 is rolled back, the changeID fix stays), and that Case 2
+  is a separate design for a 1.19.x patch (#10743, #10744). Text that says Ceph
+  incrementals work in 1.19.0, or that a `deletionPolicy: Retain` VolumeSnapshotClass is
+  the supported Ceph mechanism, is stale even if an upstream design page still implies
+  it. Keep "pre-rollback" labels on historical results; do not delete them.

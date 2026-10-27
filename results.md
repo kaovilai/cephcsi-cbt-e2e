@@ -8,6 +8,10 @@
 > read-only volume capabilities skip flattening
 > ([ceph-csi#6534](https://github.com/ceph/ceph-csi/pull/6534)); the ROX PVC and
 > Flattening Prevention results below have not been re-validated there.
+>
+> These are CSI-layer results from this suite, not Velero end-to-end runs. The Velero
+> field results that follow them were produced separately, with a retained base
+> snapshot on pre-release Velero builds.
 
 **Date**: 2026-03-26
 **Cluster**: mig-tkaovila-mar26 (OCP 4.21.7, K8s v1.34.5, Ceph 20.1.0 Tentacle)
@@ -134,3 +138,26 @@ The first test run (with ODF's shipped sidecar) had 5 failures and 19 skipped te
 **Workaround**: Override the sidecar image to upstream `registry.k8s.io/sig-storage/csi-snapshot-metadata:v0.2.0` via driver-level ImageSet ConfigMap. Automated in `ocp-setup/step4-cbt-sidecar.sh` step 4g with ODF version detection (applies only on ODF versions that ship an older sidecar, i.e. before 4.22). `v0.2.0` is the only sidecar configuration validated by this suite. A newer upstream sidecar (for example `v1.1.0`, which Velero used in its own live Ceph/ODF validation of [velero-io/velero#10307](https://github.com/velero-io/velero/pull/10307); platform OCP 5.0 + ODF 4.21.10 per [#10294](https://github.com/velero-io/velero/issues/10294)) is a possible option but has not been tested here.
 
 After applying the override, all 48 tests pass — including expected **post-flatten failure** assertions in the stored-diffs suite (no CephCSI stored-diffs fallback today), plus backup workflows, Velero compliance, volume resize, flattening prevention, error handling, and volume mode rebind.
+
+## Velero Block Data Mover Field Validation (pre-rollback builds)
+
+**Scope**: these results come from Velero end-to-end runs on OCP with Rook and on ODF,
+using **pre-release Velero builds that retained the base snapshot** (the
+`deletionPolicy: Retain` inheritance from
+[velero-io/velero#10307](https://github.com/velero-io/velero/pull/10307), withdrawn for
+1.19.0). They are not results from the 48-test CSI suite above and have not been
+reproduced on 1.19.0. Treat them as evidence that the CSI layer and the data path work
+when a base snapshot is present, not as a statement about default 1.19.0 behavior.
+
+| Check | Result |
+|---|---|
+| Incremental delta size | Real incrementals, for example exactly 150994944 bytes |
+| Restore integrity | Whole-device sha256 matched at every restore point |
+| VM behavior | VMs booted; multi-disk VMs, including a hotplugged disk, matched checksums |
+| In-place incremental restore (`existingVolumeDataPolicy: incremental`) | 270532608 bytes moved for a 30 GiB volume in 22 s |
+| Base snapshot deleted (`Delete` class) | ceph-csi returned `no snap source in omap`; the backup fell back to full |
+
+The last row is what 1.19.0 does by default now that the class-inherit part of #10307
+is rolled back: data is correct, but the backup is no longer incremental until Case 2
+retention lands ([velero#10743](https://github.com/velero-io/velero/issues/10743),
+[velero#10744](https://github.com/velero-io/velero/issues/10744), target 1.19.x).

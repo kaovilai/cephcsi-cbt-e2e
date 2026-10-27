@@ -131,13 +131,17 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 			len(result.Blocks), result.TotalChangedBytes())
 	})
 
-	// Velero retention Case 1: no snapshot retention (delete previous snapshot after backup).
+	// Velero Case 1: no snapshot retention (delete the previous snapshot after backup).
 	// Ceph RBD requires both snapshots to exist in the clone chain for `rbd snap diff`
 	// to compute a delta. When the parent snapshot is fully deleted (VolumeSnapshot +
 	// VolumeSnapshotContent + underlying RBD snapshot), delta computation must fail.
-	// This locks in that Velero's Case 1 retention strategy does NOT work with CephCSI
-	// and users must use Case 2 (retain previous snapshot).
-	// Ref: https://github.com/Lyndon-Li/velero/blob/block-data-mover-design/design/block-data-mover/block-data-mover.md#volume-snapshot-retention
+	//
+	// This is the path Velero 1.19.0 takes by default: the class-inherit half of
+	// velero-io/velero#10307 is rolled back, so the base snapshot is deleted and the
+	// block data mover falls back to a non-CBT backup (fallbackFull) instead of
+	// retaining it. Case 2 retention is a separate design for a 1.19.x patch
+	// (velero-io/velero#10743, #10744; #10691 is the draft candidate implementation).
+	// Ref: https://github.com/velero-io/velero/blob/main/design/block-data-mover/block-data-mover.md
 	It("should fail delta when parent snapshot is deleted (Case 1 no-retention does not work with Ceph)", func() {
 		By("Creating separate PVC and pod for deletion test")
 		delPVC := "velero-del-pvc"
@@ -202,7 +206,8 @@ var _ = Describe("Velero Compliance", Ordered, func() {
 		_, err = cbtClient.GetChangedBlocksByID(ctx, deletedHandle, delSnap2)
 		Expect(err).To(HaveOccurred(),
 			"Ceph RBD requires both snapshots in the clone chain for delta computation; "+
-				"Case 1 (no-retention) must not work — Velero users must use Case 2 (retain previous snapshot)")
+				"Case 1 (no-retention) is the expected 1.19.0 path and drives Velero's fallback; "+
+				"Case 2 retention is pending in a 1.19.x patch")
 		GinkgoWriter.Printf("Confirmed: Case 1 fails with Ceph as expected: %v\n", err)
 
 		By("Cleaning up deletion test resources")
