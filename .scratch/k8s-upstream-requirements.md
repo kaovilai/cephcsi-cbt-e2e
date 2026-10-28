@@ -440,6 +440,6 @@ SnapshotMetadataIteratorDone(numberRecords int) error
 
 3. **Snapshot ordering validation**: KEP requires target snapshot created after base. The sidecar implementation does NOT validate this -- it's left to the CSI driver.
 
-4. **CRD version**: KEP originally specified v1alpha1, but the current code uses v1beta1. The CLAUDE.md notes say "stays at v1alpha1" but the actual upstream code has graduated to v1beta1.
+4. **CRD version**: KEP originally specified v1alpha1; external-snapshot-metadata v1.0.0 graduated the CRD to v1beta1 and removed v1alpha1 with no conversion. This suite builds against v1beta1.
 
 5. **Error code differences**: KEP specifies `NotFound` for missing snapshots, but sidecar returns `Unavailable`. The `NotFound` code would come from the CSI driver level.

@@ -2,19 +2,19 @@
 
 ## Project Overview
 
-- **Location**: `/Users/tkaovila/experiments/cephcsi-cbt-e2e/tests/e2e/`
+- **Location**: `/Users/tkaovila/git/cephcsi-cbt-e2e/tests/e2e/`
 - **Framework**: Ginkgo v2 (BDD) with Gomega matchers
 - **Test Runner**: `go test` or `ginkgo` CLI
 - **Total Test Files**: 12
-- **Estimated Total Tests**: 50+ test cases across 12 suites
+- **Tests**: 48 `It` blocks across 10 spec files, plus the suite and timeout files
 
-## BeforeSuite Prerequisites (e2e_suite_test.go:88-219)
+## BeforeSuite Prerequisites (e2e_suite_test.go:103-225)
 
 Cluster preconditions validated before any test runs:
 
-- **Kubernetes >= 1.33**: Required for SnapshotMetadata alpha API (KEP-3314)
+- **Kubernetes >= 1.33**: First release with the SnapshotMetadata API (alpha in 1.33, beta in 1.36; this suite builds against v1beta1)
 - **VolumeSnapshot CRDs**: External-snapshotter must be installed
-- **SnapshotMetadataService CRD**: Remains at `v1alpha1` (out-of-tree, not graduating with K8s beta)
+- **SnapshotMetadataService CRD**: `v1beta1` since external-snapshot-metadata v1.0.0 (v1alpha1 was removed with no conversion)
 - **CephCSI RBD provisioner pods**: Discovered via label selectors with ODF version fallback
   - ODF 4.18+: `app.kubernetes.io/name=csi-rbdplugin,app.kubernetes.io/component=ctrlplugin`
   - ODF < 4.18: `app=csi-rbdplugin-provisioner`
