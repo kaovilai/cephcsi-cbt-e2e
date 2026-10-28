@@ -37,7 +37,7 @@ help:
 	@echo "  Build"
 	@echo "    build              Compile all packages"
 	@echo "    clean              Remove compiled test binary (e2e.test)"
-	@echo "    test               Run unit tests (pkg/...)"
+	@echo "    test               Run unit tests (pkg/..., cmd/cbt-check)"
 	@echo "    test-coverage      Run unit tests and write coverage.html"
 	@echo "    test-race          Run unit tests with the race detector"
 	@echo "    vet                Run go vet on all packages"
@@ -85,15 +85,15 @@ clean:
 	rm -f e2e.test coverage.out coverage.html
 
 test:
-	go test ./pkg/...
+	go test ./pkg/... ./cmd/cbt-check/...
 
 test-coverage:
-	go test -coverprofile=coverage.out ./pkg/...
+	go test -coverprofile=coverage.out ./pkg/... ./cmd/cbt-check/...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
 test-race:
-	go test -race ./pkg/...
+	go test -race ./pkg/... ./cmd/cbt-check/...
 
 vet:
 	go vet ./...
