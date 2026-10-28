@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Superseded pushes do not need to finish once a newer commit is on the branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest

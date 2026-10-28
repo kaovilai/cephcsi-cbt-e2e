@@ -12,6 +12,7 @@ only needed for the e2e suite.
 make build
 make test
 make test-race
+make vet
 make lint
 make shellcheck
 ```
