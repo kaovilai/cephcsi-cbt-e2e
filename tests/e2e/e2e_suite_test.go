@@ -107,10 +107,12 @@ var _ = BeforeSuite(func() {
 	serverVersion, err := clientset.Discovery().ServerVersion()
 	Expect(err).NotTo(HaveOccurred())
 	GinkgoWriter.Printf("Kubernetes server version: %s\n", serverVersion.GitVersion)
+	major, err := strconv.Atoi(strings.TrimSuffix(serverVersion.Major, "+"))
+	Expect(err).NotTo(HaveOccurred())
 	minor, err := strconv.Atoi(strings.TrimSuffix(serverVersion.Minor, "+"))
 	Expect(err).NotTo(HaveOccurred())
 	// Alpha went in v1.33. Beta is tracked for v1.36 (KEP-3314 kubernetes/enhancements#5877, merged).
-	Expect(minor).To(BeNumerically(">=", 33),
+	Expect(major > 1 || (major == 1 && minor >= 33)).To(BeTrue(),
 		"Kubernetes version must be >= 1.33 for SnapshotMetadata API.")
 
 	By("Checking VolumeSnapshot CRDs exist")
@@ -123,6 +125,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(),
 		"SnapshotMetadataService CRD (cbt.storage.k8s.io/v1beta1) not found. "+
 			"Ensure external-snapshot-metadata v1.0.0+ is deployed.")
+	Expect(smsList.Items).NotTo(BeEmpty(),
+		"No SnapshotMetadataService CR found. Create one for the RBD driver "+
+			"(see ocp-setup/step4-cbt-sidecar.sh) or pass -snapshot-metadata-service.")
 
 	By("Checking snapshot-metadata gRPC endpoint is reachable (in-cluster DNS)")
 	// If a specific SMS was requested, find its index (also validates it exists).
