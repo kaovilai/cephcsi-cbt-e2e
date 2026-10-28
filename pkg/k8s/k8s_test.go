@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -24,6 +25,131 @@ import (
 // NewClientset replacement for the deprecated NewSimpleClientset.
 func newSnapClient(objects ...runtime.Object) *snapfake.Clientset {
 	return snapfake.NewSimpleClientset(objects...) //nolint:staticcheck // no NewClientset available in client/v8 fake
+}
+
+// newPodClientHonoringSelectors returns a fake clientset whose pod List honours
+// label selectors. The default fake tracker returns every pod regardless of the
+// selector, which would make the version-specific discovery tests meaningless.
+func newPodClientHonoringSelectors(objs ...runtime.Object) *fake.Clientset {
+	client := fake.NewClientset(objs...)
+	client.PrependReactor("list", "pods", func(action clientgotesting.Action) (bool, runtime.Object, error) {
+		selector := action.(clientgotesting.ListAction).GetListRestrictions().Labels
+		podList := &corev1.PodList{}
+		for _, obj := range objs {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				continue
+			}
+			if selector != nil && selector.String() != "" && !selector.Matches(labels.Set(pod.Labels)) {
+				continue
+			}
+			podList.Items = append(podList.Items, *pod)
+		}
+		return true, podList, nil
+	})
+	return client
+}
+
+func TestGetRBDProvisionerPods(t *testing.T) {
+	const ns = "openshift-storage"
+
+	modern := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "csi-rbdplugin-ctrlplugin-1",
+		Namespace: ns,
+		Labels: map[string]string{
+			"app.kubernetes.io/name":      "csi-rbdplugin",
+			"app.kubernetes.io/component": "ctrlplugin",
+		},
+	}}
+	legacy := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "csi-rbdplugin-provisioner-1",
+		Namespace: ns,
+		Labels:    map[string]string{"app": "csi-rbdplugin-provisioner"},
+	}}
+	byName := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "openshift-storage.rbd.csi.ceph.com-ctrlplugin-abc",
+		Namespace: ns,
+	}}
+	unrelated := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "csi-cephfsplugin-provisioner-1",
+		Namespace: ns,
+		Labels:    map[string]string{"app": "csi-cephfsplugin-provisioner"},
+	}}
+
+	tests := []struct {
+		name      string
+		pods      []runtime.Object
+		wantNames []string
+		wantErr   string
+	}{
+		{
+			name:      "ODF 4.18 label",
+			pods:      []runtime.Object{unrelated, modern},
+			wantNames: []string{modern.Name},
+		},
+		{
+			name:      "legacy label",
+			pods:      []runtime.Object{unrelated, legacy},
+			wantNames: []string{legacy.Name},
+		},
+		{
+			name:      "name fallback for ODF 4.21+",
+			pods:      []runtime.Object{unrelated, byName},
+			wantNames: []string{byName.Name},
+		},
+		{
+			name:    "no matching pods",
+			pods:    []runtime.Object{unrelated},
+			wantErr: "no RBD provisioner pods found",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := newPodClientHonoringSelectors(tc.pods...)
+			got, err := GetRBDProvisionerPods(context.Background(), client, ns)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			var gotNames []string
+			for _, pod := range got {
+				gotNames = append(gotNames, pod.Name)
+			}
+			if strings.Join(gotNames, ",") != strings.Join(tc.wantNames, ",") {
+				t.Errorf("pods = %v, want %v", gotNames, tc.wantNames)
+			}
+		})
+	}
+}
+
+func TestGetRBDProvisionerPods_LabelListErrorReported(t *testing.T) {
+	const ns = "openshift-storage"
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      "csi-cephfsplugin-provisioner-1",
+		Namespace: ns,
+	}}
+	client := newPodClientHonoringSelectors(pod)
+	client.PrependReactor("list", "pods", func(action clientgotesting.Action) (bool, runtime.Object, error) {
+		selector := action.(clientgotesting.ListAction).GetListRestrictions().Labels
+		if selector != nil && selector.String() != "" {
+			return true, nil, errors.New("label list boom")
+		}
+		return false, nil, nil
+	})
+
+	_, err := GetRBDProvisionerPods(context.Background(), client, ns)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "label list boom") {
+		t.Errorf("error = %v, want it to include the underlying label-list error", err)
+	}
 }
 
 func TestGetToolboxPod_FoundByLabel(t *testing.T) {
