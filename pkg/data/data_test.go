@@ -4,10 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/cephcsi-cbt-e2e/pkg/cbt"
 )
 
 // TestZeroBlockHash verifies that zeroBlockHash returns the correct SHA-256 of a
@@ -230,5 +233,137 @@ func TestReadFileHashCommand(t *testing.T) {
 	}
 	if cmd[3] != "_" || cmd[4] != filePath {
 		t.Errorf("readFileHashCommand() args = %q, want [\"_\" %q]", cmd[3:], filePath)
+	}
+}
+
+func TestVerifyAllocatedBlocks(t *testing.T) {
+	zero := zeroBlockHash(DefaultBlockSize)
+	nonZero := strings.Repeat("a", 64)
+	readErr := errors.New("read boom")
+
+	tests := []struct {
+		name    string
+		hash    string
+		err     error
+		wantErr string
+	}{
+		{name: "non-zero content", hash: nonZero},
+		{name: "zero content", hash: zero, wantErr: "contains only zeros"},
+		{name: "read error", err: readErr, wantErr: "read block at offset 0"},
+	}
+	result := &cbt.MetadataResult{Blocks: []cbt.BlockMetadata{{ByteOffset: 0, SizeBytes: DefaultBlockSize}}}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			read := func(string, int64, int64) (string, error) { return tc.hash, tc.err }
+			err := verifyAllocatedBlocks(read, "pod", result)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("verifyAllocatedBlocks() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("verifyAllocatedBlocks() error = %v, want it to contain %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestVerifyChangedBlocks(t *testing.T) {
+	result := &cbt.MetadataResult{Blocks: []cbt.BlockMetadata{{ByteOffset: 4096, SizeBytes: 4096}}}
+	readErr := errors.New("read boom")
+
+	tests := []struct {
+		name    string
+		base    string
+		target  string
+		baseErr error
+		tgtErr  error
+		wantErr string
+	}{
+		{name: "content differs", base: "aaa", target: "bbb"},
+		{name: "content identical", base: "aaa", target: "aaa", wantErr: "content is identical"},
+		{name: "base read error", baseErr: readErr, wantErr: "read base block at offset 4096"},
+		{name: "target read error", base: "aaa", tgtErr: readErr, wantErr: "read target block at offset 4096"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			read := func(pod string, _, _ int64) (string, error) {
+				if pod == "base" {
+					return tc.base, tc.baseErr
+				}
+				return tc.target, tc.tgtErr
+			}
+			err := verifyChangedBlocks(read, "base", "target", result)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("verifyChangedBlocks() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("verifyChangedBlocks() error = %v, want it to contain %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestVerifyUnchangedBlocksNotReported(t *testing.T) {
+	const volumeSize = 3 * DefaultBlockSize
+	// The middle block is reported as changed and must not be read.
+	result := &cbt.MetadataResult{Blocks: []cbt.BlockMetadata{{ByteOffset: DefaultBlockSize, SizeBytes: DefaultBlockSize}}}
+
+	tests := []struct {
+		name    string
+		base    map[int64]string
+		target  map[int64]string
+		err     error
+		wantErr string
+	}{
+		{
+			name:   "unchanged blocks match",
+			base:   map[int64]string{0: "a", 2 * DefaultBlockSize: "c"},
+			target: map[int64]string{0: "a", 2 * DefaultBlockSize: "c"},
+		},
+		{
+			name:    "unreported block differs",
+			base:    map[int64]string{0: "a", 2 * DefaultBlockSize: "c"},
+			target:  map[int64]string{0: "changed", 2 * DefaultBlockSize: "c"},
+			wantErr: "NOT reported as changed but content differs",
+		},
+		{
+			name:    "read error",
+			err:     errors.New("read boom"),
+			wantErr: "base pod",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			read := func(pod string, offset, _ int64) (string, error) {
+				if tc.err != nil {
+					return "", tc.err
+				}
+				if offset == DefaultBlockSize {
+					t.Fatalf("read of reported block at offset %d", offset)
+				}
+				if pod == "base" {
+					return tc.base[offset], nil
+				}
+				return tc.target[offset], nil
+			}
+			err := verifyUnchangedBlocksNotReported(read, "base", "target", result, volumeSize)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("verifyUnchangedBlocksNotReported() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("verifyUnchangedBlocksNotReported() error = %v, want it to contain %q", err, tc.wantErr)
+			}
+		})
 	}
 }

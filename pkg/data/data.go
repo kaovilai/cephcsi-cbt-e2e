@@ -33,6 +33,17 @@ const (
 // extents repeat a small set of sizes, so hashing each size once is enough.
 var zeroHashCache sync.Map // int64 -> string
 
+// hashReader returns the SHA-256 of a block range in a pod. It exists so the
+// verification logic can be unit tested without a cluster.
+type hashReader func(pod string, offset, sizeBytes int64) (string, error)
+
+// podHashReader returns a hashReader backed by ExecInPod.
+func podHashReader(ctx context.Context, clientset kubernetes.Interface, config *rest.Config, namespace string) hashReader {
+	return func(pod string, offset, sizeBytes int64) (string, error) {
+		return ReadBlockHash(ctx, clientset, config, namespace, pod, offset, sizeBytes)
+	}
+}
+
 // WriteKnownPattern writes a known byte pattern at a specific offset on a block device.
 // This is used to verify that CBT correctly reports which blocks have been written.
 func WriteKnownPattern(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
@@ -74,8 +85,12 @@ func ReadBlockHash(ctx context.Context, clientset kubernetes.Interface, config *
 func VerifyAllocatedBlocks(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName string, result *cbt.MetadataResult) error {
 
+	return verifyAllocatedBlocks(podHashReader(ctx, clientset, config, namespace), podName, result)
+}
+
+func verifyAllocatedBlocks(read hashReader, podName string, result *cbt.MetadataResult) error {
 	for _, block := range result.Blocks {
-		hash, err := ReadBlockHash(ctx, clientset, config, namespace, podName, block.ByteOffset, block.SizeBytes)
+		hash, err := read(podName, block.ByteOffset, block.SizeBytes)
 		if err != nil {
 			return fmt.Errorf("read block at offset %d: %w", block.ByteOffset, err)
 		}
@@ -93,13 +108,17 @@ func VerifyAllocatedBlocks(ctx context.Context, clientset kubernetes.Interface, 
 func VerifyChangedBlocks(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, basePod, targetPod string, result *cbt.MetadataResult) error {
 
+	return verifyChangedBlocks(podHashReader(ctx, clientset, config, namespace), basePod, targetPod, result)
+}
+
+func verifyChangedBlocks(read hashReader, basePod, targetPod string, result *cbt.MetadataResult) error {
 	for _, block := range result.Blocks {
-		baseHash, err := ReadBlockHash(ctx, clientset, config, namespace, basePod, block.ByteOffset, block.SizeBytes)
+		baseHash, err := read(basePod, block.ByteOffset, block.SizeBytes)
 		if err != nil {
 			return fmt.Errorf("read base block at offset %d: %w", block.ByteOffset, err)
 		}
 
-		targetHash, err := ReadBlockHash(ctx, clientset, config, namespace, targetPod, block.ByteOffset, block.SizeBytes)
+		targetHash, err := read(targetPod, block.ByteOffset, block.SizeBytes)
 		if err != nil {
 			return fmt.Errorf("read target block at offset %d: %w", block.ByteOffset, err)
 		}
@@ -119,6 +138,10 @@ func VerifyChangedBlocks(ctx context.Context, clientset kubernetes.Interface, co
 func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, basePod, targetPod string, result *cbt.MetadataResult, volumeSize int64) error {
 
+	return verifyUnchangedBlocksNotReported(podHashReader(ctx, clientset, config, namespace), basePod, targetPod, result, volumeSize)
+}
+
+func verifyUnchangedBlocksNotReported(read hashReader, basePod, targetPod string, result *cbt.MetadataResult, volumeSize int64) error {
 	numBlocks := int(volumeSize / DefaultBlockSize)
 	for i := range numBlocks {
 		offset := int64(i) * DefaultBlockSize
@@ -126,12 +149,12 @@ func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.
 			continue // This block was reported as changed, skip
 		}
 
-		baseHash, err := ReadBlockHash(ctx, clientset, config, namespace, basePod, offset, DefaultBlockSize)
+		baseHash, err := read(basePod, offset, DefaultBlockSize)
 		if err != nil {
 			return fmt.Errorf("base pod: %w", err)
 		}
 
-		targetHash, err := ReadBlockHash(ctx, clientset, config, namespace, targetPod, offset, DefaultBlockSize)
+		targetHash, err := read(targetPod, offset, DefaultBlockSize)
 		if err != nil {
 			return fmt.Errorf("target pod: %w", err)
 		}
