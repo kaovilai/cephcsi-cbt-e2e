@@ -129,7 +129,9 @@ func VerifyChangedBlocks(ctx context.Context, clientset kubernetes.Interface, co
 }
 
 // VerifyUnchangedBlocksNotReported checks that blocks NOT in the delta result
-// are actually unchanged between base and target.
+// are actually unchanged between base and target. A block that cannot be read
+// is an error: silently skipping it would let the check pass without verifying
+// anything.
 func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, basePod, targetPod string, result *cbt.MetadataResult, volumeSize int64) error {
 
@@ -142,12 +144,12 @@ func VerifyUnchangedBlocksNotReported(ctx context.Context, clientset kubernetes.
 
 		baseHash, err := ReadBlockHash(ctx, clientset, config, namespace, basePod, offset, DefaultBlockSize)
 		if err != nil {
-			continue // Some blocks may not be readable
+			return fmt.Errorf("base pod: %w", err)
 		}
 
 		targetHash, err := ReadBlockHash(ctx, clientset, config, namespace, targetPod, offset, DefaultBlockSize)
 		if err != nil {
-			continue
+			return fmt.Errorf("target pod: %w", err)
 		}
 
 		if baseHash != targetHash {
