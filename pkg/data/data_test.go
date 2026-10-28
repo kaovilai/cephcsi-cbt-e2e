@@ -2,9 +2,11 @@ package data
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -137,5 +139,96 @@ func TestMountFilePath(t *testing.T) {
 				t.Errorf("mountFilePath(%q) = %q, want %q", tc.filename, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSafeMountPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		want     string
+		wantErr  bool
+	}{
+		{name: "simple", filename: "test.txt", want: filepath.Join(DefaultMountPath, "test.txt")},
+		{name: "empty", filename: "", want: DefaultMountPath},
+		{name: "nested", filename: "subdir/file.txt", want: filepath.Join(DefaultMountPath, "subdir/file.txt")},
+		{name: "inner traversal stays inside", filename: "subdir/../ok.txt", want: filepath.Join(DefaultMountPath, "ok.txt")},
+		{name: "parent escape", filename: "../etc/passwd", wantErr: true},
+		{name: "nested escape", filename: "a/../../etc/passwd", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := safeMountPath(tc.filename)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("safeMountPath(%q) = %q, want error", tc.filename, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("safeMountPath(%q) error = %v", tc.filename, err)
+			}
+			if got != tc.want {
+				t.Errorf("safeMountPath(%q) = %q, want %q", tc.filename, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBlockWriteCommand(t *testing.T) {
+	cmd := blockWriteCommand(4096, 1024, 0xAA)
+	if len(cmd) != 3 || cmd[0] != "sh" || cmd[1] != "-c" {
+		t.Fatalf("blockWriteCommand() = %v, want a sh -c command", cmd)
+	}
+	for _, want := range []string{"count=1024", "seek=4096", `\xaa`, DefaultDevicePath, "conv=notrunc,fsync"} {
+		if !strings.Contains(cmd[2], want) {
+			t.Errorf("blockWriteCommand() script %q does not contain %q", cmd[2], want)
+		}
+	}
+}
+
+func TestReadBlockHashCommand(t *testing.T) {
+	cmd := readBlockHashCommand(8192, 512)
+	if len(cmd) != 3 || cmd[0] != "sh" || cmd[1] != "-c" {
+		t.Fatalf("readBlockHashCommand() = %v, want a sh -c command", cmd)
+	}
+	for _, want := range []string{"skip=8192", "count=512", DefaultDevicePath, "sha256sum"} {
+		if !strings.Contains(cmd[2], want) {
+			t.Errorf("readBlockHashCommand() script %q does not contain %q", cmd[2], want)
+		}
+	}
+}
+
+func TestWriteFileCommand(t *testing.T) {
+	filePath := filepath.Join(DefaultMountPath, "a'b.txt")
+	content := "line1\nline2 with 'quotes' and $ymbols"
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+
+	cmd := writeFileCommand(filePath, content)
+	if len(cmd) != 5 {
+		t.Fatalf("writeFileCommand() = %v, want sh -c script _ path", cmd)
+	}
+	if !strings.Contains(cmd[2], encoded) {
+		t.Errorf("script %q does not carry the base64 content %q", cmd[2], encoded)
+	}
+	if strings.Contains(cmd[2], filePath) {
+		t.Errorf("script %q must not interpolate the path; pass it as an argument", cmd[2])
+	}
+	if cmd[3] != "_" || cmd[4] != filePath {
+		t.Errorf("writeFileCommand() args = %q, want [\"_\" %q]", cmd[3:], filePath)
+	}
+}
+
+func TestReadFileHashCommand(t *testing.T) {
+	filePath := filepath.Join(DefaultMountPath, "a'b.txt")
+	cmd := readFileHashCommand(filePath)
+	if len(cmd) != 5 {
+		t.Fatalf("readFileHashCommand() = %v, want sh -c script _ path", cmd)
+	}
+	if !strings.Contains(cmd[2], `sha256sum "$1"`) {
+		t.Errorf("script %q should hash the path argument", cmd[2])
+	}
+	if cmd[3] != "_" || cmd[4] != filePath {
+		t.Errorf("readFileHashCommand() args = %q, want [\"_\" %q]", cmd[3:], filePath)
 	}
 }

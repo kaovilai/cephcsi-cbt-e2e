@@ -41,15 +41,7 @@ func WriteKnownPattern(ctx context.Context, clientset kubernetes.Interface, conf
 	// Use dd to write a known pattern at the specified offset.
 	// conv=fsync ensures data is flushed to the block device before dd returns,
 	// which is critical for RBD snapshots to capture the written data.
-	cmd := []string{
-		"sh", "-c",
-		fmt.Sprintf(
-			"dd if=/dev/zero bs=1 count=%d 2>/dev/null | tr '\\0' '\\x%02x' | dd of=%s bs=1 seek=%d conv=notrunc,fsync 2>/dev/null",
-			sizeBytes, pattern, DefaultDevicePath, offset,
-		),
-	}
-
-	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
+	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", blockWriteCommand(offset, sizeBytes, pattern))
 	if err != nil {
 		return fmt.Errorf("write pattern at offset %d: %s: %w", offset, stderr, err)
 	}
@@ -69,15 +61,7 @@ func WriteBlockPattern(ctx context.Context, clientset kubernetes.Interface, conf
 func ReadBlockHash(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName string, offset int64, sizeBytes int64) (string, error) {
 
-	cmd := []string{
-		"sh", "-c",
-		fmt.Sprintf(
-			"dd if=%s bs=1 skip=%d count=%d 2>/dev/null | sha256sum | cut -d' ' -f1",
-			DefaultDevicePath, offset, sizeBytes,
-		),
-	}
-
-	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
+	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", readBlockHashCommand(offset, sizeBytes))
 	if err != nil {
 		return "", fmt.Errorf("read block at offset %d: %s: %w", offset, stderr, err)
 	}
@@ -165,20 +149,76 @@ func mountFilePath(filename string) string {
 	return filepath.Join(DefaultMountPath, filename)
 }
 
+// safeMountPath joins filename under DefaultMountPath and rejects paths that
+// escape it, so a caller-supplied name cannot write outside the mounted volume.
+func safeMountPath(filename string) (string, error) {
+	path := mountFilePath(filename)
+	rel, err := filepath.Rel(DefaultMountPath, path)
+	if err != nil {
+		return "", fmt.Errorf("resolve %q under %s: %w", filename, DefaultMountPath, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("filename %q escapes %s", filename, DefaultMountPath)
+	}
+	return path, nil
+}
+
+// blockWriteCommand returns the shell command that writes sizeBytes of pattern
+// at offset on the block device.
+func blockWriteCommand(offset, sizeBytes int64, pattern byte) []string {
+	return []string{
+		"sh", "-c",
+		fmt.Sprintf(
+			"dd if=/dev/zero bs=1 count=%d 2>/dev/null | tr '\\0' '\\x%02x' | dd of=%s bs=1 seek=%d conv=notrunc,fsync 2>/dev/null",
+			sizeBytes, pattern, DefaultDevicePath, offset,
+		),
+	}
+}
+
+// readBlockHashCommand returns the shell command that hashes a block range.
+func readBlockHashCommand(offset, sizeBytes int64) []string {
+	return []string{
+		"sh", "-c",
+		fmt.Sprintf(
+			"dd if=%s bs=1 skip=%d count=%d 2>/dev/null | sha256sum | cut -d' ' -f1",
+			DefaultDevicePath, offset, sizeBytes,
+		),
+	}
+}
+
+// writeFileCommand returns the shell command that base64-decodes content into
+// filePath. The path is passed as an argument so quotes in it cannot alter the
+// command.
+func writeFileCommand(filePath, content string) []string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+	return []string{
+		"sh", "-c",
+		fmt.Sprintf("echo '%s' | base64 -d > \"$1\" && sync", encoded),
+		"_", filePath,
+	}
+}
+
+// readFileHashCommand returns the shell command that hashes filePath.
+func readFileHashCommand(filePath string) []string {
+	return []string{
+		"sh", "-c",
+		"sha256sum \"$1\" | cut -d' ' -f1",
+		"_", filePath,
+	}
+}
+
 // WriteFile writes content to a file on a Filesystem-mode PVC mounted at /mnt/data.
 // Content is base64-encoded before injection into the shell command to avoid
 // quoting issues with single quotes or other special characters.
 func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename, content string) error {
 
-	filePath := mountFilePath(filename)
-	encoded := base64.StdEncoding.EncodeToString([]byte(content))
-	cmd := []string{
-		"sh", "-c",
-		fmt.Sprintf("echo '%s' | base64 -d > '%s' && sync", encoded, filePath),
+	filePath, err := safeMountPath(filename)
+	if err != nil {
+		return err
 	}
 
-	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
+	_, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", writeFileCommand(filePath, content))
 	if err != nil {
 		return fmt.Errorf("write file %s: %s: %w", filePath, stderr, err)
 	}
@@ -189,7 +229,10 @@ func WriteFile(ctx context.Context, clientset kubernetes.Interface, config *rest
 func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename string) (string, error) {
 
-	filePath := mountFilePath(filename)
+	filePath, err := safeMountPath(filename)
+	if err != nil {
+		return "", err
+	}
 	cmd := []string{"cat", filePath}
 
 	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
@@ -203,13 +246,12 @@ func ReadFile(ctx context.Context, clientset kubernetes.Interface, config *rest.
 func ReadFileHash(ctx context.Context, clientset kubernetes.Interface, config *rest.Config,
 	namespace, podName, filename string) (string, error) {
 
-	filePath := mountFilePath(filename)
-	cmd := []string{
-		"sh", "-c",
-		fmt.Sprintf("sha256sum '%s' | cut -d' ' -f1", filePath),
+	filePath, err := safeMountPath(filename)
+	if err != nil {
+		return "", err
 	}
 
-	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", cmd)
+	stdout, stderr, err := k8s.ExecInPod(ctx, clientset, config, namespace, podName, "", readFileHashCommand(filePath))
 	if err != nil {
 		return "", fmt.Errorf("hash file %s: %s: %w", filePath, stderr, err)
 	}
