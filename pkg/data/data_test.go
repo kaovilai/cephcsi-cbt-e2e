@@ -16,7 +16,8 @@ func TestZeroBlockHash(t *testing.T) {
 	// SHA-256 of an empty input is a well-known constant.
 	const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-	sizes := []int64{0, 512, 4096, DefaultBlockSize}
+	// 3*32KiB+7 crosses the streaming buffer boundary.
+	sizes := []int64{0, 512, 4096, 3*32*1024 + 7, DefaultBlockSize}
 	for _, size := range sizes {
 		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
 			got := zeroBlockHash(size)
@@ -60,12 +61,48 @@ func TestZeroBlockHashDifferentSizes(t *testing.T) {
 // TestZeroBlockHashDeterministic verifies that repeated calls with the same size
 // always return the same value.
 func TestZeroBlockHashDeterministic(t *testing.T) {
-	for _, size := range []int64{0, 4096, DefaultBlockSize} {
+	for _, size := range []int64{0, 4096, 3*32*1024 + 7, DefaultBlockSize} {
 		first := zeroBlockHash(size)
 		for i := range 5 {
 			if got := zeroBlockHash(size); got != first {
 				t.Errorf("zeroBlockHash(%d) is not deterministic: call 0 = %q, call %d = %q", size, first, i+1, got)
 			}
+		}
+	}
+}
+
+// TestCachedZeroBlockHash verifies the cache returns the same value as the
+// uncached computation and stays correct under concurrent use.
+func TestCachedZeroBlockHash(t *testing.T) {
+	sizes := []int64{0, 4096, 3*32*1024 + 7, DefaultBlockSize}
+	for _, size := range sizes {
+		if got, want := cachedZeroBlockHash(size), zeroBlockHash(size); got != want {
+			t.Fatalf("cachedZeroBlockHash(%d) = %q, want %q", size, got, want)
+		}
+	}
+
+	want := make(map[int64]string, len(sizes))
+	for _, size := range sizes {
+		want[size] = zeroBlockHash(size)
+	}
+
+	const perSize = 4
+	type result struct {
+		size int64
+		hash string
+	}
+	results := make(chan result, len(sizes)*perSize)
+	for _, size := range sizes {
+		for range perSize {
+			go func(s int64) {
+				results <- result{size: s, hash: cachedZeroBlockHash(s)}
+			}(size)
+		}
+	}
+	for range len(sizes) * perSize {
+		got := <-results
+		if got.hash != want[got.size] {
+			t.Errorf("concurrent cachedZeroBlockHash(%d) = %q, want %q", got.size, got.hash, want[got.size])
 		}
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/cephcsi-cbt-e2e/pkg/cbt"
 	"github.com/cephcsi-cbt-e2e/pkg/k8s"
@@ -28,9 +29,9 @@ const (
 	DefaultMountPath = k8s.DefaultFilesystemMountPath
 )
 
-// defaultSizeZeroHash is the SHA-256 of a zero-filled DefaultBlockSize block,
-// computed once at package init to avoid per-call allocation in VerifyAllocatedBlocks.
-var defaultSizeZeroHash = zeroBlockHash(DefaultBlockSize)
+// zeroHashCache memoizes zeroBlockHash by block size. Variable-length CBT
+// extents repeat a small set of sizes, so hashing each size once is enough.
+var zeroHashCache sync.Map // int64 -> string
 
 // WriteKnownPattern writes a known byte pattern at a specific offset on a block device.
 // This is used to verify that CBT correctly reports which blocks have been written.
@@ -95,11 +96,7 @@ func VerifyAllocatedBlocks(ctx context.Context, clientset kubernetes.Interface, 
 			return fmt.Errorf("read block at offset %d: %w", block.ByteOffset, err)
 		}
 
-		zeroHash := defaultSizeZeroHash
-		if block.SizeBytes != DefaultBlockSize {
-			zeroHash = zeroBlockHash(block.SizeBytes)
-		}
-		if hash == zeroHash {
+		if hash == cachedZeroBlockHash(block.SizeBytes) {
 			return fmt.Errorf("block at offset %d reported as allocated but contains only zeros", block.ByteOffset)
 		}
 	}
@@ -217,10 +214,29 @@ func ReadFileHash(ctx context.Context, clientset kubernetes.Interface, config *r
 	return strings.TrimSpace(stdout), nil
 }
 
-// zeroBlockHash returns the SHA256 hash of a block of all zeros.
+// zeroBlockHash returns the SHA256 hash of a block of all zeros without
+// allocating a buffer the size of the block.
 func zeroBlockHash(size int64) string {
 	h := sha256.New()
-	zeros := make([]byte, size)
-	h.Write(zeros)
+	const chunkSize = 32 * 1024
+	buf := make([]byte, chunkSize)
+	for remaining := size; remaining > 0; {
+		n := int64(chunkSize)
+		if remaining < n {
+			n = remaining
+		}
+		h.Write(buf[:n])
+		remaining -= n
+	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// cachedZeroBlockHash returns zeroBlockHash(size), computing it at most once
+// per size for the life of the process.
+func cachedZeroBlockHash(size int64) string {
+	if hash, ok := zeroHashCache.Load(size); ok {
+		return hash.(string)
+	}
+	hash, _ := zeroHashCache.LoadOrStore(size, zeroBlockHash(size))
+	return hash.(string)
 }
