@@ -2,6 +2,8 @@ package cbt
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/api"
@@ -88,6 +90,70 @@ func TestNewResultAndArgs(t *testing.T) {
 	}
 	if result.BlockMetadataType != api.BlockMetadataType_VARIABLE_LENGTH {
 		t.Errorf("BlockMetadataType = %v, want VARIABLE_LENGTH", result.BlockMetadataType)
+	}
+}
+
+func TestNewClientInvalidTLSConfig(t *testing.T) {
+	_, err := NewClient(&rest.Config{
+		Host:            "https://example.invalid",
+		TLSClientConfig: rest.TLSClientConfig{CertFile: filepath.Join(t.TempDir(), "missing.crt")},
+	}, "test-ns", "sa-ns", "sa")
+	if err == nil {
+		t.Fatal("NewClient() with a missing client certificate returned no error")
+	}
+	if !strings.Contains(err.Error(), "build iterator clients") {
+		t.Errorf("NewClient() error = %v, want it to name the client-building step", err)
+	}
+}
+
+// A cancelled context makes every call fail before any network I/O, so the
+// validation, args wiring, and error wrapping can be checked deterministically.
+func TestMethodsWrapCallErrors(t *testing.T) {
+	c, err := NewClient(&rest.Config{Host: "https://example.invalid"}, "test-ns", "sa-ns", "sa")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name string
+		want string
+		call func(context.Context) (*MetadataResult, error)
+	}{
+		{"allocated", "GetMetadataAllocated", func(ctx context.Context) (*MetadataResult, error) {
+			return c.GetAllocatedBlocks(ctx, "snap")
+		}},
+		{"allocated with options", "GetMetadataAllocated", func(ctx context.Context) (*MetadataResult, error) {
+			return c.GetAllocatedBlocksWithOptions(ctx, "snap", 4096, 10)
+		}},
+		{"delta by name", "GetMetadataDelta", func(ctx context.Context) (*MetadataResult, error) {
+			return c.GetChangedBlocks(ctx, "base", "snap")
+		}},
+		{"delta by name with options", "GetMetadataDelta", func(ctx context.Context) (*MetadataResult, error) {
+			return c.GetChangedBlocksWithOptions(ctx, "base", "snap", 4096, 10)
+		}},
+		{"delta by ID", "GetMetadataDelta (ID)", func(ctx context.Context) (*MetadataResult, error) {
+			return c.GetChangedBlocksByID(ctx, "handle", "snap")
+		}},
+		{"delta by ID with options", "GetMetadataDelta (ID)", func(ctx context.Context) (*MetadataResult, error) {
+			return c.GetChangedBlocksByIDWithOptions(ctx, "handle", "snap", 4096, 10)
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := tc.call(ctx)
+			if err == nil {
+				t.Fatal("expected an error from a cancelled context")
+			}
+			if result != nil {
+				t.Errorf("result = %+v, want nil", result)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error = %v, want it to identify %q", err, tc.want)
+			}
+		})
 	}
 }
 
