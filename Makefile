@@ -18,13 +18,17 @@ CEPHCSI_NAMESPACE ?= openshift-storage
 TEST_NAMESPACE ?= cbt-e2e-test
 GINKGO ?= go run github.com/onsi/ginkgo/v2/ginkgo
 
+# Shell scripts checked by "make shellcheck". ocp-setup/lib.sh is sourced by the
+# step scripts; SC1091 is excluded because the path is resolved at runtime.
+SHELL_SCRIPTS = deploy-sidecar.sh debug-cbt.sh run-in-cluster.sh ocp-setup/*.sh
+
 COMMON_FLAGS = \
 	--storage-class=$(STORAGE_CLASS) \
 	--snapshot-class=$(SNAPSHOT_CLASS) \
 	--cephcsi-namespace=$(CEPHCSI_NAMESPACE) \
 	--test-namespace=$(TEST_NAMESPACE)
 
-.PHONY: help build test vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize e2e-rebind lint lint-fix cluster-e2e cluster-fast cluster-compliance cluster-rox cluster-rox-deletion cluster-flattening cluster-stored-diffs cluster-errors cluster-backup cluster-resize cluster-rebind cluster-clean
+.PHONY: help build test vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize e2e-rebind lint lint-fix shellcheck cluster-e2e cluster-fast cluster-compliance cluster-rox cluster-rox-deletion cluster-flattening cluster-stored-diffs cluster-errors cluster-backup cluster-resize cluster-rebind cluster-clean
 
 ## help: Show this help message.
 help:
@@ -37,6 +41,7 @@ help:
 	@echo "    vet                Run go vet on all packages"
 	@echo "    lint               Run golangci-lint"
 	@echo "    lint-fix           Run golangci-lint with --fix"
+	@echo "    shellcheck         Run shellcheck on the shell scripts"
 	@echo ""
 	@echo "  Local test targets (require port-forwarding or a local cluster)"
 	@echo "    e2e                Full suite (~20 min on OCP 4.21), 5 h timeout"
@@ -181,3 +186,7 @@ lint:
 
 lint-fix:
 	$(GOLANGCI_LINT) run --fix --timeout=5m ./...
+
+# Shell script safety (warnings and above). Requires shellcheck (brew install shellcheck).
+shellcheck:
+	shellcheck -S warning -e SC1091 $(SHELL_SCRIPTS)

@@ -14,6 +14,7 @@ Requires a live Kubernetes 1.33+ cluster with CephCSI, ODF/Rook, and the externa
 make build              # Compile all packages
 make lint               # golangci-lint run ./...
 make lint-fix           # golangci-lint run --fix ./...
+make shellcheck         # shellcheck on the shell scripts (requires shellcheck)
 make e2e                # Full suite (~17m observed, 5h timeout)
 make e2e-fast           # Skip stored-diffs tests (2h timeout)
 make e2e-rox            # ReadOnlyMany PVC tests (30m)

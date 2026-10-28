@@ -79,6 +79,7 @@ make build
 # Lint
 make lint
 make lint-fix
+make shellcheck
 
 # Full suite (all categories, 5h timeout)
 make e2e
