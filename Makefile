@@ -28,7 +28,7 @@ COMMON_FLAGS = \
 	--cephcsi-namespace=$(CEPHCSI_NAMESPACE) \
 	--test-namespace=$(TEST_NAMESPACE)
 
-.PHONY: help build test vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize e2e-rebind lint lint-fix shellcheck cluster-e2e cluster-fast cluster-compliance cluster-rox cluster-rox-deletion cluster-flattening cluster-stored-diffs cluster-errors cluster-backup cluster-resize cluster-rebind cluster-clean
+.PHONY: help build test test-coverage test-race vet clean e2e e2e-fast e2e-rox e2e-rox-deletion e2e-flattening e2e-stored-diffs e2e-errors e2e-backup e2e-compliance e2e-resize e2e-rebind lint lint-fix shellcheck cluster-e2e cluster-fast cluster-compliance cluster-rox cluster-rox-deletion cluster-flattening cluster-stored-diffs cluster-errors cluster-backup cluster-resize cluster-rebind cluster-clean
 
 ## help: Show this help message.
 help:
@@ -38,6 +38,8 @@ help:
 	@echo "    build              Compile all packages"
 	@echo "    clean              Remove compiled test binary (e2e.test)"
 	@echo "    test               Run unit tests (pkg/...)"
+	@echo "    test-coverage      Run unit tests and write coverage.html"
+	@echo "    test-race          Run unit tests with the race detector"
 	@echo "    vet                Run go vet on all packages"
 	@echo "    lint               Run golangci-lint"
 	@echo "    lint-fix           Run golangci-lint with --fix"
@@ -80,10 +82,18 @@ build:
 	go build ./...
 
 clean:
-	rm -f e2e.test
+	rm -f e2e.test coverage.out coverage.html
 
 test:
 	go test ./pkg/...
+
+test-coverage:
+	go test -coverprofile=coverage.out ./pkg/...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report: coverage.html"
+
+test-race:
+	go test -race ./pkg/...
 
 vet:
 	go vet ./...
@@ -187,6 +197,6 @@ lint:
 lint-fix:
 	$(GOLANGCI_LINT) run --fix --timeout=5m ./...
 
-# Shell script safety (warnings and above). Requires shellcheck (brew install shellcheck).
+# Shell script safety. Requires shellcheck (brew install shellcheck).
 shellcheck:
-	shellcheck -S warning -e SC1091 $(SHELL_SCRIPTS)
+	shellcheck -e SC1091 $(SHELL_SCRIPTS)

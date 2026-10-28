@@ -1,3 +1,23 @@
+# Compiled test binary
 e2e.test
+
+# Slidev build artifacts
 demo/node_modules/
 demo/dist/
+
+# Go build and test artifacts
+*.test
+*.out
+*.prof
+coverage.html
+
+# Editor and OS noise
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak

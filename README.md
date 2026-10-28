@@ -76,6 +76,11 @@ All make targets accept the following overrides:
 # Build
 make build
 
+# Unit tests, coverage report, and race detector
+make test
+make test-coverage
+make test-race
+
 # Lint
 make lint
 make lint-fix

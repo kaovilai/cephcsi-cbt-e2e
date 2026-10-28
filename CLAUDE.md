@@ -12,6 +12,8 @@ Requires a live Kubernetes 1.33+ cluster with CephCSI, ODF/Rook, and the externa
 
 ```bash
 make build              # Compile all packages
+make test-coverage      # Unit tests plus coverage.html
+make test-race          # Unit tests with the race detector
 make lint               # golangci-lint run ./...
 make lint-fix           # golangci-lint run --fix ./...
 make shellcheck         # shellcheck on the shell scripts (requires shellcheck)
