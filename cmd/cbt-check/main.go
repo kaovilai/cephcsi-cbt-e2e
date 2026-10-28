@@ -37,12 +37,9 @@ func main() {
 	timeout := flag.Duration("timeout", 60*time.Second, "Timeout for CBT API calls")
 	flag.Parse()
 
-	if *namespace == "" || *snapshot == "" {
+	if err := validateFlags(*namespace, *snapshot, *prevSnapshot, *prevSnapshotID, *timeout); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		fmt.Fprintln(os.Stderr, "Usage: cbt-check -namespace <ns> -snapshot <name> [-prev-snapshot <base>] [-prev-snapshot-id <csi-handle>] [-sa-namespace <ns>] [-sa-name <sa>] [-timeout <duration>]")
-		os.Exit(1)
-	}
-	if *prevSnapshot != "" && *prevSnapshotID != "" {
-		fmt.Fprintln(os.Stderr, "Error: -prev-snapshot and -prev-snapshot-id are mutually exclusive")
 		os.Exit(1)
 	}
 	if *saNamespace == "" {
@@ -112,4 +109,22 @@ func main() {
 			log.Println("NOTICE: 0 blocks returned — snapshot may be empty or unwritten")
 		}
 	}
+}
+
+// validateFlags checks the flag combinations that cannot be inferred from the
+// cluster. It is separate from main so the rules can be tested without a client.
+func validateFlags(namespace, snapshot, prevSnapshot, prevSnapshotID string, timeout time.Duration) error {
+	if namespace == "" {
+		return fmt.Errorf("-namespace is required")
+	}
+	if snapshot == "" {
+		return fmt.Errorf("-snapshot is required")
+	}
+	if prevSnapshot != "" && prevSnapshotID != "" {
+		return fmt.Errorf("-prev-snapshot and -prev-snapshot-id are mutually exclusive")
+	}
+	if timeout <= 0 {
+		return fmt.Errorf("-timeout must be positive")
+	}
+	return nil
 }
