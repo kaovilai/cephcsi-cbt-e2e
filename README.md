@@ -36,7 +36,7 @@ cephcsi-cbt-e2e/
 │   ├── cbt-check/              # CLI to call GetMetadataAllocated on an existing VolumeSnapshot
 │   └── go-ceph-repro/          # Standalone go-ceph DiffIterateByID reproducer (needs CGo)
 ├── config/                     # StorageClass and VolumeSnapshotClass YAML manifests
-├── demo/                       # Slidev presentation (GitHub Pages deployment)
+├── demo/                       # Slidev presentation (GitHub Pages deployment); see demo/README.md
 ├── ocp-setup/                  # OpenShift cluster setup scripts for ODF + CBT sidecar
 ├── pkg/
 │   ├── cbt/                    # gRPC client wrapping external-snapshot-metadata iterator API
