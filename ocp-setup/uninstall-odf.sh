@@ -54,7 +54,7 @@ for sc in $ODF_STORAGE_CLASSES; do
     PVCS=$(oc get pvc -A -o jsonpath="{range .items[?(@.spec.storageClassName==\"$sc\")]}{.metadata.namespace}/{.metadata.name}{\"\\n\"}{end}" 2>/dev/null || echo "")
     if [ -n "$PVCS" ]; then
         echo "  PVCs using '$sc':"
-        echo "$PVCS" | sed 's/^/    /'
+        echo "    ${PVCS//$'\n'/$'\n'    }"
         HAS_CONSUMERS=true
         # Warn about cluster-critical namespace PVCs with remediation steps
         if echo "$PVCS" | grep -q "^openshift-monitoring/"; then
