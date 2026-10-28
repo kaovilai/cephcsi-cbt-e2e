@@ -13,7 +13,7 @@ For a getting-started overview of Kubernetes CBT (using csi-driver-host-path), s
 | Kubernetes | v1.33+ (CBT alpha in v1.33, beta since v1.36; not GA as of Oct 2026) |
 | CSI spec | v1.10.0 (SnapshotMetadata service) |
 | external-snapshot-metadata | v1.0.0+ (SnapshotMetadataService CRD `v1beta1`); this repo builds against v1.1.0 |
-| external-snapshotter | v8.0.0+ (this repo builds against client/v8 v8.6.0) |
+| external-snapshotter | v8.0.0+ (this repo builds against client/v8 v8.7.0) |
 | Ceph | Pacific v16.2.0+ per the ceph-csi README (no CBT-specific minimum is published); validated on Ceph 20.1.0 (Tentacle) |
 | Go | 1.26.1+ (matches `go.mod`) |
 
@@ -227,14 +227,14 @@ Snapshot retention for Ceph: do not rely on a `deletionPolicy: Retain` VolumeSna
 
 ### Upstream Dependency Versions
 
-Versions as of Oct 2026 (this repo: `go.mod`, `golangci-lint.mod`).
+Versions as of 2026-10-28 (this repo: `go.mod`, `golangci-lint.mod`).
 
 | Dependency | This repo | Latest upstream |
 |---|---|---|
 | external-snapshot-metadata | v1.1.0 | v1.1.0 |
 | external-snapshot-metadata/client | v1.1.0 | v1.1.0 |
-| external-snapshotter client/v8 | v8.6.0 | v8.6.0 |
-| k8s.io/{api,apimachinery,client-go} | v0.37.1 | v0.37.1 (Kubernetes v1.37) |
+| external-snapshotter client/v8 | v8.7.0 | v8.7.0 |
+| k8s.io/{api,apimachinery,client-go} | v0.37.2 | v0.37.2 (Kubernetes v1.37) |
 | ginkgo / gomega | v2.33.1 / v1.44.0 | v2.33.1 / v1.44.0 |
 | golangci-lint | v2.14.0 | v2.14.0 |
 | CephCSI CBT | [PR #5347](https://github.com/ceph/ceph-csi/pull/5347) merged (July 2025) | Latest release: [v3.18.1](https://github.com/ceph/ceph-csi/releases/tag/v3.18.1) (2026-10-01) |
