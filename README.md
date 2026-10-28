@@ -250,3 +250,4 @@ The sidecar image used by `ocp-setup/step4-cbt-sidecar.sh` is a separate choice 
 - [SnapshotMetadataService API types](https://github.com/kubernetes-csi/external-snapshot-metadata/blob/main/client/apis/snapshotmetadataservice/v1beta1/types.go)
 - [CBT sidecar setup for ODF](https://access.redhat.com/articles/7130698)
 - [Velero CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
+- [Contributing](CONTRIBUTING.md) and [Security Policy](SECURITY.md)
