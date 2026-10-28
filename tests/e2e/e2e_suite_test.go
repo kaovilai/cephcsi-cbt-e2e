@@ -201,7 +201,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), "failed to create CBT client ServiceAccount")
 
 	By("Creating ClusterRoleBinding for CBT client ServiceAccount")
-	_, err = clientset.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{
+	crb := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{Name: cbtClusterRoleBindingName},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
@@ -213,9 +213,15 @@ var _ = BeforeSuite(func() {
 			Name:      cbtSAName,
 			Namespace: testNamespace,
 		}},
-	}, metav1.CreateOptions{})
+	}
+	_, err = clientset.RbacV1().ClusterRoleBindings().Create(ctx, crb, metav1.CreateOptions{})
 	if apierrors.IsAlreadyExists(err) {
-		err = nil
+		// The binding is cluster-scoped, so a previous run with a different
+		// -test-namespace would leave it pointing at the old ServiceAccount.
+		// Recreate it so the current namespace is always the subject.
+		delErr := clientset.RbacV1().ClusterRoleBindings().Delete(ctx, cbtClusterRoleBindingName, metav1.DeleteOptions{})
+		Expect(delErr).NotTo(HaveOccurred(), "failed to replace stale CBT client ClusterRoleBinding")
+		_, err = clientset.RbacV1().ClusterRoleBindings().Create(ctx, crb, metav1.CreateOptions{})
 	}
 	Expect(err).NotTo(HaveOccurred(), "failed to create CBT client ClusterRoleBinding")
 
