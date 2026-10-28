@@ -90,7 +90,7 @@ func (c *Client) newResultAndArgs() (*MetadataResult, iterator.Args) {
 // GetAllocatedBlocks returns all allocated blocks for a snapshot.
 func (c *Client) GetAllocatedBlocks(ctx context.Context, snapshotName string) (*MetadataResult, error) {
 	if snapshotName == "" {
-		return nil, fmt.Errorf("snapshotName cannot be empty")
+		return nil, fmt.Errorf("parameter 'snapshotName' cannot be empty")
 	}
 	result, args := c.newResultAndArgs()
 	args.SnapshotName = snapshotName
@@ -105,10 +105,10 @@ func (c *Client) GetAllocatedBlocks(ctx context.Context, snapshotName string) (*
 // prevSnapshotName is the base (older) snapshot, snapshotName is the target (newer).
 func (c *Client) GetChangedBlocks(ctx context.Context, prevSnapshotName, snapshotName string) (*MetadataResult, error) {
 	if prevSnapshotName == "" {
-		return nil, fmt.Errorf("prevSnapshotName cannot be empty")
+		return nil, fmt.Errorf("parameter 'prevSnapshotName' cannot be empty")
 	}
 	if snapshotName == "" {
-		return nil, fmt.Errorf("snapshotName cannot be empty")
+		return nil, fmt.Errorf("parameter 'snapshotName' cannot be empty")
 	}
 	result, args := c.newResultAndArgs()
 	args.SnapshotName = snapshotName
@@ -124,10 +124,10 @@ func (c *Client) GetChangedBlocks(ctx context.Context, prevSnapshotName, snapsho
 // This allows delta computation even if the base VolumeSnapshot has been deleted.
 func (c *Client) GetChangedBlocksByID(ctx context.Context, prevSnapshotID, snapshotName string) (*MetadataResult, error) {
 	if prevSnapshotID == "" {
-		return nil, fmt.Errorf("prevSnapshotID cannot be empty")
+		return nil, fmt.Errorf("parameter 'prevSnapshotID' cannot be empty")
 	}
 	if snapshotName == "" {
-		return nil, fmt.Errorf("snapshotName cannot be empty")
+		return nil, fmt.Errorf("parameter 'snapshotName' cannot be empty")
 	}
 	result, args := c.newResultAndArgs()
 	args.SnapshotName = snapshotName
@@ -142,7 +142,7 @@ func (c *Client) GetChangedBlocksByID(ctx context.Context, prevSnapshotID, snaps
 // GetAllocatedBlocksWithOptions returns allocated blocks for a snapshot with pagination options.
 func (c *Client) GetAllocatedBlocksWithOptions(ctx context.Context, snapshotName string, startingOffset int64, maxResults int32) (*MetadataResult, error) {
 	if snapshotName == "" {
-		return nil, fmt.Errorf("snapshotName cannot be empty")
+		return nil, fmt.Errorf("parameter 'snapshotName' cannot be empty")
 	}
 	result, args := c.newResultAndArgs()
 	args.SnapshotName = snapshotName
@@ -158,10 +158,10 @@ func (c *Client) GetAllocatedBlocksWithOptions(ctx context.Context, snapshotName
 // GetChangedBlocksWithOptions returns blocks changed between two snapshots with pagination options.
 func (c *Client) GetChangedBlocksWithOptions(ctx context.Context, prevSnapshotName, snapshotName string, startingOffset int64, maxResults int32) (*MetadataResult, error) {
 	if prevSnapshotName == "" {
-		return nil, fmt.Errorf("prevSnapshotName cannot be empty")
+		return nil, fmt.Errorf("parameter 'prevSnapshotName' cannot be empty")
 	}
 	if snapshotName == "" {
-		return nil, fmt.Errorf("snapshotName cannot be empty")
+		return nil, fmt.Errorf("parameter 'snapshotName' cannot be empty")
 	}
 	result, args := c.newResultAndArgs()
 	args.SnapshotName = snapshotName
@@ -180,10 +180,10 @@ func (c *Client) GetChangedBlocksWithOptions(ctx context.Context, prevSnapshotNa
 // the pagination controls of GetChangedBlocksWithOptions.
 func (c *Client) GetChangedBlocksByIDWithOptions(ctx context.Context, prevSnapshotID, snapshotName string, startingOffset int64, maxResults int32) (*MetadataResult, error) {
 	if prevSnapshotID == "" {
-		return nil, fmt.Errorf("prevSnapshotID cannot be empty")
+		return nil, fmt.Errorf("parameter 'prevSnapshotID' cannot be empty")
 	}
 	if snapshotName == "" {
-		return nil, fmt.Errorf("snapshotName cannot be empty")
+		return nil, fmt.Errorf("parameter 'snapshotName' cannot be empty")
 	}
 	result, args := c.newResultAndArgs()
 	args.SnapshotName = snapshotName
