@@ -6,12 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 E2E test suite for **Ceph RBD Changed Block Tracking (CBT)** via the Kubernetes CSI external-snapshot-metadata API. Tests validate incremental backup capabilities (GetMetadataAllocated, GetMetadataDelta) needed by Velero and similar backup tools.
 
-Requires a live Kubernetes 1.33+ cluster with CephCSI, ODF/Rook, and the external-snapshot-metadata sidecar deployed. No cluster is available in some development environments; without one, only `make build`, `make vet`, `make lint`, and `go test ./pkg/...` can be run, and e2e results must not be claimed.
+Requires a live Kubernetes 1.33+ cluster with CephCSI, ODF/Rook, and the external-snapshot-metadata sidecar deployed. No cluster is available in some development environments; without one, only `make build`, `make test`, `make test-race`, `make lint`, and `make shellcheck` can be run, and e2e results must not be claimed.
 
 ## Build and Test Commands
 
 ```bash
 make build              # Compile all packages
+make test               # Unit tests (pkg/..., cmd/cbt-check)
 make test-coverage      # Unit tests plus coverage.html
 make test-race          # Unit tests with the race detector
 make lint               # golangci-lint run ./...
