@@ -35,11 +35,12 @@ func main() {
 	saName := flag.String("sa-name", "cbt-client", "ServiceAccount name")
 	kubeconfig := flag.String("kubeconfig", "", "Path to kubeconfig (uses in-cluster config, then ~/.kube/config, if empty)")
 	timeout := flag.Duration("timeout", 60*time.Second, "Timeout for CBT API calls")
+	maxBlocks := flag.Int("max-blocks", 20, "Maximum number of blocks to print (-1 prints all)")
 	flag.Parse()
 
 	if err := validateFlags(*namespace, *snapshot, *prevSnapshot, *prevSnapshotID, *timeout); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintln(os.Stderr, "Usage: cbt-check -namespace <ns> -snapshot <name> [-prev-snapshot <base>] [-prev-snapshot-id <csi-handle>] [-sa-namespace <ns>] [-sa-name <sa>] [-timeout <duration>]")
+		fmt.Fprintln(os.Stderr, "Usage: cbt-check -namespace <ns> -snapshot <name> [-prev-snapshot <base>] [-prev-snapshot-id <csi-handle>] [-sa-namespace <ns>] [-sa-name <sa>] [-timeout <duration>] [-max-blocks <n>]")
 		os.Exit(1)
 	}
 	if *saNamespace == "" {
@@ -98,8 +99,8 @@ func main() {
 
 	log.Printf("Result: %d blocks, totalBytes=%d, volumeCapacity=%d, type=%v",
 		len(result.Blocks), result.TotalChangedBytes(), result.VolumeCapacityBytes, result.BlockMetadataType)
-	for i, b := range result.Blocks {
-		log.Printf("  block[%d]: offset=%d size=%d", i, b.ByteOffset, b.SizeBytes)
+	for _, line := range blockLines(result.Blocks, *maxBlocks) {
+		log.Print(line)
 	}
 	if len(result.Blocks) == 0 {
 		// 0 blocks is a valid CBT result. Print a mode-specific notice but exit 0.
@@ -109,6 +110,25 @@ func main() {
 			log.Println("NOTICE: 0 blocks returned — snapshot may be empty or unwritten")
 		}
 	}
+}
+
+// blockLines formats up to max blocks, then a summary of the rest. A negative
+// max prints every block.
+func blockLines(blocks []cbt.BlockMetadata, max int) []string {
+	shown := len(blocks)
+	if max >= 0 && max < shown {
+		shown = max
+	}
+
+	lines := make([]string, 0, shown+1)
+	for i := 0; i < shown; i++ {
+		b := blocks[i]
+		lines = append(lines, fmt.Sprintf("  block[%d]: offset=%d size=%d", i, b.ByteOffset, b.SizeBytes))
+	}
+	if shown < len(blocks) {
+		lines = append(lines, fmt.Sprintf("  ... %d more blocks (use -max-blocks=-1 to print all)", len(blocks)-shown))
+	}
+	return lines
 }
 
 // validateFlags checks the flag combinations that cannot be inferred from the
