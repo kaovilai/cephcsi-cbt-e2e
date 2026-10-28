@@ -7,9 +7,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 SKIP_E2E=false
-export E2E_TARGET="${E2E_TARGET:-e2e-basic}"
+# Must be one of the targets accepted by step6-run-e2e.sh; "e2e-fast" skips the
+# slow stored-diffs tests and still exercises the suite end to end.
+export E2E_TARGET="${E2E_TARGET:-e2e-fast}"
 
 for arg in "$@"; do
     case "$arg" in
@@ -17,6 +20,12 @@ for arg in "$@"; do
         --e2e-target=*) export E2E_TARGET="${arg#*=}" ;;
     esac
 done
+
+# Validate before the 60-90 minute setup, not after it.
+if ! (cd "$PROJECT_DIR" && make -n "$E2E_TARGET" >/dev/null 2>&1); then
+    echo "ERROR: E2E_TARGET '$E2E_TARGET' is not a make target in $PROJECT_DIR"
+    exit 1
+fi
 
 log() {
     echo ""

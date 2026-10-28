@@ -111,7 +111,7 @@ This avoids `CustomNoUpgrade` (which makes the cluster non-upgradable and trigge
 Run all steps with the master script, or run each step individually.
 
 ```bash
-# Run everything (including e2e-basic at the end)
+# Run everything (including e2e-fast at the end)
 ./setup-all.sh
 
 # Run setup only, skip e2e tests

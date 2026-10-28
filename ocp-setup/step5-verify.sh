@@ -153,5 +153,6 @@ if [ "$FAIL" -eq 0 ]; then
     echo "All checks passed! Ready to run e2e tests."
 else
     echo "Some checks failed. Review and fix before running e2e tests."
+    exit 1
 fi
 echo "============================="
