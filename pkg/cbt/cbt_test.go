@@ -6,6 +6,7 @@ import (
 
 	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/api"
 	"github.com/kubernetes-csi/external-snapshot-metadata/pkg/iterator"
+	"k8s.io/client-go/rest"
 )
 
 func makeResult(blocks ...BlockMetadata) *MetadataResult {
@@ -14,6 +15,80 @@ func makeResult(blocks ...BlockMetadata) *MetadataResult {
 
 func block(offset, size int64) BlockMetadata {
 	return BlockMetadata{ByteOffset: offset, SizeBytes: size}
+}
+
+func TestNewClient(t *testing.T) {
+	c, err := NewClient(&rest.Config{Host: "https://example.invalid"}, "test-ns", "sa-ns", "sa")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	if c.namespace != "test-ns" || c.saNamespace != "sa-ns" || c.saName != "sa" {
+		t.Errorf("NewClient() stored namespace=%q saNamespace=%q saName=%q, want test-ns/sa-ns/sa",
+			c.namespace, c.saNamespace, c.saName)
+	}
+	if c.clients.KubeClient == nil || c.clients.SnapshotClient == nil || c.clients.SmsCRClient == nil {
+		t.Error("NewClient() did not build all clients")
+	}
+}
+
+func TestNewResultAndArgs(t *testing.T) {
+	c, err := NewClient(&rest.Config{Host: "https://example.invalid"}, "test-ns", "sa-ns", "sa")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	result, args := c.newResultAndArgs()
+	if result == nil {
+		t.Fatal("newResultAndArgs() returned nil result")
+	}
+	if args.Emitter == nil {
+		t.Fatal("newResultAndArgs() returned nil Emitter")
+	}
+	if args.Namespace != "test-ns" || args.SANamespace != "sa-ns" || args.SAName != "sa" {
+		t.Errorf("args namespace=%q saNamespace=%q saName=%q, want test-ns/sa-ns/sa",
+			args.Namespace, args.SANamespace, args.SAName)
+	}
+
+	// The base args must pass upstream validation once the per-call fields are set.
+	args.SnapshotName = "target-snapshot"
+	if err := args.Validate(); err != nil {
+		t.Fatalf("iterator.Args.Validate() error = %v", err)
+	}
+
+	// Records must accumulate into the same result, and the stream metadata must
+	// reflect the latest record.
+	first := iterator.IteratorMetadata{
+		BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+		VolumeCapacityBytes: 1 << 30,
+		BlockMetadata:       []*api.BlockMetadata{{ByteOffset: 0, SizeBytes: 4096}},
+	}
+	second := iterator.IteratorMetadata{
+		BlockMetadataType:   api.BlockMetadataType_VARIABLE_LENGTH,
+		VolumeCapacityBytes: 2 << 30,
+		BlockMetadata:       []*api.BlockMetadata{{ByteOffset: 4096, SizeBytes: 8192}},
+	}
+	if err := args.Emitter.SnapshotMetadataIteratorRecord(0, first); err != nil {
+		t.Fatalf("first record error = %v", err)
+	}
+	if err := args.Emitter.SnapshotMetadataIteratorRecord(1, second); err != nil {
+		t.Fatalf("second record error = %v", err)
+	}
+	if err := args.Emitter.SnapshotMetadataIteratorDone(2); err != nil {
+		t.Fatalf("done error = %v", err)
+	}
+
+	if len(result.Blocks) != 2 {
+		t.Fatalf("result has %d blocks, want 2", len(result.Blocks))
+	}
+	if result.Blocks[0] != block(0, 4096) || result.Blocks[1] != block(4096, 8192) {
+		t.Errorf("result blocks = %+v, want [{0 4096} {4096 8192}]", result.Blocks)
+	}
+	if result.VolumeCapacityBytes != 2<<30 {
+		t.Errorf("VolumeCapacityBytes = %d, want %d", result.VolumeCapacityBytes, int64(2<<30))
+	}
+	if result.BlockMetadataType != api.BlockMetadataType_VARIABLE_LENGTH {
+		t.Errorf("BlockMetadataType = %v, want VARIABLE_LENGTH", result.BlockMetadataType)
+	}
 }
 
 func TestTotalChangedBytes(t *testing.T) {
