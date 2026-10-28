@@ -88,7 +88,8 @@ Pick ONE category and find ALL instances:
 ## Step 3: Create PR
 
 1. Create one branch with all fixes of the chosen category
-2. Run `go build ./...` and `go vet ./...` to verify
+2. Run `go build ./...`, `go vet ./...`, `go test ./pkg/... ./cmd/cbt-check/...`,
+   `make lint`, and `make shellcheck` to verify
 3. Create ONE PR with clear description
 
 ## Important Rules
