@@ -733,6 +733,11 @@ transition: slide-left
 - [PR #1678](https://github.com/ceph/ceph-csi/pull/1678) -- minSnapshotsOnImage
 - [Issue #1800](https://github.com/ceph/ceph-csi/issues/1800) -- No-flatten request
 
+**CBT API (upstream)**
+- [KEP-3314](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/3314-csi-changed-block-tracking/README.md) -- CBT design, beta in K8s 1.36
+- [KEP-3314 PR #6479](https://github.com/kubernetes/enhancements/pull/6479) -- documents `requireBaseSnapshotForDelta` (open)
+- [external-snapshot-metadata#258](https://github.com/kubernetes-csi/external-snapshot-metadata/pull/258) -- field merged, not released
+
 </div>
 <div>
 

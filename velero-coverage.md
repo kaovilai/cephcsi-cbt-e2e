@@ -70,6 +70,16 @@ merged 2026-07-28, not in a release yet) is the intended discovery mechanism onc
 driver sets it and Velero reads it ([velero#10722](https://github.com/velero-io/velero/issues/10722),
 [ceph-csi#6680](https://github.com/ceph/ceph-csi/issues/6680)).
 
+The field is tri-state: `true` means the driver needs the base `VolumeSnapshot` kept,
+`false` means it can be deleted once the metadata has been read, and unset means the
+driver gives no guidance. For the `false` case KEP-3314 requires the backup application
+to save the CSI snapshot handle before deleting the `VolumeSnapshot`, so a later delta
+can be computed from the handle. That is the same handle Velero passes as the changeID
+([#10294](https://github.com/velero-io/velero/issues/10294)), which is why a deleted
+snapshot object is survivable but a lost handle is not. The KEP text for the field is
+[kubernetes/enhancements#6479](https://github.com/kubernetes/enhancements/pull/6479),
+still open.
+
 ### How retention is configured (1.19.0 and the pending design)
 
 **In 1.19.0 there is no retention configuration.** The class-inherit half of
