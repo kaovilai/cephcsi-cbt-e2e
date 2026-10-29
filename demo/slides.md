@@ -17,6 +17,15 @@ mdc: true
 
 Ceph RBD behavior coverage for incremental backup enablement
 
+<div class="mt-6 flex flex-col items-center gap-2">
+  <div class="block-grid">
+    <span></span><span></span><span class="on"></span><span></span><span></span><span></span><span></span><span class="on"></span><span></span><span></span><span></span><span></span>
+    <span class="on"></span><span></span><span></span><span></span><span class="on"></span><span></span><span></span><span></span><span></span><span></span><span class="on"></span><span></span>
+    <span></span><span></span><span></span><span class="on"></span><span></span><span></span><span></span><span></span><span class="on"></span><span></span><span></span><span></span>
+  </div>
+  <div class="text-xs opacity-70">CBT: copy only the blocks that changed</div>
+</div>
+
 <div class="pt-8 text-sm opacity-60">
 
 For CBT intro & getting started, see [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo)
@@ -25,7 +34,7 @@ For CBT intro & getting started, see [k8s-cbt-s3mover-demo](https://github.com/k
 
 <div class="pt-4">
   <span @click="$slidev.nav.next" class="px-2 py-1 rounded cursor-pointer" hover="bg-white bg-opacity-10">
-    Press Space to begin <carbon:arrow-right class="inline"/>
+    Press Space to begin <carbon:arrow-right class="inline flare-nudge"/>
   </span>
 </div>
 
@@ -124,24 +133,32 @@ transition: slide-left
 
 Full backup works. Incremental on Ceph does not work yet: the old snapshot is deleted.
 
-<div class="text-sm coverage-table">
+<div class="text-[13px] coverage-table">
 
 | Area | Velero Relevance | Status |
 |---|---|---|
-| **GetMetadataAllocated** | Full backup: finds used blocks | Works |
-| **GetMetadataDelta** | Incremental backup: changed blocks | Works only if the old snapshot is kept |
-| **Case 1: delete old snap** | Delete previous snap after backup (Velero default) | 1.19.0 (not released) default on Ceph: delta fails, backup falls back (data correct) |
-| **Case 2: keep old snap** | Keep previous snap for delta (needed for Ceph) | **Not in 1.19.0** (not released); required for Ceph |
-| **FS volume as blocks** | Read a file-system volume as raw blocks | Works |
-| **Restore to FS volume** | Restore blocks back to a file-system volume | Works |
-| **Flattening prevention** | Shallow chains stay intact | Works (shallow chains) |
-| **Post-flatten delta** | Delta after snapshot chain broken | Fails (Velero auto-fallback to full) |
-| **Volume resize + CBT** | CBT after PVC expansion | Works |
-| **Error handling** | Invalid/deleted snapshot refs | Errors are clear, no crash |
+| **GetMetadataAllocated** | Full backup: finds used blocks | <span class="st-ok">Works</span> |
+| **GetMetadataDelta** | Incremental backup: changed blocks | <span class="st-warn">Works only if the old snapshot is kept</span> |
+| **Case 1: delete old snap** | Delete previous snap after backup (Velero default) | <span class="st-warn">1.19.0 (not released) default on Ceph: delta fails, backup falls back (data correct)</span> |
+| **Case 2: keep old snap** | Keep previous snap for delta (needed for Ceph) | <span class="st-bad"><strong>Not in 1.19.0</strong> (not released); required for Ceph</span> |
+| **FS volume as blocks** | Read a file-system volume as raw blocks | <span class="st-ok">Works</span> |
+| **Restore to FS volume** | Restore blocks back to a file-system volume | <span class="st-ok">Works</span> |
+| **Flattening prevention** | Shallow chains stay intact | <span class="st-ok">Works (shallow chains)</span> |
+| **Post-flatten delta** | Delta after snapshot chain broken | <span class="st-warn">Fails (Velero auto-fallback to full)</span> |
+| **Volume resize + CBT** | CBT after PVC expansion | <span class="st-ok">Works</span> |
+| **Error handling** | Invalid/deleted snapshot refs | <span class="st-ok">Errors are clear, no crash</span> |
 
 </div>
 
-<div class="mt-2 text-xs">
+<div class="mt-1 flex items-center gap-3 text-xs">
+
+<span class="tag-pill st-ok">works</span>
+<span class="tag-pill st-warn">works, with a fallback or a condition</span>
+<span class="tag-pill st-bad">not available in 1.19.0</span>
+
+</div>
+
+<div class="mt-1 text-xs opacity-70 flush">
 
 Fall back = copy more data, not just changes. Slower, data correct.
 Flattening = Ceph merges the snapshot chain; this breaks delta.
@@ -152,7 +169,7 @@ CBT = changed block tracking: copy only the changed blocks.
 <style>
 .coverage-table th,
 .coverage-table td {
-  padding: 0.22em 0.5em;
+  padding: 0.14em 0.5em;
 }
 </style>
 
@@ -176,8 +193,17 @@ Ceph RBD **requires** retaining the previous snapshot for `GetMetadataDelta`.
 
 <v-click>
 <div class="p-3 border border-red-500 rounded bg-red-50 dark:bg-red-900/20">
-  <h3 class="text-red-600 dark:text-red-400 font-bold">Case 1: Delete Previous</h3>
+  <div class="flex items-center gap-2">
+    <h3 class="text-red-600 dark:text-red-400 font-bold">Case 1: Delete Previous</h3>
+    <span class="tag-pill ml-auto">1.19.0 default</span>
+  </div>
   <p class="mt-2 text-sm">Velero deletes the old snapshot after backup</p>
+  <div class="mt-2 flex items-center gap-1">
+    <span class="snap-chip gone">snap 1</span>
+    <span class="flare-dash w-5 text-red-400"></span>
+    <span class="snap-chip">snap 2</span>
+    <span class="ml-auto st-bad text-xs font-semibold">compare</span>
+  </div>
   <div class="mt-2 text-sm">
 
   - Ceph needs both snapshots to compare
@@ -193,8 +219,17 @@ Ceph RBD **requires** retaining the previous snapshot for `GetMetadataDelta`.
 
 <v-click>
 <div class="p-3 border border-green-500 rounded bg-green-50 dark:bg-green-900/20">
-  <h3 class="text-green-600 dark:text-green-400 font-bold">Case 2: Retain Previous</h3>
+  <div class="flex items-center gap-2">
+    <h3 class="text-green-600 dark:text-green-400 font-bold">Case 2: Retain Previous</h3>
+    <span class="tag-pill ml-auto">not in 1.19.0 yet</span>
+  </div>
   <p class="mt-2 text-sm">Velero keeps the old snapshot until the next backup</p>
+  <div class="mt-2 flex items-center gap-1">
+    <span class="snap-chip kept flare-glow">snap 1</span>
+    <span class="flare-dash w-5 text-green-500"></span>
+    <span class="snap-chip">snap 2</span>
+    <span class="ml-auto st-ok text-xs font-semibold">compare</span>
+  </div>
   <div class="mt-2 text-sm">
 
   - Both snapshots stay available
@@ -211,10 +246,10 @@ Ceph RBD **requires** retaining the previous snapshot for `GetMetadataDelta`.
 <v-click>
 <div class="mt-3 p-2 bg-blue-900 bg-opacity-20 rounded text-xs">
 
-Ref: [Design (merged)](https://github.com/velero-io/velero/pull/9528) defines the two cases.
+Ref: the [merged Velero design](https://github.com/velero-io/velero/pull/9528) defines the two cases.
 
 - **1.19.0 (not released) will not support Case 2.** Velero deletes the old snapshot, so Ceph incrementals fall back. Data is still correct.
-- **Planned fix:** a 1.19.x patch ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744)); Velero would decide what to keep itself, not through a storage-class setting.
+- **Planned fix:** a 1.19.x patch ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744)); Velero itself would decide which snapshot to keep, not a storage setting.
 - **Kept from [PR #10307](https://github.com/velero-io/velero/pull/10307):** the changeID fix, which sends the correct snapshot ID.
 
 </div>
@@ -472,9 +507,9 @@ Retaining snapshots for CBT can **trigger the flattening it's trying to avoid** 
 
 <v-clicks>
 
-1. Case 2 (keep the old snapshot) needs it to stay on the original volume.
+1. Case 2 (keep the old snapshot) needs that snapshot to stay on the original volume.
 2. Frequent backups (e.g., hourly) can pile up snapshots if retention is unmanaged.
-3. At `maxSnapshotsOnImage` (default 450), CephCSI merges in-between copies (flattening).
+3. At `maxSnapshotsOnImage` (default 450), CephCSI merges in-between snapshots (flattening).
 4. Flattening merges the snapshot chain, so `GetMetadataDelta` fails and the backup falls back.
 5. A new chain starts and incrementals resume until the snapshot count hits 450 again.
 
@@ -483,8 +518,8 @@ Retaining snapshots for CBT can **trigger the flattening it's trying to avoid** 
 <v-click>
 <div class="mt-4 p-3 bg-yellow-900 bg-opacity-20 rounded text-sm">
 
-- **Today (1.19.0, not released):** retains nothing, so no snapshots pile up, but Ceph backups fall back once the old snapshot is gone.
-- **Planned ([#10744](https://github.com/velero-io/velero/issues/10744)):** keep one snapshot per volume; delete it after the next backup succeeds, or when its backup is deleted. The count stays tiny.
+- <span class="st-warn"></span> **Today (1.19.0, not released):** retains nothing, so no snapshots pile up, but Ceph backups fall back once the old snapshot is gone.
+- <span class="st-plan"></span> **Planned ([#10744](https://github.com/velero-io/velero/issues/10744)):** keep one snapshot per volume; delete it after the next backup succeeds, or when its backup is deleted. The count stays tiny.
 - **In the earlier keep-snapshots version ([#9835](https://github.com/velero-io/velero/issues/9835)):** retained snapshots were never cleaned up, so they piled up.
 
 </div>
@@ -577,18 +612,18 @@ transition: slide-left
 
 # Velero Block Data Mover Status (2026-10-27)
 
-Skim the rest. Only #10743/#10744 (and draft #10691, their candidate fix) matter for incrementals.
+Block data mover = Velero's block copier. Only #10743/#10744 matter for incrementals.
 
 <div class="grid grid-cols-2 gap-6 text-xs leading-tight">
 <div>
 
-**Decided**
+<span class="st-note"></span> **Decided**
 - **1.19.0 (not released) will not support Case 2** (keep the old snapshot). The older keep-old-snapshots change was undone; its changeID fix (right snapshot ID) kept.
 - The file system data mover never keeps snapshots.
-- Case 2 design: 1.19.x patch ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744)).
+- Case 2 needs a new design, aimed at a 1.19.x patch ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744)).
 - OADP 1.7: a target for Ceph CBT, not a commitment.
 
-**Merged**
+<span class="st-ok"></span> **Merged**
 - [#10698](https://github.com/velero-io/velero/pull/10698) restore fix for empty blocks
 - [#10696](https://github.com/velero-io/velero/pull/10696) design doc order fixed
 - [#10700](https://github.com/velero-io/velero/pull/10700) cleanup after interrupted deletion
@@ -596,16 +631,16 @@ Skim the rest. Only #10743/#10744 (and draft #10691, their candidate fix) matter
 </div>
 <div>
 
-**Fixes in progress**
+<span class="st-warn"></span> **Fixes in progress**
 - [#10699](https://github.com/velero-io/velero/pull/10699) in-place restore (over the same volume) leaves a snapshot behind
-- [#10708](https://github.com/velero-io/velero/pull/10708) interrupted backup leaves a snapshot record (draft)
+- [#10708](https://github.com/velero-io/velero/pull/10708) draft fix: leftover snapshot entry after an interrupted backup
 - [#10710](https://github.com/velero-io/velero/pull/10710) failed-backup snapshot cleanup
 - [#10718](https://github.com/velero-io/velero/pull/10718) docs
-- [#10691](https://github.com/velero-io/velero/pull/10691) deleting kept snapshots (draft, #10744 candidate)
+- [#10691](https://github.com/velero-io/velero/pull/10691) draft code for #10744 (deleting kept snapshots)
 
-**Bugs not fixed yet**
-- [#10724](https://github.com/velero-io/velero/issues/10724) / [#10740](https://github.com/velero-io/velero/pull/10740) data-mover pod runs out of memory
-- [#10730](https://github.com/velero-io/velero/issues/10730) restore hangs when volumes bind at different times
+<span class="st-bad"></span> **Bugs not fixed yet**
+- [#10724](https://github.com/velero-io/velero/issues/10724) data mover pod runs out of memory (fix PR [#10740](https://github.com/velero-io/velero/pull/10740) not merged)
+- [#10730](https://github.com/velero-io/velero/issues/10730) restore hangs when volumes become ready late
 
 </div>
 </div>
@@ -615,7 +650,7 @@ Skim the rest. Only #10743/#10744 (and draft #10691, their candidate fix) matter
 
 **Worked in pre-rollback builds** (before that undo, which kept the old snapshot); 1.19.0 will not.
 
-- Incremental backups were small (144 MiB, 150,994,944 B); restores matched (checksums), VMs booted, an extra disk added while running matched; in-place restore moved 258 MiB (270,532,608 B) for 30 GiB in 22 s.
+- Incremental backups of a 30 GiB volume were small (144 MiB, 150,994,944 B); restores matched (checksums), VMs booted, an extra disk added while running matched; in-place restore moved 258 MiB (270,532,608 B) in 22 s.
 
 </div>
 </v-click>
@@ -636,27 +671,27 @@ transition: slide-left
 <div class="grid grid-cols-2 gap-6 mt-4 text-sm">
 <div>
 
-**Works regardless**
+<span class="st-ok"></span> **Works with or without the old snapshot**
 - `GetMetadataAllocated` for full backup
 - File-system volumes backed up as raw blocks
 - Restore back to a filesystem volume
 - Volume resize between backups
-- Shallow snapshot chains (typical workflows)
+- Shallow snapshot chains (few snapshots; typical workflows)
 - Errors are clear, no crash
 - **Automatic fallback** on CBT errors (copies more data, correct; [PR #9736](https://github.com/velero-io/velero/pull/9736) merged)
 
-**Works only with the old snapshot kept**
+<span class="st-warn"></span> **Works only with the old snapshot kept**
 - `GetMetadataDelta` for incremental
 
 </div>
 <div>
 
 **Constraints & User Actions**
-- **Incremental on Ceph does NOT work yet; full backup does.**
+- <span class="st-bad"></span> **Incremental on Ceph does NOT work yet; full backup does.**
 - **Velero 1.19.0 (not released) will not keep the old snapshot**: Ceph delta falls back once it is gone; no user setting restores incrementality yet
 - Case 2 (keep the old snapshot) design: 1.19.x patch ([#10743](https://github.com/velero-io/velero/issues/10743), [#10744](https://github.com/velero-io/velero/issues/10744))
-- Delta fails after flattening (Velero falls back: copies more data, slower, correct)
-- **One narrow exception:** read-only restores (ROX = restored read-only) skip merging, so incrementals still work; normal restores do not ([PR #6534](https://github.com/ceph/ceph-csi/pull/6534))
+- Delta fails after flattening (Ceph merges the chain; Velero falls back: copies more data, slower, correct)
+- **One narrow exception to the flattening line:** volumes restored read-only (ROX = ReadOnlyMany) skip merging, so incrementals still work; normal restores do not ([PR #6534](https://github.com/ceph/ceph-csi/pull/6534))
 - **Existing backups stay safe:** no action needed after flattening.
 
 </div>
@@ -665,7 +700,7 @@ transition: slide-left
 <v-click>
 <div class="mt-4 p-3 bg-blue-900 bg-opacity-20 rounded text-sm">
 
-**Action for new backups:** schedule a weekly or monthly full backup, so a broken chain gets rebuilt.
+**Optional (person):** a <span class="underline decoration-green-500 decoration-2 underline-offset-4">weekly or monthly full backup</span> keeps a known-good full copy.
 
 </div>
 </v-click>

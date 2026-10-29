@@ -1,0 +1,128 @@
+/* Deck-wide visual language: one color = one meaning, motion that settles. */
+
+@keyframes flarePulse {
+  0%, 100% { opacity: .45 }
+  50% { opacity: 1 }
+}
+
+@keyframes flareGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, .5) }
+  50% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0) }
+}
+
+@keyframes flareDash {
+  to { background-position: 16px 0 }
+}
+
+@keyframes flareNudge {
+  0%, 100% { transform: translateX(0) }
+  50% { transform: translateX(4px) }
+}
+
+.flare-pulse { animation: flarePulse 2.4s ease-in-out infinite }
+.flare-glow { animation: flareGlow 2.8s ease-out infinite }
+.flare-nudge { display: inline-block; animation: flareNudge 1.8s ease-in-out infinite }
+
+/* dashed connector that reads as "delta between two snapshots" */
+.flare-dash {
+  display: inline-block;
+  height: 2px;
+  background-image: linear-gradient(90deg, currentColor 50%, transparent 0);
+  background-size: 8px 2px;
+  background-repeat: repeat-x;
+  animation: flareDash 1s linear infinite;
+}
+
+/* snapshot chips: neutral by default, green + glow while the chip is kept */
+.snap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .1rem .45rem;
+  border-radius: .25rem;
+  border: 1px solid rgba(130, 130, 130, .5);
+  background: rgba(130, 130, 130, .12);
+  font-size: .7rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.snap-chip.gone {
+  opacity: .38;
+  text-decoration: line-through;
+  border-style: dashed;
+}
+.snap-chip.kept {
+  border-color: rgba(34, 197, 94, .85);
+  background: rgba(34, 197, 94, .12);
+}
+
+/* status scale: green = works, amber = works with a fallback or condition,
+   red = not available in 1.19.0. Glyphs live here so they also render inside
+   markdown tables and lists, where inline <Icon /> components are not parsed. */
+.st-ok { color: #15803d }
+.st-warn { color: #b45309 }
+.st-bad { color: #b91c1c }
+.dark .st-ok { color: #4ade80 }
+.dark .st-warn { color: #fbbf24 }
+.dark .st-bad { color: #f87171 }
+
+.st-ok::before { content: "\2713\00a0" }
+.st-warn::before { content: "\0021\00a0" }
+.st-bad::before { content: "\2715\00a0" }
+
+/* planned work gets a hollow marker so it never reads as done */
+.st-plan { color: #6b7280 }
+.dark .st-plan { color: #9ca3af }
+.st-plan::before { content: "\25cb\00a0" }
+
+/* neutral marker for headings that carry no status */
+.st-note { color: #6b7280 }
+.dark .st-note { color: #9ca3af }
+.st-note::before { content: "\25b8\00a0" }
+
+/* small pill used for availability tags and the color key */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: .1rem .45rem;
+  border-radius: .25rem;
+  border: 1px solid rgba(130, 130, 130, .4);
+  background: rgba(250, 250, 250, .6);
+  font-size: .65rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.dark .tag-pill { background: rgba(40, 40, 40, .6) }
+
+/* theme paragraphs carry vertical margins; footnotes need exact control */
+.flush p { margin: 0 }
+
+/* title motif: a block map with only the changed blocks lit */
+.block-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 16px);
+  gap: 5px;
+}
+.block-grid span {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: rgba(130, 130, 130, .22);
+}
+.block-grid span.on {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, .55);
+  animation: flarePulse 3s ease-in-out infinite;
+}
+.block-grid span.on:nth-child(3n) { animation-delay: .6s }
+
+@media (prefers-reduced-motion: reduce) {
+  .flare-pulse,
+  .flare-glow,
+  .flare-nudge,
+  .flare-dash,
+  .block-grid span.on {
+    animation: none !important;
+  }
+}
