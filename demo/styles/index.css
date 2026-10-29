@@ -98,6 +98,13 @@
 /* theme paragraphs carry vertical margins; footnotes need exact control */
 .flush p { margin: 0 }
 
+/* reference lists: trim the theme's paragraph and list spacing so long
+   link lists fit one slide at normal type size */
+.refs p { margin: .35rem 0 .1rem }
+.refs ul { margin: .1rem 0 }
+.refs li { margin: 0 }
+.refs ul + p { margin-top: .45rem }
+
 /* title motif: a block map with only the changed blocks lit */
 .block-grid {
   display: grid;

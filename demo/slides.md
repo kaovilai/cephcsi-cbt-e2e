@@ -646,7 +646,7 @@ Block data mover = Velero's block copier. Only #10743/#10744 matter for incremen
 </div>
 
 <v-click>
-<div class="mt-1 px-2 py-1 bg-blue-900 bg-opacity-20 rounded text-xs">
+<div class="px-2 py-1 bg-blue-900 bg-opacity-20 rounded text-xs">
 
 **Worked in pre-rollback builds** (before that undo, which kept the old snapshot); 1.19.0 will not.
 
@@ -698,7 +698,7 @@ transition: slide-left
 </div>
 
 <v-click>
-<div class="mt-4 p-3 bg-blue-900 bg-opacity-20 rounded text-sm">
+<div class="mt-3 p-2 bg-blue-900 bg-opacity-20 rounded text-sm">
 
 **Optional (person):** a <span class="underline decoration-green-500 decoration-2 underline-offset-4">weekly or monthly full backup</span> keeps a known-good full copy.
 
@@ -719,7 +719,7 @@ transition: slide-left
 
 # Key References
 
-<div class="grid grid-cols-2 gap-4 text-sm">
+<div class="grid grid-cols-2 gap-4 text-sm refs">
 <div>
 
 **CephCSI CBT**
@@ -741,7 +741,7 @@ transition: slide-left
 - [CBT Interfaces (merged)](https://github.com/velero-io/velero/pull/9716) -- PR #9716
 - [CBT Bitmap (merged)](https://github.com/velero-io/velero/pull/9736) -- PR #9736
 - [ChangeId for Ceph (closed)](https://github.com/velero-io/velero/issues/9714) -- Issue #9714
-- [changeID fix (merged; class-inherit part rolled back)](https://github.com/velero-io/velero/pull/10307) -- PR #10307
+- [changeID fix (merged; class-inherit rolled back)](https://github.com/velero-io/velero/pull/10307) -- PR #10307
 - [Case 2 umbrella](https://github.com/velero-io/velero/issues/10743) -- Issue #10743
 - [Case 2 design](https://github.com/velero-io/velero/issues/10744) -- Issue #10744
 - [Base-snapshot retention draft](https://github.com/kaovilai/velero/blob/design-base-snapshot-retention/design/block-data-mover/base-snapshot-retention.md) -- proposals for 1.19.x
@@ -749,8 +749,8 @@ transition: slide-left
 - [CBT Integration Plan](https://hackmd.io/@velero/r1U1EVKdgl)
 
 **Setup & Getting Started**
-- [CBT sidecar for ODF](https://access.redhat.com/articles/7130698) -- Developer Preview (KCS written for ODF 4.20)
-- Early ODF 4.21 builds ship an older sidecar; this suite overrides it with upstream `csi-snapshot-metadata` v0.2.0
+- [CBT sidecar for ODF](https://access.redhat.com/articles/7130698) -- Developer Preview (KCS for ODF 4.20)
+- Early ODF 4.21 sidecar is older; this suite overrides it with `csi-snapshot-metadata` v0.2.0
 - [k8s-cbt-s3mover-demo](https://github.com/kaovilai/k8s-cbt-s3mover-demo) -- CBT intro & demo
 - [This test suite](https://github.com/kaovilai/cephcsi-cbt-e2e)
 
