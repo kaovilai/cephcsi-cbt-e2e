@@ -201,7 +201,7 @@ Velero's block data mover (the Velero component that copies volume data block by
 **What changed at the 2026-10-27 community meeting:**
 
 - **Velero 1.19.0 does not support Case 2.** Case 2 means storage, such as Ceph RBD, that can list changed blocks only while the earlier base snapshot still exists.
-- **One half of [#10307](https://github.com/velero-io/velero/pull/10307) is rolled back.** That half copied the `deletionPolicy` setting (`Delete` means the snapshot is removed after the backup) from the user's VolumeSnapshotClass onto the snapshot record Velero creates for the backup (the backup `VolumeSnapshotContent`, or VSC). That record is now always `Delete`, as in 1.18.
+- **One half of [#10307](https://github.com/velero-io/velero/pull/10307) was rolled back ([#10753](https://github.com/velero-io/velero/pull/10753), merged 2026-10-29).** That half copied the `deletionPolicy` setting (`Delete` means the snapshot is removed after the backup) from the user's VolumeSnapshotClass onto the snapshot record Velero creates for the backup (the backup `VolumeSnapshotContent`, or VSC). That record is now always `Delete`, as in 1.18.
 - **The other half stays.** Velero still sends the correct snapshot handle (the snapshot's ID, also called the changeID) to the driver (Ceph's storage plug-in, CephCSI) ([#10294](https://github.com/velero-io/velero/issues/10294)).
 - **What happens to a Ceph backup.** If the base snapshot is already gone, the driver call that lists changed blocks (`GetMetadataDelta`) fails. Velero then tries allocated blocks and, if that also fails, a full backup. Velero labels the backup `fallbackFull` whenever this fallback path runs, whether it ended up copying allocated blocks or a full copy; the data is correct, but the incremental saving is lost.
 - **The file system data mover never keeps snapshots** after a backup.
@@ -235,7 +235,7 @@ Enablement: no alpha flag; the CSI feature (`EnableCSI`) is required, and the da
 
 Snapshot retention for Ceph with 1.19.0:
 
-- `deletionPolicy: Retain` (keep the snapshot after the backup) is not a workaround. That path is being withdrawn.
+- `deletionPolicy: Retain` (keep the snapshot after the backup) is not a workaround. That path was withdrawn ([#10753](https://github.com/velero-io/velero/pull/10753)).
 - Keeping snapshots alone does not help, because nothing tracks or cleans them up for CBT; that is what the Case 2 design adds.
 - Until #10743/#10744 land in a 1.19.x patch, expect Ceph block data mover backups to fall back to allocated blocks or full when the base snapshot is gone.
 - Keeping snapshots also has a cost: the earlier path left snapshots behind ([#9835](https://github.com/velero-io/velero/issues/9835), [#10304](https://github.com/velero-io/velero/issues/10304)), and `maxSnapshotsOnImage` (Ceph's limit on snapshots per image) can make Ceph flatten (merge) images, which breaks CBT.

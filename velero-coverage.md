@@ -24,7 +24,7 @@ released** (latest release: v1.18.4; no v1.19 tag exists). No GA date is implied
 | End-to-end block data mover umbrella | Closed as completed ([#9556](https://github.com/velero-io/velero/issues/9556)) |
 | Verify ChangeId for Ceph | Closed as completed ([#9714](https://github.com/velero-io/velero/issues/9714)) |
 | Generic changeID retrieval | Merged ([#10307](https://github.com/velero-io/velero/pull/10307), fixes [#10294](https://github.com/velero-io/velero/issues/10294)); on `main`/v1.19, not in 1.18.x |
-| Snapshot-class `deletionPolicy` inheritance for CBT retention | **Being rolled back** for 1.19.0 (class-inherit half of [#10307](https://github.com/velero-io/velero/pull/10307)). The backup VSC is always `Delete`, as in 1.18 |
+| Snapshot-class `deletionPolicy` inheritance for CBT retention | **Rolled back** for 1.19.0 ([#10753](https://github.com/velero-io/velero/pull/10753), merged 2026-10-29; class-inherit half of [#10307](https://github.com/velero-io/velero/pull/10307)). The backup VSC is always `Delete`, as in 1.18 |
 | Case 2 retention (storage needing the base snapshot) | Separate design, target 1.19.x: umbrella [#10743](https://github.com/velero-io/velero/issues/10743), design [#10744](https://github.com/velero-io/velero/issues/10744); candidate implementation [#10691](https://github.com/velero-io/velero/pull/10691) (draft) |
 | Block uploader zero-range restore | Merged ([#10698](https://github.com/velero-io/velero/pull/10698), `BLKZEROOUT` ioctl) |
 | Deletion and cleanup fixes | Merged [#10700](https://github.com/velero-io/velero/pull/10700) (kopia snapshot not found after an interrupted deletion); open [#10699](https://github.com/velero-io/velero/pull/10699) (in-place restore baseline snapshot), [#10708](https://github.com/velero-io/velero/pull/10708) (source VSC after interrupted expose, draft), [#10710](https://github.com/velero-io/velero/pull/10710) (failed-backup VolumeSnapshots) |
@@ -83,7 +83,7 @@ still open.
 ### How retention is configured (1.19.0 and the pending design)
 
 **In 1.19.0 there is no retention configuration.** The class-inherit half of
-[#10307](https://github.com/velero-io/velero/pull/10307) is being rolled back, so the
+[#10307](https://github.com/velero-io/velero/pull/10307) was rolled back ([#10753](https://github.com/velero-io/velero/pull/10753)), so the
 backup `VolumeSnapshotContent` is always `Delete` and Velero does not read the
 VolumeSnapshotClass `deletionPolicy` for data movement. The file system data mover never
 retains snapshots.

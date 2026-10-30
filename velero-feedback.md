@@ -14,7 +14,7 @@ Companion documents: [velero-coverage.md](./velero-coverage.md) (test mapping) a
 
 | # | Topic | Status |
 |---|-------|--------|
-| 1 | Snapshot retention for Ceph RBD | **Not supported in 1.19.0.** The `VolumeSnapshotClass` `deletionPolicy` inheritance is being rolled back; a separate Case 2 design ([#10744](https://github.com/velero-io/velero/issues/10744)) targets a 1.19.x patch |
+| 1 | Snapshot retention for Ceph RBD | **Not supported in 1.19.0.** The `VolumeSnapshotClass` `deletionPolicy` inheritance was rolled back ([#10753](https://github.com/velero-io/velero/pull/10753), merged 2026-10-29); a separate Case 2 design ([#10744](https://github.com/velero-io/velero/issues/10744)) targets a 1.19.x patch |
 | 2 | ChangeId = CSI snapshot handle | Resolved: confirmed for Ceph and fixed on `main` ([#10307](https://github.com/velero-io/velero/pull/10307)); fix not in 1.18.x |
 | 3 | Fallback when the delta cannot be computed | Implemented (degrades changed -> allocated -> full); Ceph-specific documentation remains open |
 | 4 | 1 MiB chunk alignment | Compatibility note; unchanged |
@@ -40,7 +40,7 @@ The 2026-10-27 Velero community meeting decided that **Velero 1.19.0 does not su
 Case 2**:
 
 - The class-inherit half of [velero-io/velero#10307](https://github.com/velero-io/velero/pull/10307)
-  is being rolled back (Lyndon-Li's rollback PR), so the backup
+  was rolled back ([#10753](https://github.com/velero-io/velero/pull/10753), merged 2026-10-29), so the backup
   `VolumeSnapshotContent` is always `Delete`, as in 1.18.
 - The changeID fix from the same PR ([#10294](https://github.com/velero-io/velero/issues/10294))
   stays.
@@ -424,5 +424,5 @@ skips flattening for read-only restores to be fully effective. Velero does not c
 | 6 | Pre-flight check and docs for the SnapshotMetadataService prerequisite (Ceph/ODF setup) | **High** | Documentation, pre-flight checks |
 | 7 | Document read-only `backupPVC` for Ceph RBD (and the ceph-csi >= 3.18 dependency) | **Medium** | Documentation |
 | 8 | Document 1 MiB chunk alignment | **Low** | Documentation |
-| 9 | Bound block data mover write concurrency and set a Go soft memory limit; on a 96 vCPU node the default still OOMs ([#10724](https://github.com/velero-io/velero/issues/10724), fix in [#10740](https://github.com/velero-io/velero/pull/10740)) | **High** | Block data mover |
+| 9 | Bound block data mover write concurrency and set a Go soft memory limit; on a 96 vCPU node the default OOMed ([#10724](https://github.com/velero-io/velero/issues/10724), closed as completed; [#10740](https://github.com/velero-io/velero/pull/10740) merged 2026-10-28) | **High** | Block data mover |
 | 10 | Do not block the single DataDownload worker while waiting for a `WaitForFirstConsumer` PVC ([#10730](https://github.com/velero-io/velero/issues/10730); workaround `restorePVC.ignoreDelayBinding: true`) | **High** | DataDownload controller |

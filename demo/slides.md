@@ -257,7 +257,7 @@ Ref: the [merged Velero design](https://github.com/velero-io/velero/pull/9528) d
 
 <!--
 - Velero design doc defines Case 1 and Case 2 retention strategies
-- 2026-10-27 community meeting: 1.19.0 drops the class-inherit behavior (rollback of part of #10307); the changeID fix stays
+- 2026-10-27 community meeting: 1.19.0 drops the class-inherit behavior (rollback of part of #10307, merged in [#10753](https://github.com/velero-io/velero/pull/10753)); the changeID fix stays
 - Ceph RBD requires Case 2 because rbd diff traverses the parent chain
 - Test: velero_compliance_test.go -- negative test asserts Case 1 fails at the CSI layer; Velero then falls back
 -->
@@ -639,7 +639,7 @@ Block data mover = Velero's block copier. Only #10743/#10744 matter for incremen
 - [#10691](https://github.com/velero-io/velero/pull/10691) draft code for #10744 (deleting kept snapshots)
 
 <span class="st-bad"></span> **Bugs not fixed yet**
-- [#10724](https://github.com/velero-io/velero/issues/10724) data mover pod runs out of memory (fix PR [#10740](https://github.com/velero-io/velero/pull/10740) not merged)
+- [#10724](https://github.com/velero-io/velero/issues/10724) data mover pod runs out of memory (closed as completed; [#10740](https://github.com/velero-io/velero/pull/10740) merged 2026-10-28)
 - [#10730](https://github.com/velero-io/velero/issues/10730) restore hangs when volumes become ready late
 
 </div>
