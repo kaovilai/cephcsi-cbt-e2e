@@ -311,7 +311,7 @@ This document focuses on **upstream K8s/CSI requirements**. The companion
 | Handle-based delta | T-API-2, T-SNAP-2 | Handle retention, Type 1 vs Type 2 |
 | Backup workflow | T-BKP-1 through T-BKP-5 | Full + incremental chain simulation |
 | Error fallback | T-ERR-8, T-ERR-9 | Any CBT error degrades changed -> allocated -> full |
-| Snapshot retention | T-SNAP-2 | **Not supported in 1.19.0.** Class-based `Retain` is being rolled back; Case 2 retention is proposed for a 1.19.x patch ([velero#10744](https://github.com/velero-io/velero/issues/10744)). Until then Ceph RBD deltas fall back |
+| Snapshot retention | T-SNAP-2 | **Not supported in 1.19.0.** Class-based `Retain` was rolled back ([velero#10753](https://github.com/velero-io/velero/pull/10753), merged 2026-10-29); Case 2 retention is proposed for a 1.19.x patch ([velero#10744](https://github.com/velero-io/velero/issues/10744)). Until then Ceph RBD deltas fall back |
 | Ceph-specific (450/250 snapshot thresholds, flattening, omap proposals) | Not in upstream spec | Velero-specific coverage |
 
 ---
